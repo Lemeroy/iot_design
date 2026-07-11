@@ -1,0 +1,102 @@
+# 卒中卫士云端 M5 · 优云 VPS 自建
+#
+# 组件:
+#   emqx     : MQTT broker (1883 明文 + 8883 TLS + 18083 dashboard)
+#   influxdb : 时序库 2.7 (8086)
+#   backend  : FastAPI + MQTT bridge + 豆包 doubao-1.5-lite
+#
+# 首次启动:
+#   1. cp .env.example .env  并填 VOLC_ARK_API_KEY / INFLUX_TOKEN / MQTT_APP_PASS
+#   2. bash scripts/gen_certs.sh 106.75.229.61     # 生成自签证书
+#   3. docker compose up -d
+#   4. curl http://<HOST>:8000/health
+
+services:
+  emqx:
+    image: emqx/emqx:5.7
+    container_name: sg-emqx
+    restart: unless-stopped
+    ports:
+      - "1883:1883"      # MQTT
+      - "8883:8883"      # MQTTS (TLS)
+      - "18083:18083"    # Dashboard (仅限管理员 IP)
+    environment:
+      EMQX_NAME: "sg-emqx"
+      EMQX_HOST: "127.0.0.1"
+      EMQX_DASHBOARD__DEFAULT_USERNAME: "admin"
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: "${EMQX_DASHBOARD_PASS:-strokeguard}"
+      # 认证配置 (禁匿名, 走内置数据库)
+      EMQX_ALLOW_ANONYMOUS: "false"
+      EMQX_AUTHENTICATION__1__MECHANISM: "password_based"
+      EMQX_AUTHENTICATION__1__BACKEND: "built_in_database"
+      EMQX_AUTHENTICATION__1__USER_ID_TYPE: "username"
+      EMQX_AUTHENTICATION__1__BOOTSTRAP_FILE: "/opt/emqx/etc/auth-built-in-db-bootstrap.csv"
+      EMQX_AUTHENTICATION__1__BOOTSTRAP_TYPE: "plain"
+      # TLS
+      EMQX_LISTENERS__SSL__DEFAULT__SSL_OPTIONS__KEYFILE: "/opt/emqx/etc/certs/server.key"
+      EMQX_LISTENERS__SSL__DEFAULT__SSL_OPTIONS__CERTFILE: "/opt/emqx/etc/certs/server.crt"
+      EMQX_LISTENERS__SSL__DEFAULT__SSL_OPTIONS__VERIFY: "verify_none"
+    volumes:
+      - emqx_data:/opt/emqx/data
+      - emqx_log:/opt/emqx/log
+      - ./emqx/certs:/opt/emqx/etc/certs:ro
+      - ./emqx/auth-built-in-db-bootstrap.csv:/opt/emqx/etc/auth-built-in-db-bootstrap.csv:ro
+      - ./emqx/init_users.sh:/opt/emqx/init_users.sh:ro
+    networks:
+      - sgnet
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: sg-influx
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8086:8086"   # 仅本机, 不开放公网
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: "setup"
+      DOCKER_INFLUXDB_INIT_USERNAME: "${INFLUX_ADMIN_USER:-admin}"
+      DOCKER_INFLUXDB_INIT_PASSWORD: "${INFLUX_ADMIN_PASS:-strokeguard_admin}"
+      DOCKER_INFLUXDB_INIT_ORG: "${INFLUX_ORG:-strokeguard}"
+      DOCKER_INFLUXDB_INIT_BUCKET: "${INFLUX_BUCKET:-scores}"
+      DOCKER_INFLUXDB_INIT_RETENTION: "90d"
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: "${INFLUX_TOKEN}"
+    volumes:
+      - influx_data:/var/lib/influxdb2
+      - influx_cfg:/etc/influxdb2
+    networks:
+      - sgnet
+
+  backend:
+    build: ./backend
+    container_name: sg-backend
+    restart: unless-stopped
+    depends_on:
+      - emqx
+      - influxdb
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USER: "${MQTT_APP_USER:-backend}"
+      MQTT_PASS: "${MQTT_APP_PASS}"
+      INFLUX_URL: "http://influxdb:8086"
+      INFLUX_ORG: "${INFLUX_ORG:-strokeguard}"
+      INFLUX_BUCKET: "${INFLUX_BUCKET:-scores}"
+      INFLUX_TOKEN: "${INFLUX_TOKEN}"
+      VOLC_ARK_API_KEY: "${VOLC_ARK_API_KEY}"
+      VOLC_ARK_MODEL: "${VOLC_ARK_MODEL:-}"
+      VOLC_ARK_BASE_URL: "${VOLC_ARK_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}"
+    networks:
+      - sgnet
+
+volumes:
+  emqx_data:
+  emqx_log:
+  influx_data:
+  influx_cfg:
+
+networks:
+  sgnet:
+    driver: bridge

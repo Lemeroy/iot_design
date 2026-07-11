@@ -1,0 +1,15 @@
+node.name = "emqx@127.0.0.1"
+
+listeners.tcp.default {
+  bind = "0.0.0.0:1883"
+}
+
+dashboard.listeners.http.bind = "0.0.0.0:18083"
+authorization.no_match = deny
+
+log.console.enable = false
+log.file.default {
+  enable = true
+  path = "log/emqx.log"
+  level = warning
+}

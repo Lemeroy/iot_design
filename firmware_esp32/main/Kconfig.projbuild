@@ -1,0 +1,181 @@
+menu "StrokeGuard M1a/M1b Config"
+
+    config STROKEGUARD_WIFI_SSID
+        string "WiFi SSID"
+        default "YOUR_SSID"
+        help
+            SSID for CSI collection AP. Fixed 2.4GHz Ch6 20MHz recommended.
+
+    config STROKEGUARD_WIFI_PASSWORD
+        string "WiFi Password"
+        default "YOUR_PASS"
+        help
+            WPA2-PSK password.
+
+    menu "M1b hardware scaffold"
+
+        config STROKEGUARD_HW_CAMERA_ENABLE
+            bool "Enable GC2145 camera driver"
+            default n
+            help
+                Disabled until the GC2145 module and board wiring are confirmed.
+
+        config STROKEGUARD_HW_AUDIO_IN_ENABLE
+            bool "Enable INMP441 microphone capture"
+            default n
+            help
+                Disabled until the INMP441 module and I2S pins are confirmed.
+
+        config STROKEGUARD_HW_DISPLAY_ENABLE
+            bool "Enable ST7789 TFT display"
+            default n
+            help
+                Disabled until the ST7789 SPI pins are confirmed.
+
+        config STROKEGUARD_HW_AUDIO_OUT_ENABLE
+            bool "Enable MAX98357A audio output"
+            default n
+            help
+                Disabled until the MAX98357A I2S pins are confirmed.
+
+        config STROKEGUARD_HW_ALERT_ENABLE
+            bool "Enable RGB LED, buzzer, and buttons"
+            default n
+            help
+                Disabled until RGB LED, buzzer, and button pins are confirmed.
+
+        config STROKEGUARD_PIN_GC2145_PWDN
+            int "GC2145 PWDN GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_GC2145_RESET
+            int "GC2145 RESET GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_GC2145_XCLK
+            int "GC2145 XCLK GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_GC2145_SIOD
+            int "GC2145 SIOD/SDA GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_GC2145_SIOC
+            int "GC2145 SIOC/SCL GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_GC2145_PCLK
+            int "GC2145 PCLK GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_GC2145_VSYNC
+            int "GC2145 VSYNC GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_GC2145_HREF
+            int "GC2145 HREF GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_GC2145_D0
+            int "GC2145 D0 GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_GC2145_D1
+            int "GC2145 D1 GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_GC2145_D2
+            int "GC2145 D2 GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_GC2145_D3
+            int "GC2145 D3 GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_GC2145_D4
+            int "GC2145 D4 GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_GC2145_D5
+            int "GC2145 D5 GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_GC2145_D6
+            int "GC2145 D6 GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_GC2145_D7
+            int "GC2145 D7 GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_INMP441_BCLK
+            int "INMP441 BCLK GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_INMP441_WS
+            int "INMP441 WS/LRCLK GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_INMP441_DIN
+            int "INMP441 SD/DIN GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_ST7789_MOSI
+            int "ST7789 MOSI GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_ST7789_SCLK
+            int "ST7789 SCLK GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_ST7789_CS
+            int "ST7789 CS GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_ST7789_DC
+            int "ST7789 DC GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_ST7789_RST
+            int "ST7789 RST GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_ST7789_BL
+            int "ST7789 backlight GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_MAX98357_BCLK
+            int "MAX98357A BCLK GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_MAX98357_LRC
+            int "MAX98357A LRC GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_MAX98357_DIN
+            int "MAX98357A DIN GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_ALERT_RGB
+            int "RGB LED data GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_ALERT_BUZZER
+            int "active buzzer GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_BUTTON_1
+            int "button 1 GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_BUTTON_2
+            int "button 2 GPIO (-1 = unassigned)"
+            default -1
+
+        config STROKEGUARD_PIN_BUTTON_3
+            int "button 3 GPIO (-1 = unassigned)"
+            default -1
+
+    endmenu
+
+endmenu

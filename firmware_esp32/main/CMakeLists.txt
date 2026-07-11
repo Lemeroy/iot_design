@@ -1,0 +1,32 @@
+idf_component_register(
+    SRCS
+        "app_main.c"
+        "crc16.c"
+        "usb_cdc_proto.c"
+        "csi_monitor.c"
+        "csi_ping.c"
+        "frame_builder.c"
+        "sensor_frame.c"
+        "camera_gc2145.c"
+        "audio_inmp441.c"
+        "display_st7789.c"
+        "audio_out_max98357.c"
+        "alert_io.c"
+        "fusion.c"
+        "scores_parser.c"
+    INCLUDE_DIRS "."
+    REQUIRES
+        esp_wifi
+        nvs_flash
+        esp_event
+        esp_netif
+        esp_timer
+        json
+        driver
+        freertos
+        esp_hw_support
+        esp_system
+        log
+        esp_driver_usb_serial_jtag
+        lwip
+)

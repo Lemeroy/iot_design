@@ -1,0 +1,75 @@
+/* app.wxss - 全局样式 */
+page {
+  background: #f5f7fa;
+  font-family: -apple-system, 'Microsoft YaHei', sans-serif;
+  color: #1a2530;
+}
+
+.container {
+  padding: 24rpx;
+}
+
+.card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);
+}
+
+.title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #1a2530;
+  margin-bottom: 12rpx;
+}
+
+.subtitle {
+  font-size: 24rpx;
+  color: #7a8899;
+}
+
+.level-normal  { color: #2ecc71; }
+.level-warning { color: #f1c40f; }
+.level-danger  { color: #e74c3c; }
+.level-insufficient { color: #888888; }
+
+.big-number {
+  font-size: 96rpx;
+  font-weight: bold;
+  line-height: 1.1;
+}
+
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #eef0f3;
+}
+.score-row:last-child { border-bottom: none; }
+.score-key { color: #4a5866; }
+.score-val { font-weight: bold; }
+
+.advice-text {
+  font-size: 30rpx;
+  line-height: 1.6;
+  color: #1a2530;
+  white-space: pre-wrap;
+}
+
+.disclaimer {
+  font-size: 22rpx;
+  color: #999;
+  line-height: 1.5;
+  padding: 24rpx;
+  background: #eef2f5;
+  border-radius: 12rpx;
+  border-left: 6rpx solid #7fb3ff;
+}
+
+.btn-refresh {
+  margin-top: 20rpx;
+  background: #3498db;
+  color: #fff;
+  border-radius: 40rpx;
+}

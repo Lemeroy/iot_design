@@ -1,0 +1,20 @@
+# 卒中卫士 · 用户档案 (本地存储, 不入 git, 不上传原始媒体)
+# 每次 uplink 只把这里的数值/枚举字段随评分一起上云
+
+device_id: "sg-0001"
+
+user:
+  age: 68
+  gender: "M"            # M / F / other
+  conditions:            # 慢性病列表
+    - "hypertension"
+    - "diabetes"
+  meds:                  # 长期用药
+    - "aspirin"
+  stroke_history: false  # 既往卒中史
+
+# 阈值可选覆盖 (留空则使用 Dr.Chen 默认表)
+thresholds:
+  face_danger: 30
+  mouth_angle_danger_deg: 20
+  speech_danger: 35

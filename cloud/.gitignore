@@ -1,0 +1,23 @@
+# 环境文件 - 严禁提交
+.env
+!.env.example
+
+# EMQX 生成的证书私钥
+emqx/certs/*.key
+emqx/certs/*.crt
+emqx/certs/*.srl
+emqx/certs/*.pfx
+emqx/certs/*.p12
+emqx/auth-built-in-db-bootstrap.csv
+
+# 原生部署生成目录
+native/runtime/
+native/state/
+native/logs/
+native/run/
+native/downloads/
+native/__pycache__/
+
+# 微信小程序临时
+miniapp/miniprogram_npm/
+miniapp/node_modules/

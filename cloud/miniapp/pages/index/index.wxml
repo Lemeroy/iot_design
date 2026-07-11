@@ -1,0 +1,67 @@
+<!-- pages/index/index.wxml -->
+<view class="container">
+  <!-- 顶部: 等级 + 融合分 -->
+  <view class="card" style="text-align: center;">
+    <view class="subtitle">当前风险等级</view>
+    <view class="big-number level-{{level}}">{{final}}</view>
+    <view class="title level-{{level}}">{{levelZh}}</view>
+    <view class="subtitle" wx:if="{{lastTs}}">上次更新: {{lastTs}}</view>
+    <view class="subtitle" wx:if="{{error}}" style="color:#e74c3c;">错误: {{error}}</view>
+  </view>
+
+  <!-- 五模态分 -->
+  <view class="card">
+    <view class="title">五模态评分</view>
+    <view class="score-row">
+      <text class="score-key">F 面部对称</text>
+      <text class="score-val">{{scores.face}}</text>
+    </view>
+    <view class="score-row">
+      <text class="score-key">S 言语清晰</text>
+      <text class="score-val">{{scores.speech}}</text>
+    </view>
+    <view class="score-row">
+      <text class="score-key">T 舌偏 (辅助)</text>
+      <text class="score-val">{{scores.tongue}}</text>
+    </view>
+    <view class="score-row">
+      <text class="score-key">E 眼动</text>
+      <text class="score-val">{{scores.eye}}</text>
+    </view>
+    <view class="score-row">
+      <text class="score-key">B 平衡 (CSI)</text>
+      <text class="score-val">{{scores.csi}}</text>
+    </view>
+  </view>
+
+  <!-- AI 建议 -->
+  <view class="card">
+    <view class="title">AI 健康建议</view>
+    <view class="subtitle" wx:if="{{adviceTs}}">
+      {{adviceTs}} · {{adviceSource}}
+    </view>
+    <view style="height: 12rpx;"></view>
+    <view class="advice-text">{{advice}}</view>
+  </view>
+
+  <!-- 一键 120 -->
+  <button
+    wx:if="{{level === 'danger'}}"
+    class="btn-refresh"
+    style="background:#e74c3c;"
+    bindtap="onCall120">
+    立即拨打 120
+  </button>
+
+  <button class="btn-refresh" bindtap="refresh" loading="{{loading}}">
+    刷新
+  </button>
+
+  <!-- 免责 -->
+  <view class="disclaimer">
+    本设备是家庭健康风险提示工具, 不是医疗诊断设备。
+    如出现面部歪斜/言语不清/单侧肢体无力/剧烈头痛/视物模糊/意识改变等症状,
+    无论本设备提示如何, 请立即拨打 120。
+    识别脑卒中黄金时间窗为发病后 4.5 小时内。
+  </view>
+</view>

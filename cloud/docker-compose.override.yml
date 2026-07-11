@@ -1,0 +1,11 @@
+# Local dev override: disable TLS listener (no certs needed for localhost dev)
+# MQTT plaintext on 1883 is fine for local testing; production uses 8883+TLS
+
+services:
+  emqx:
+    volumes: []        # override the TLS certs mount
+    environment:
+      # Keep only the plain MQTT listener, remove TLS
+      EMQX_LISTENERS__SSL__DEFAULT__SSL_OPTIONS__KEYFILE: ""
+      EMQX_LISTENERS__SSL__DEFAULT__SSL_OPTIONS__CERTFILE: ""
+      EMQX_LISTENERS__SSL__DEFAULT__ENABLED: "false"

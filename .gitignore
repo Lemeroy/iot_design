@@ -1,0 +1,28 @@
+host_pc/data/
+host_pc/.venv/
+host_pc/**/__pycache__/
+host_pc/*.egg-info/
+host_pc/.pytest_cache/
+
+firmware_esp32/build/
+firmware_esp32/sdkconfig
+firmware_esp32/sdkconfig.old
+firmware_esp32/managed_components/
+firmware_esp32/dependencies.lock
+
+*.pyc
+
+.downloads/
+.pytest-native-root/
+cloud_*deploy_*.log
+cloud_docker_diagnostic*.log
+cloud_*diagnostic*.log
+cloud_e2e_*.log
+
+# Local recordings and evaluation captures
+data/
+
+# Local editor/OS state
+.vscode/
+.idea/
+Thumbs.db
