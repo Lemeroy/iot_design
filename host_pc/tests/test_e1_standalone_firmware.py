@@ -32,3 +32,19 @@ def test_no_runtime_fabricated_healthy_scores():
     assert "memset(out, 0xFF" not in bus
     assert "NAN" in bus
     assert "score = -1" in bus
+
+
+def test_nvs_config_has_version_crc_and_no_real_credentials():
+    header = read("device_config.h")
+    source = read("device_config.c")
+    kconfig = read("Kconfig.projbuild")
+    defaults = (ROOT / "firmware_esp32" / "sdkconfig.defaults").read_text(
+        encoding="utf-8"
+    )
+    assert "SG_DEVICE_CONFIG_VERSION" in header
+    assert "crc32" in header
+    assert 'nvs_open("sg_cfg"' in source
+    assert '"device"' in source
+    assert "config STROKEGUARD_MQTT_URI" in kconfig
+    assert "config STROKEGUARD_DEVICE_ID" in kconfig
+    assert "106.75.229.61" not in defaults

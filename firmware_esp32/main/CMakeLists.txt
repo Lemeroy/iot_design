@@ -14,6 +14,7 @@ idf_component_register(
         "alert_io.c"
         "fusion.c"
         "score_bus.c"
+        "device_config.c"
     INCLUDE_DIRS "."
     REQUIRES
         esp_wifi

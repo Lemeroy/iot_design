@@ -12,6 +12,31 @@ menu "StrokeGuard M1a/M1b Config"
         help
             WPA2-PSK password.
 
+    config STROKEGUARD_DEVICE_ID
+        string "Device ID"
+        default "sg-0001"
+
+    config STROKEGUARD_MQTT_URI
+        string "MQTT broker URI"
+        default ""
+
+    config STROKEGUARD_MQTT_USERNAME
+        string "MQTT device username"
+        default ""
+
+    config STROKEGUARD_MQTT_PASSWORD
+        string "MQTT device password"
+        default ""
+
+    config STROKEGUARD_PROFILE_AGE
+        int "Profile age"
+        range 0 130
+        default 0
+
+    config STROKEGUARD_PROFILE_GENDER
+        string "Profile gender: M, F, or other"
+        default "other"
+
     menu "M1b hardware scaffold"
 
         config STROKEGUARD_HW_CAMERA_ENABLE
