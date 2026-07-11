@@ -1,6 +1,6 @@
-# StrokeGuard 固件 M1a (v0.3)
+# StrokeGuard 固件 E1 (v0.5)
 
-ESP32-S3-WROOM-1 (N16R8) · IDF v5.5.3 · **USB-Serial-JTAG 单 CDC** + WiFi CSI 端侧评分 + 1Hz 心跳帧。
+ESP32-S3-WROOM-1 (N16R8) · IDF v5.5.3 · **独立本地融合/告警** + Wi-Fi CSI + MQTT 数值上报 + USB-Serial-JTAG 调试遥测。
 
 > v0.3 变更 (2026-07-10):
 > - **CSI 算法升级为三特征融合** (借鉴 [RuView, MIT](https://github.com/ruvnet/RuView) 信号处理章节):
@@ -42,7 +42,7 @@ idf.py -p COM3 menuconfig
 # -> "StrokeGuard M1a Config" -> 修改 WiFi SSID/Password -> S 保存 -> Q 退出
 ```
 
-路由器建议锁 2.4GHz **Ch6, 20MHz**。
+路由器必须提供 2.4 GHz Wi-Fi；ESP32-S3 不支持 5 GHz。建议锁 2.4 GHz **Ch6, 20MHz**。
 
 ## 构建 / 烧录 / 监视
 
@@ -54,7 +54,7 @@ idf.py -p COM3 flash monitor
 
 **关键**: v0.2 只有**一个** COM 口, `flash` 和 `monitor` 用同一个 COM3.
 `monitor` 里既能看到日志, 也能看到二进制帧(会显示为乱码, 属正常).
-真正的解析在 PC 端 `stroke_host` 里做。
+USB 帧仅供 PC 端 `stroke_host` 观察和调试；运行时融合、告警和 MQTT 不依赖 PC。
 
 ## 帧协议 v1
 

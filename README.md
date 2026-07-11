@@ -52,6 +52,8 @@ Topic: strokeguard/<device_id>/uplink
 
 ```json
 {
+  "schema_version": 1,
+  "seq": 0,
   "scores": {"face": 0, "speech": 0, "tongue": 0, "eye": 0, "csi": 0, "final": 0},
   "level": "normal|warning|danger|insufficient",
   "profile": {"age": 0, "conditions": []},
@@ -71,7 +73,7 @@ Topic: strokeguard/<device_id>/downlink
 ```
 
 ```json
-{"level":"warning","advice_text":"给本人或家属的安全建议文本","ts":0,"source":"doubao"}
+{"schema_version":1,"level":"warning","advice_text":"给本人或家属的安全建议文本","ts":0,"source":"doubao"}
 ```
 
 ### PC 局域网管理
@@ -110,7 +112,7 @@ final = 0.35 * F + 0.25 * S + 0.20 * T + 0.12 * E + 0.08 * B
 | CSI 端侧评分、USB 帧协议、S3 融合 C 实现 | 已有原型 |
 | PC 五模态算法原型与 PyQt5 UI | 已有，后续转为对照/管理工具 |
 | EMQX、InfluxDB、FastAPI、豆包建议链路 | 已部署并完成链路验证 |
-| S3 直连 MQTT 与独立离线闭环 | 下一阶段 E1 |
+| S3 直连 MQTT 与独立离线闭环 | E1 固件已上板；云端联调待 2.4 GHz Wi-Fi 与 VPS 可达性恢复 |
 | GC2145/INMP441 边缘模型及训练权重 | 未完成；外设和数据到位后实测 |
 | 局域网管理 API 与校准安全机制 | 未完成；E5 交付 |
 
