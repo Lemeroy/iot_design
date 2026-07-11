@@ -100,6 +100,9 @@ class MqttBridge:
         except Exception as e:
             log.warning("uplink schema error from %s: %s", device_id, e)
             return
+        if up.device_id != device_id:
+            log.warning("uplink device mismatch topic=%s", device_id)
+            return
 
         # Influx 写入放本线程 (轻量)
         self._influx.write_uplink(
@@ -129,16 +132,18 @@ class MqttBridge:
                 self._advisor.generate,
                 up.scores, up.level, up.profile, up.reasons,
             )
+            advice_source = self._advisor.model if self._advisor.available else "fallback"
         except Exception as e:
             log.exception("advisor err")
-            advice_text = f"(建议生成失败: {e})"
+            advice_text = "建议服务暂时不可用；请以镜端风险提示为准，如有突发症状立即拨打120。"
             latency = 0
+            advice_source = "fallback"
 
         down = DownlinkPayload(
             level=up.level,
             advice_text=advice_text,
             ts=now,
-            source=self._advisor.model if self._advisor.available else "fallback",
+            source=advice_source,
         )
         cache["advice"] = down
 
