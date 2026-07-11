@@ -74,6 +74,8 @@
 #define SG_TASK_FUSION_CORE     0
 #define SG_TASK_FUSION_PERIOD_MS 1000
 #define SG_SCORE_STALE_MS        5000
+#define SG_MQTT_PUBLISH_PERIOD_MS 10000
+#define SG_ADVICE_MAX_AGE_SEC       300
 
 /* ==== CDC RX 任务 (JSON 帧解析) ==== */
 #define SG_TASK_CDC_RX_STACK    4096

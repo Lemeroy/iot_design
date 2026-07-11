@@ -16,6 +16,8 @@ idf_component_register(
         "score_bus.c"
         "device_config.c"
         "cloud_contract.c"
+        "sg_mqtt.c"
+        "sg_time.c"
     INCLUDE_DIRS "."
     REQUIRES
         esp_wifi
@@ -31,4 +33,5 @@ idf_component_register(
         log
         esp_driver_usb_serial_jtag
         lwip
+        mqtt
 )

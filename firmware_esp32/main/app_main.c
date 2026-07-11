@@ -23,6 +23,7 @@
 #include "sensor_frame.h"
 #include "fusion.h"
 #include "score_bus.h"
+#include "sg_time.h"
 
 /* WiFi 配置 (来自 Kconfig, sdkconfig.defaults 里给了 YOUR_SSID 占位) */
 #ifndef CONFIG_STROKEGUARD_WIFI_SSID
@@ -198,6 +199,11 @@ void app_main(void)
 
     /* WiFi STA */
     ESP_ERROR_CHECK(wifi_init_sta());
+    esp_err_t time_err = sg_time_sync_start();
+    if (time_err != ESP_OK) {
+        ESP_LOGW(SG_TAG_TIME, "SNTP start failed err=%s",
+                 esp_err_to_name(time_err));
+    }
 
     /* 等一次 GOT_IP 再开 CSI, 最多 15 s, 超时也开(CSI 依然可采) */
     int wait = 0;

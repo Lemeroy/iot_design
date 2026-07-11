@@ -4,3 +4,5 @@
 #define SG_TAG_CSI      "sg-csi"
 #define SG_TAG_FRAME    "sg-frame"
 #define SG_TAG_WIFI     "sg-wifi"
+#define SG_TAG_MQTT     "sg-mqtt"
+#define SG_TAG_TIME     "sg-time"

@@ -71,3 +71,26 @@ def test_firmware_cloud_contract_is_numeric_only_and_bounded():
     lowered = source.lower()
     for forbidden in ("jpeg_b64", "mfcc", "landmarks", '"roi"'):
         assert forbidden not in lowered
+
+
+def test_esp_mqtt_is_direct_and_subscribes_to_device_downlink():
+    source = read("sg_mqtt.c")
+    cmake = read("CMakeLists.txt")
+    assert "esp_mqtt_client_init" in source
+    assert "esp_mqtt_client_subscribe" in source
+    assert "esp_mqtt_client_enqueue" in source
+    assert '"strokeguard/%s/uplink"' in source
+    assert '"strokeguard/%s/downlink"' in source
+    assert "sg_cloud_parse_advice" in source
+    assert "total_data_len" in source and "current_data_offset" in source
+    assert "mqtt" in cmake
+    for line in source.splitlines():
+        if "ESP_LOG" in line:
+            assert "mqtt_pass" not in line
+
+
+def test_sntp_time_gates_cloud_publish_only():
+    time_source = read("sg_time.c")
+    app = read("app_main.c")
+    assert "esp_netif_sntp_init" in time_source
+    assert "sg_time_sync_start" in app
