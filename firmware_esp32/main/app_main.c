@@ -6,6 +6,7 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 #include "esp_system.h"
 #include "esp_log.h"
 #include "esp_event.h"
@@ -20,10 +21,16 @@
 #include "usb_cdc_proto.h"
 #include "csi_monitor.h"
 #include "frame_builder.h"
+#if CONFIG_STROKEGUARD_LEGACY_USB_STREAM
 #include "sensor_frame.h"
+#endif
 #include "fusion.h"
 #include "score_bus.h"
 #include "sg_time.h"
+#include "sg_mqtt.h"
+#include "device_config.h"
+#include "cloud_contract.h"
+#include "local_alert.h"
 
 /* WiFi 配置 (来自 Kconfig, sdkconfig.defaults 里给了 YOUR_SSID 占位) */
 #ifndef CONFIG_STROKEGUARD_WIFI_SSID
@@ -34,6 +41,34 @@
 #endif
 
 static volatile bool s_wifi_got_ip = false;
+static sg_device_config_t s_device_config;
+static bool s_device_config_loaded;
+static QueueHandle_t s_advice_q;
+
+static void on_mqtt_advice(const sg_cloud_advice_t *advice, void *ctx)
+{
+    (void)ctx;
+    if (!advice || !s_advice_q) return;
+    xQueueOverwrite(s_advice_q, advice);
+}
+
+static void task_advice(void *arg)
+{
+    (void)arg;
+    sg_cloud_advice_t advice;
+    while (1) {
+        if (xQueueReceive(s_advice_q, &advice, portMAX_DELAY) != pdTRUE) {
+            continue;
+        }
+        int64_t now = sg_time_unix_seconds();
+        if (now == 0 || advice.ts > now + 30
+            || now - advice.ts > SG_ADVICE_MAX_AGE_SEC) {
+            ESP_LOGW(SG_TAG_MQTT, "stale downlink discarded");
+            continue;
+        }
+        sg_local_alert_apply_advice(&advice);
+    }
+}
 
 static void wifi_event_handler(void *arg, esp_event_base_t base,
                                int32_t id, void *data)
@@ -81,10 +116,15 @@ static esp_err_t wifi_init_sta(void)
 /* ---------- 本地融合流水 ---------- */
 static void task_fusion(void *arg)
 {
+    (void)arg;
     sg_scores_in_t in;
     sg_fusion_out_t out;
     static char buf[SG_FRAME_MAX_PAYLOAD];
+    static char uplink[SG_CLOUD_UPLINK_MAX];
     uint32_t n_processed = 0;
+    bool has_published = false;
+    sg_level_t last_published_level = SG_LEVEL_INSUFFICIENT;
+    int64_t last_publish_us = 0;
     TickType_t last = xTaskGetTickCount();
 
     while (1) {
@@ -98,15 +138,38 @@ static void task_fusion(void *arg)
         sg_fusion_compute(&in, -1, &out);
         n_processed++;
 
+        sg_local_alert_apply_fusion(&out);
+
+        int64_t now_us = esp_timer_get_time();
+        int64_t unix_ts = sg_time_unix_seconds();
+        bool publish_due = !has_published
+            || out.level != last_published_level
+            || now_us - last_publish_us
+                >= (int64_t)SG_MQTT_PUBLISH_PERIOD_MS * 1000LL;
+        if (s_device_config_loaded && publish_due && unix_ts > 0
+            && sg_mqtt_connected()) {
+            int up_len = sg_cloud_build_uplink(
+                uplink, sizeof(uplink), &s_device_config, &in, &out,
+                unix_ts, (uint32_t)out.seq);
+            if (up_len > 0
+                && sg_mqtt_publish_uplink(uplink, (size_t)up_len) == ESP_OK) {
+                has_published = true;
+                last_published_level = out.level;
+                last_publish_us = now_us;
+                ESP_LOGI(SG_TAG_MQTT, "uplink queued seq=%ld level=%s",
+                         (long)out.seq, sg_fusion_level_name(out.level));
+            }
+        }
+
         int n = sg_frame_build_fusion(buf, sizeof(buf), &out);
         if (n <= 0) {
             ESP_LOGW(SG_TAG_MAIN, "fusion build failed n=%d", n);
-            continue;
-        }
-        esp_err_t err = sg_cdc_send_frame(SG_FRAME_TYPE_FUSION,
-                                          (const uint8_t *)buf, (size_t)n);
-        if (err != ESP_OK) {
-            ESP_LOGW(SG_TAG_MAIN, "fusion send err=%d", err);
+        } else {
+            esp_err_t err = sg_cdc_send_frame(
+                SG_FRAME_TYPE_FUSION, (const uint8_t *)buf, (size_t)n);
+            if (err != ESP_OK) {
+                ESP_LOGW(SG_TAG_MAIN, "fusion send err=%d", err);
+            }
         }
 
         /* 每 20 次采样打一次日志 */
@@ -146,6 +209,7 @@ static void task_heartbeat(void *arg){
  * 传感器未到货前先发送最终 JSON 契约, 让 PC/GUI/云端链路可联调.
  * 到货后这里替换为 GC2145 JPEG + INMP441 MFCC + CSI 分数.
  */
+#if CONFIG_STROKEGUARD_LEGACY_USB_STREAM
 static void task_sensor_frame(void *arg)
 {
     uint32_t seq = 0;
@@ -169,6 +233,7 @@ static void task_sensor_frame(void *arg)
         }
     }
 }
+#endif
 
 void app_main(void)
 {
@@ -180,7 +245,22 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
+    esp_err_t config_err = sg_device_config_load(&s_device_config);
+    s_device_config_loaded = config_err == ESP_OK;
+    if (!s_device_config_loaded) {
+        ESP_LOGW(SG_TAG_MAIN, "device config unavailable err=%s; cloud disabled",
+                 esp_err_to_name(config_err));
+    }
+
     ESP_ERROR_CHECK(sg_score_bus_init());
+    ESP_ERROR_CHECK(sg_local_alert_init());
+
+    s_advice_q = xQueueCreate(1, sizeof(sg_cloud_advice_t));
+    ESP_ERROR_CHECK(s_advice_q ? ESP_OK : ESP_ERR_NO_MEM);
+    xTaskCreatePinnedToCore(task_advice, "advice",
+                            SG_TASK_ADVICE_STACK, NULL,
+                            SG_TASK_ADVICE_PRIO, NULL,
+                            SG_TASK_ADVICE_CORE);
 
     /* USB 先起, 日志立刻可见 */
     ESP_ERROR_CHECK(sg_cdc_init());
@@ -204,6 +284,17 @@ void app_main(void)
         ESP_LOGW(SG_TAG_TIME, "SNTP start failed err=%s",
                  esp_err_to_name(time_err));
     }
+    if (s_device_config_loaded
+        && sg_device_config_mqtt_ready(&s_device_config)) {
+        esp_err_t mqtt_err = sg_mqtt_start(
+            &s_device_config, on_mqtt_advice, NULL);
+        if (mqtt_err != ESP_OK) {
+            ESP_LOGW(SG_TAG_MQTT, "mqtt start failed err=%s",
+                     esp_err_to_name(mqtt_err));
+        }
+    } else {
+        ESP_LOGW(SG_TAG_MQTT, "mqtt disabled: configuration incomplete");
+    }
 
     /* 等一次 GOT_IP 再开 CSI, 最多 15 s, 超时也开(CSI 依然可采) */
     int wait = 0;
@@ -226,10 +317,12 @@ void app_main(void)
                             SG_TASK_HEARTBEAT_PRIO, NULL,
                             SG_TASK_HEARTBEAT_CORE);
 
+#if CONFIG_STROKEGUARD_LEGACY_USB_STREAM
     xTaskCreatePinnedToCore(task_sensor_frame, "sensor_frame",
                             SG_TASK_FRAME_STACK, NULL,
                             SG_TASK_FRAME_PRIO, NULL,
                             SG_TASK_FRAME_CORE);
+#endif
 
     ESP_LOGI(SG_TAG_MAIN, "all tasks started");
 }

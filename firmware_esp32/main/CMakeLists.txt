@@ -18,6 +18,7 @@ idf_component_register(
         "cloud_contract.c"
         "sg_mqtt.c"
         "sg_time.c"
+        "local_alert.c"
     INCLUDE_DIRS "."
     REQUIRES
         esp_wifi

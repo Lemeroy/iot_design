@@ -37,6 +37,13 @@ menu "StrokeGuard M1a/M1b Config"
         string "Profile gender: M, F, or other"
         default "other"
 
+    config STROKEGUARD_LEGACY_USB_STREAM
+        bool "Enable legacy synthetic USB media stream"
+        default n
+        help
+            Development-only compatibility stream. Keep disabled during
+            standalone operation and all privacy acceptance tests.
+
     menu "M1b hardware scaffold"
 
         config STROKEGUARD_HW_CAMERA_ENABLE

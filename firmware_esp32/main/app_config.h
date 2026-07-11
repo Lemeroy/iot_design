@@ -5,7 +5,7 @@
 #pragma once
 
 /* ==== 固件版本 ==== */
-#define SG_FW_VERSION           "m4-0.4.0"
+#define SG_FW_VERSION           "e1-0.5.0"
 
 /* ==== USB-CDC 帧协议 v1 ==== */
 #define SG_FRAME_MAGIC0         0xA5
@@ -76,6 +76,10 @@
 #define SG_SCORE_STALE_MS        5000
 #define SG_MQTT_PUBLISH_PERIOD_MS 10000
 #define SG_ADVICE_MAX_AGE_SEC       300
+
+#define SG_TASK_ADVICE_STACK    4096
+#define SG_TASK_ADVICE_PRIO     5
+#define SG_TASK_ADVICE_CORE     0
 
 /* ==== CDC RX 任务 (JSON 帧解析) ==== */
 #define SG_TASK_CDC_RX_STACK    4096

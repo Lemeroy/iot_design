@@ -94,3 +94,20 @@ def test_sntp_time_gates_cloud_publish_only():
     app = read("app_main.c")
     assert "esp_netif_sntp_init" in time_source
     assert "sg_time_sync_start" in app
+
+
+def test_local_alarm_is_authoritative_and_usb_stream_defaults_off():
+    source = read("local_alert.c")
+    app = read("app_main.c")
+    kconfig = read("Kconfig.projbuild")
+    assert "sg_local_alert_apply_fusion" in app
+    assert "sg_local_alert_apply_advice" in app
+    assert "SG_ADVICE_MAX_AGE_SEC" in app
+    assert "sg_alert_io_set_level" in source
+    assert "sg_display_st7789_show_status" in source
+    assert "advice->level" not in source
+    assert "CONFIG_STROKEGUARD_LEGACY_USB_STREAM" in app
+    block = kconfig.split("config STROKEGUARD_LEGACY_USB_STREAM", 1)[1].split(
+        "\n\n", 1
+    )[0]
+    assert "default n" in block
