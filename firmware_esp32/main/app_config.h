@@ -72,6 +72,8 @@
 #define SG_TASK_FUSION_STACK    4096
 #define SG_TASK_FUSION_PRIO     6
 #define SG_TASK_FUSION_CORE     0
+#define SG_TASK_FUSION_PERIOD_MS 1000
+#define SG_SCORE_STALE_MS        5000
 
 /* ==== CDC RX 任务 (JSON 帧解析) ==== */
 #define SG_TASK_CDC_RX_STACK    4096

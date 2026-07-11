@@ -22,9 +22,7 @@
 #include "frame_builder.h"
 #include "sensor_frame.h"
 #include "fusion.h"
-#include "scores_parser.h"
-
-#include "freertos/queue.h"
+#include "score_bus.h"
 
 /* WiFi 配置 (来自 Kconfig, sdkconfig.defaults 里给了 YOUR_SSID 占位) */
 #ifndef CONFIG_STROKEGUARD_WIFI_SSID
@@ -79,43 +77,24 @@ static esp_err_t wifi_init_sta(void)
     return ESP_OK;
 }
 
-/* ---------- 融合流水 ---------- */
-static QueueHandle_t s_scores_q = NULL;
-
-/* CDC RX 回调: 只做 JSON 解析 + 入队, 不阻塞 */
-static void on_cdc_rx(uint8_t type, const uint8_t *payload,
-                      size_t plen, void *ctx)
-{
-    (void)ctx;
-    if (type != SG_FRAME_TYPE_SCORES) return;
-    sg_scores_in_t in;
-    int r = sg_scores_parse(payload, plen, &in);
-    if (r != 0) {
-        ESP_LOGW(SG_TAG_MAIN, "scores parse failed r=%d plen=%u",
-                 r, (unsigned)plen);
-        return;
-    }
-    /* 队列满就丢老的 */
-    if (xQueueSend(s_scores_q, &in, 0) != pdTRUE) {
-        sg_scores_in_t drop;
-        xQueueReceive(s_scores_q, &drop, 0);
-        xQueueSend(s_scores_q, &in, 0);
-    }
-}
-
-/* 融合任务: 收到 scores 帧就出一次 fusion 帧 */
+/* ---------- 本地融合流水 ---------- */
 static void task_fusion(void *arg)
 {
     sg_scores_in_t in;
     sg_fusion_out_t out;
     static char buf[SG_FRAME_MAX_PAYLOAD];
     uint32_t n_processed = 0;
+    TickType_t last = xTaskGetTickCount();
 
     while (1) {
-        if (xQueueReceive(s_scores_q, &in, portMAX_DELAY) != pdTRUE) continue;
+        vTaskDelayUntil(&last, pdMS_TO_TICKS(SG_TASK_FUSION_PERIOD_MS));
 
-        int csi_local = sg_csi_get_score();  /* -1 if not ready */
-        sg_fusion_compute(&in, csi_local, &out);
+        sg_score_bus_snapshot(&in, esp_timer_get_time(), SG_SCORE_STALE_MS);
+        in.seq = (int32_t)n_processed;
+        int csi_local = sg_csi_get_score();
+        in.csi = (csi_local >= 0 && csi_local <= 100)
+                   ? (int8_t)csi_local : (int8_t)-1;
+        sg_fusion_compute(&in, -1, &out);
         n_processed++;
 
         int n = sg_frame_build_fusion(buf, sizeof(buf), &out);
@@ -200,15 +179,13 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
+    ESP_ERROR_CHECK(sg_score_bus_init());
+
     /* USB 先起, 日志立刻可见 */
     ESP_ERROR_CHECK(sg_cdc_init());
     sg_cdc_start_tx_task();
     sg_cdc_start_rx_task();
 
-    /* 融合队列 & 任务 (RX cb 用) */
-    s_scores_q = xQueueCreate(SG_SCORES_RX_QUEUE_LEN, sizeof(sg_scores_in_t));
-    ESP_ERROR_CHECK(s_scores_q ? ESP_OK : ESP_ERR_NO_MEM);
-    sg_cdc_set_rx_cb(on_cdc_rx, NULL);
     xTaskCreatePinnedToCore(task_fusion, "fusion",
                             SG_TASK_FUSION_STACK, NULL,
                             SG_TASK_FUSION_PRIO, NULL,

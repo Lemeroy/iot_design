@@ -13,7 +13,7 @@ idf_component_register(
         "audio_out_max98357.c"
         "alert_io.c"
         "fusion.c"
-        "scores_parser.c"
+        "score_bus.c"
     INCLUDE_DIRS "."
     REQUIRES
         esp_wifi
