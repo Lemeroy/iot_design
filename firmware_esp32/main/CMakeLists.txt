@@ -15,6 +15,7 @@ idf_component_register(
         "fusion.c"
         "score_bus.c"
         "device_config.c"
+        "cloud_contract.c"
     INCLUDE_DIRS "."
     REQUIRES
         esp_wifi

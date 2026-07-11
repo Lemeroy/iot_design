@@ -48,3 +48,26 @@ def test_nvs_config_has_version_crc_and_no_real_credentials():
     assert "config STROKEGUARD_MQTT_URI" in kconfig
     assert "config STROKEGUARD_DEVICE_ID" in kconfig
     assert "106.75.229.61" not in defaults
+
+
+def test_firmware_cloud_contract_is_numeric_only_and_bounded():
+    header = read("cloud_contract.h")
+    source = read("cloud_contract.c")
+    for field in (
+        '"scores"',
+        '"face"',
+        '"speech"',
+        '"tongue"',
+        '"eye"',
+        '"csi"',
+        '"final"',
+        '"level"',
+        '"profile"',
+        '"device_id"',
+    ):
+        assert field in source
+    assert "cJSON_CreateObject" in source
+    assert "SG_ADVICE_TEXT_MAX" in header
+    lowered = source.lower()
+    for forbidden in ("jpeg_b64", "mfcc", "landmarks", '"roi"'):
+        assert forbidden not in lowered
