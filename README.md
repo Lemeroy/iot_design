@@ -21,7 +21,7 @@ GC2145 + INMP441 + Wi-Fi CSI
 │ EMQX · InfluxDB · FastAPI · 豆包   │
 └────────────────────────────────────┘
 
-可选 PC ──同局域网 HTTP/WebSocket──> 状态监控、受限配置、人工校准
+可选 PC ──同局域网 HTTP──> 状态监控、受限档案配置
 ```
 
 - 三类物理感知来源：摄像头、麦克风、Wi-Fi CSI。
@@ -79,18 +79,13 @@ Topic: strokeguard/<device_id>/downlink
 ### PC 局域网管理
 
 ```text
-GET  /api/v1/status
 GET  /api/v1/config
 PUT  /api/v1/config
-POST /api/v1/calibration/start
-POST /api/v1/calibration/stop
-POST /api/v1/update/model
-POST /api/v1/update/firmware
-WS   /api/v1/telemetry
-WS   /api/v1/calibration
 ```
 
-模型/固件更新必须经过认证、镜端物理确认、签名校验和失败回滚。发布固件中的融合权重与危险否决阈值不可远程修改。USB-CDC 保留用于烧录、恢复和底层调试，不再承担正常运行时的评分输入。
+当前接口只允许读取完整配置和更新 `profile`，采用 Bearer Token、固定请求上限和 revision 乐观锁。Token 存在镜端 NVS 与 PC 系统凭据库，不进入 YAML。设备 ID、网络、MQTT、融合权重、危险阈值和否决规则均不可通过该接口修改。详见 [PC 配置手册](docs/pc-yaml-config.md)。
+
+校准、模型更新和 OTA 仍是规划项；后续实现必须经过认证、镜端物理确认、签名校验和失败回滚。USB-CDC 只用于烧录、恢复和调试遥测，不承担正常运行时的评分输入。
 
 ## 融合规则
 
@@ -110,11 +105,12 @@ final = 0.35 * F + 0.25 * S + 0.20 * T + 0.12 * E + 0.08 * B
 | 能力 | 状态 |
 | --- | --- |
 | CSI 端侧评分、USB 帧协议、S3 融合 C 实现 | 已有原型 |
-| PC 五模态算法原型与 PyQt5 UI | 已有，后续转为对照/管理工具 |
+| PC 五模态算法原型与 PyQt5 UI | 已有；当前作为可选监控与 YAML 管理工具 |
 | EMQX、InfluxDB、FastAPI、豆包建议链路 | 已部署并完成链路验证 |
-| S3 直连 MQTT 与独立离线闭环 | E1 固件已上板；云端联调待 2.4 GHz Wi-Fi 与 VPS 可达性恢复 |
+| S3 直连 MQTT 与独立离线闭环 | E1 固件已上板；离线融合与 CSI 已验证，云端服务待恢复 |
 | GC2145/INMP441 边缘模型及训练权重 | 未完成；外设和数据到位后实测 |
-| 局域网管理 API 与校准安全机制 | 未完成；E5 交付 |
+| 局域网档案管理 API | GET/PUT、鉴权、revision 冲突与 PC Keyring 已完成 |
+| 校准、签名更新与 OTA | 未完成；E5/E6 交付 |
 
 ## 新里程碑
 

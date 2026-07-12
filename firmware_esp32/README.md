@@ -56,6 +56,25 @@ idf.py -p COM3 flash monitor
 `monitor` 里既能看到日志, 也能看到二进制帧(会显示为乱码, 属正常).
 USB 帧仅供 PC 端 `stroke_host` 观察和调试；运行时融合、告警和 MQTT 不依赖 PC。
 
+## 局域网档案管理
+
+固件在取得 Wi-Fi 地址且配置了非空管理 Token 后启动 HTTP 服务：
+
+```text
+GET /api/v1/config
+PUT /api/v1/config
+Authorization: Bearer <MANAGEMENT_TOKEN>
+```
+
+- Token 仅写入被 Git 忽略的本机 `sdkconfig`，设备首次启动后存入带 CRC 的 NVS v2；不得写入 README、YAML 或日志。
+- GET 响应不包含 MQTT 用户名、密码或管理 Token。
+- PUT 只接受 `schema_version`、`expected_revision` 和完整 `profile`，拒绝未知字段、网络字段、医学阈值和重复键。
+- revision 不匹配返回 `409`；成功持久化后才替换内存快照。
+- 请求正文上限 1024 字节，HTTP 任务栈为 12 KB。真机联调证明 6 KB 不足以容纳 PUT 的固定缓冲区与 JSON/NVS 调用栈。
+- 当前开发传输是可信局域网内的 HTTP；生产使用必须增加 TLS 或等价的安全隧道。
+
+PC 端配置流程见 [pc-yaml-config.md](../docs/pc-yaml-config.md)。
+
 ## 帧协议 v1
 
 ```

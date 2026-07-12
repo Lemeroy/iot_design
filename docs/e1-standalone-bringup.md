@@ -22,6 +22,9 @@ other reconstructable biometric data must never be published to MQTT.
    TLS, device-specific ACLs, and port 8883 are E6 production requirements.
 4. Keep `STROKEGUARD_LEGACY_USB_STREAM` disabled. USB is diagnostic telemetry,
    not a runtime score input.
+5. Set a random `STROKEGUARD_MANAGER_TOKEN` only in the ignored local
+   `sdkconfig`. The PC stores the matching value in the operating-system
+   credential store, never in YAML.
 
 Before flashing a changed factory configuration, clear only the NVS partition
 (`0x9000`, length `0x6000`) or provision a valid updated NVS blob. E1 validates
@@ -72,13 +75,34 @@ binary within the 2 MB factory partition before flashing.
    provider error. Cloud advice cannot override the device's authoritative
    fusion level.
 
-## Current evidence (2026-07-11)
+### LAN management path
 
-- Production firmware was built twice successfully; the app is `0xe4470` and
-  has approximately 55% free space in the 2 MB app partition.
+1. Confirm serial output includes `GOT_IP address=<S3_LAN_IP>` and
+   `manager API started`.
+2. A GET without Bearer authorization must return `401`; an authenticated GET
+   must return `200` without MQTT or management credentials.
+3. PUT the current profile with the returned revision. It must return `200`
+   and increment revision exactly once. Replaying the old request must return
+   `409`.
+4. Reboot the S3 and GET again. The accepted profile and revision must persist.
+5. During all requests, confirm CSI/fusion telemetry continues. Closing the PC
+   must not affect local fusion or alerts.
+
+## Current evidence (2026-07-12)
+
+- Production firmware built successfully at `0xee600`, with 53% free in the
+  2 MB app partition. Values are build output, not estimated runtime usage.
 - COM3 was identified as an ESP32-S3 N16R8 with 8 MB PSRAM and 16 MB flash.
 - The production image was written with verified hashes after clearing NVS.
-- Boot telemetry confirmed E1 version, local CSI score production, and the
-  CSI-only `insufficient` fusion result while Wi-Fi and MQTT were unavailable.
-- Cloud end-to-end acceptance remains blocked until a reachable 2.4 GHz Wi-Fi
-  network and reachable VPS MQTT/FastAPI services are available.
+- Ten on-device Unity cases passed, covering local danger authority, fusion
+  vetoes, NVS migration, revision updates, strict JSON parsing, Token matching,
+  and credential-free responses.
+- LAN black-box acceptance returned `401/200/200/409`; revision incremented,
+  no credential fields appeared, and fusion continued during requests.
+- The PC client/UI pulled and pushed a real profile through a separate QThread;
+  full host regression passed 194 tests and visual QA covered 1220x820 and
+  1024x720.
+- The S3 joined 2.4 GHz Wi-Fi and produced local CSI/fusion continuously.
+- Cloud acceptance is not complete: MQTT port 1883 accepted TCP but did not
+  return CONNACK, while public FastAPI port 8000 timed out. Do not claim the
+  VPS/LLM path as passing until remote services are repaired and retested.
