@@ -2,7 +2,7 @@
 # 生成 EMQX 自签 TLS 证书 (无域名, 直接绑 IP)
 #
 # 用法:
-#   bash scripts/gen_certs.sh 106.75.229.61
+#   bash scripts/gen_certs.sh <VPS_HOST>
 #
 # 生成:
 #   cloud/emqx/certs/ca.crt      (自签 CA, 客户端做 rootCA 或 insecure=True)

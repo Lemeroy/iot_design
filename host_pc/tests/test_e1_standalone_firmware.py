@@ -47,7 +47,7 @@ def test_nvs_config_has_version_crc_and_no_real_credentials():
     assert '"device"' in source
     assert "config STROKEGUARD_MQTT_URI" in kconfig
     assert "config STROKEGUARD_DEVICE_ID" in kconfig
-    assert "106.75.229.61" not in defaults
+    assert "mqtt://" not in defaults
 
 
 def test_nvs_v2_supports_locked_revisioned_profile_updates():

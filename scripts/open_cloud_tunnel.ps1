@@ -1,7 +1,15 @@
+param(
+    [string]$HostIp = $env:SG_VPS_HOST,
+    [string]$SshPort = "22",
+    [string]$RemoteUser = "ubuntu"
+)
+
 $ErrorActionPreference = "Stop"
 
-$HostIp = "106.75.229.61"
-$Remote = "ubuntu@${HostIp}"
+if (-not $HostIp) {
+    throw "VPS host missing: set SG_VPS_HOST or pass -HostIp"
+}
+$Remote = "${RemoteUser}@${HostIp}"
 
 Write-Host "=== StrokeGuard cloud SSH tunnel ==="
 Write-Host "MQTT:     127.0.0.1:11883 -> VPS 127.0.0.1:1883"
@@ -14,6 +22,7 @@ Write-Host ""
 & ssh.exe `
     -N `
     -T `
+    -p $SshPort `
     -o ExitOnForwardFailure=yes `
     -o ServerAliveInterval=30 `
     -o ServerAliveCountMax=3 `

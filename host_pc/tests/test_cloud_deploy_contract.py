@@ -8,7 +8,7 @@ def test_deploy_script_uses_env_backed_mqtt_users():
     deploy = (ROOT / "cloud" / "deploy.sh").read_text(encoding="utf-8")
     init_users = (ROOT / "cloud" / "scripts" / "init_mqtt_users.sh").read_text(encoding="utf-8")
 
-    assert "host01_pass_2026" not in deploy
+    assert "mqtt_secret_sentinel_2026" not in deploy
     assert "backend_pass_2026" not in deploy
     assert "admin / strokeguard" not in deploy
     assert "bash scripts/init_mqtt_users.sh" in deploy

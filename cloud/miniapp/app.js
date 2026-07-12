@@ -15,7 +15,7 @@ App({
   },
   globalData: {
     // 后端 HTTP 基址; VPS 无域名/无 TLS 时, 微信小程序需要用 IP + HTTPS + 备案, 或改用开发者工具的"不校验合法域名"
-    apiBase: 'http://106.75.229.61:8000',
+    apiBase: 'http://127.0.0.1:8000',
     deviceId: 'sg-0001'
   }
 })

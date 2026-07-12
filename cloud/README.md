@@ -98,8 +98,8 @@ $env:SG_MQTT_PORT="11883"
 
 ```powershell
 # 用 scp 上传 (端口 22)
-scp -P 22 -r F:\iot_design\cloud ubuntu@106.75.229.61:/tmp/strokeguard-cloud
-ssh ubuntu@106.75.229.61
+scp -P 22 -r F:\iot_design\cloud ubuntu@<VPS_HOST>:/tmp/strokeguard-cloud
+ssh ubuntu@<VPS_HOST>
 sudo mkdir -p /opt/strokeguard
 sudo mv /tmp/strokeguard-cloud /opt/strokeguard/cloud
 sudo chown -R ubuntu:ubuntu /opt/strokeguard/cloud
@@ -126,7 +126,7 @@ vim .env    # 填写下列 5 项:
 
 ```bash
 cd /opt/strokeguard/cloud
-bash scripts/gen_certs.sh 106.75.229.61
+bash scripts/gen_certs.sh <VPS_HOST>
 ```
 
 生成 `emqx/certs/ca.crt server.crt server.key`. 客户端将来需要 `ca.crt`.
@@ -168,9 +168,9 @@ curl -X POST http://127.0.0.1:8000/advice \
 设置环境变量后启动主界面:
 
 ```powershell
-$env:SG_MQTT_HOST="106.75.229.61"
+$env:SG_MQTT_HOST="<VPS_HOST>"
 $env:SG_MQTT_PORT="1883"          # 联调期先用明文; 生产改 8883 + SG_MQTT_TLS=1
-$env:SG_MQTT_USER="host01"
+$env:SG_MQTT_USER="<MQTT_DEVICE_USER>"
 $env:SG_MQTT_PASS="<你在 .env 里填的 MQTT_HOST_PASS>"
 $env:SG_DEVICE_ID="sg-0001"
 

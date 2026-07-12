@@ -9,9 +9,9 @@
 
 param(
     [string]$Port = "COM3",
-    [string]$MqttHost = "106.75.229.61",
+    [string]$MqttHost = $env:SG_MQTT_HOST,
     [string]$MqttPort = "1883",
-    [string]$MqttUser = "host01",
+    [string]$MqttUser = $env:SG_MQTT_USER,
     [string]$MqttPass = "",
     [string]$DeviceId = "sg-0001",
     [string]$Source = "real",
@@ -21,7 +21,7 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-if (-not $MqttPass) {
+if (-not $MqttPass -or -not $MqttUser) {
     $envPath = Join-Path $root "cloud\.env"
     if (Test-Path $envPath) {
         foreach ($line in Get-Content -Encoding UTF8 $envPath) {
@@ -36,6 +36,9 @@ if (-not $MqttPass) {
 }
 if (-not $MqttPass) {
     throw "MQTT password missing: configure cloud\.env or pass -MqttPass explicitly"
+}
+if (-not $MqttHost -or -not $MqttUser) {
+    throw "MQTT host/user missing: set SG_MQTT_HOST and SG_MQTT_USER or pass parameters"
 }
 
 Write-Host "========================================" -ForegroundColor Cyan

@@ -1,10 +1,16 @@
+param(
+    [string]$HostIp = $env:SG_VPS_HOST,
+    [string]$SshPort = "22",
+    [string]$RemoteUser = "ubuntu"
+)
+
 $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $PSScriptRoot
 $CloudDir = Join-Path $Root "cloud"
-$HostIp = "106.75.229.61"
-$SshPort = "22"
-$RemoteUser = "ubuntu"
+if (-not $HostIp) {
+    throw "VPS host missing: set SG_VPS_HOST or pass -HostIp"
+}
 $Remote = "${RemoteUser}@${HostIp}"
 $Archive = Join-Path $env:TEMP "strokeguard-cloud-native.tar.gz"
 $Log = Join-Path $Root ("cloud_native_deploy_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss"))

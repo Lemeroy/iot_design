@@ -7,7 +7,7 @@
 #
 # 首次启动:
 #   1. cp .env.example .env  并填 VOLC_ARK_API_KEY / INFLUX_TOKEN / MQTT_APP_PASS
-#   2. bash scripts/gen_certs.sh 106.75.229.61     # 生成自签证书
+#   2. bash scripts/gen_certs.sh <VPS_HOST>         # 生成自签证书
 #   3. docker compose up -d
 #   4. curl http://<HOST>:8000/health
 

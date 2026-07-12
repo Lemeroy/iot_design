@@ -88,15 +88,15 @@ def test_native_deploy_helper_targets_project_directory_without_password_literal
 
     assert "/opt/strokeguard" in remote
     assert 'cloud_target="$deploy_root/cloud"' in remote
-    assert '$HostIp = "106.75.229.61"' in deploy
-    assert '$RemoteUser = "ubuntu"' in deploy
+    assert '[string]$HostIp = $env:SG_VPS_HOST' in deploy
+    assert '[string]$RemoteUser = "ubuntu"' in deploy
     assert "native/install.sh" in remote
     assert "deploy_remote.sh" in deploy
     assert "native/start.sh" in remote
     assert "native/healthcheck.sh" in remote
     assert 'bash "$cloud_target/native/stop.sh"' in remote
     assert remote.index('bash "$cloud_target/native/stop.sh"') < remote.index("for name in runtime")
-    assert '$SshPort = "22"' in deploy
+    assert '[string]$SshPort = "22"' in deploy
     assert "sudo" in deploy
     assert "password=" not in deploy.lower()
     assert "76A0" not in deploy
@@ -127,11 +127,11 @@ def test_cloud_tunnel_exposes_only_expected_local_ports():
 def test_main_launcher_uses_public_mqtt_and_has_no_embedded_password():
     launcher = read(ROOT / "launch.ps1")
 
-    assert '[string]$MqttHost = "106.75.229.61"' in launcher
+    assert '[string]$MqttHost = $env:SG_MQTT_HOST' in launcher
     assert '[string]$MqttPort = "1883"' in launcher
     assert "cloud\\.env" in launcher
-    assert "host01_pass_2026" not in launcher
-    assert "106.75.241.167" not in launcher
+    assert "mqtt_secret_sentinel_2026" not in launcher
+    assert "SG_MQTT_USER" in launcher
 
 
 def test_llm_key_configurator_uses_secure_prompt_without_logging_secret():
