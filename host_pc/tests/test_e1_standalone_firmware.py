@@ -50,6 +50,28 @@ def test_nvs_config_has_version_crc_and_no_real_credentials():
     assert "106.75.229.61" not in defaults
 
 
+def test_nvs_v2_supports_locked_revisioned_profile_updates():
+    header = read("device_config.h")
+    source = read("device_config.c")
+    app = read("app_main.c")
+    kconfig = read("Kconfig.projbuild")
+
+    assert "SG_DEVICE_CONFIG_VERSION 2U" in header
+    assert "SG_MANAGER_TOKEN_MAX" in header
+    assert "uint32_t revision" in header
+    assert "sg_profile_patch_t" in header
+    assert "sg_device_config_snapshot" in header
+    assert "sg_device_config_apply_profile" in header
+    assert "sg_device_config_manager_ready" in header
+    assert "sg_device_config_v1_t" in source
+    assert "migrate_v1" in source
+    assert "xSemaphoreTake" in source
+    assert "expected_revision" in source
+    assert "sg_device_config_snapshot" in app
+    assert "config STROKEGUARD_MANAGER_PORT" in kconfig
+    assert "config STROKEGUARD_MANAGER_TOKEN" in kconfig
+
+
 def test_firmware_cloud_contract_is_numeric_only_and_bounded():
     header = read("cloud_contract.h")
     source = read("cloud_contract.c")

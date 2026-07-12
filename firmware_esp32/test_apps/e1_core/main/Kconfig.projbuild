@@ -1,0 +1,26 @@
+menu "StrokeGuard E1 core test configuration"
+    config STROKEGUARD_DEVICE_ID
+        string
+        default "sg-unit"
+    config STROKEGUARD_MQTT_URI
+        string
+        default ""
+    config STROKEGUARD_MQTT_USERNAME
+        string
+        default ""
+    config STROKEGUARD_MQTT_PASSWORD
+        string
+        default ""
+    config STROKEGUARD_PROFILE_AGE
+        int
+        default 0
+    config STROKEGUARD_PROFILE_GENDER
+        string
+        default "other"
+    config STROKEGUARD_MANAGER_PORT
+        int
+        default 80
+    config STROKEGUARD_MANAGER_TOKEN
+        string
+        default "unit-token"
+endmenu

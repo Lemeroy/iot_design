@@ -37,6 +37,15 @@ menu "StrokeGuard M1a/M1b Config"
         string "Profile gender: M, F, or other"
         default "other"
 
+    config STROKEGUARD_MANAGER_PORT
+        int "LAN management HTTP port"
+        range 1 65535
+        default 80
+
+    config STROKEGUARD_MANAGER_TOKEN
+        string "LAN management token (local provisioning only)"
+        default ""
+
     config STROKEGUARD_LEGACY_USB_STREAM
         bool "Enable legacy synthetic USB media stream"
         default n

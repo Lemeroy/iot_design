@@ -148,9 +148,13 @@ static void task_fusion(void *arg)
                 >= (int64_t)SG_MQTT_PUBLISH_PERIOD_MS * 1000LL;
         if (s_device_config_loaded && publish_due && unix_ts > 0
             && sg_mqtt_connected()) {
-            int up_len = sg_cloud_build_uplink(
-                uplink, sizeof(uplink), &s_device_config, &in, &out,
-                unix_ts, (uint32_t)out.seq);
+            sg_device_config_t config_snapshot;
+            esp_err_t snapshot_err = sg_device_config_snapshot(&config_snapshot);
+            int up_len = snapshot_err == ESP_OK
+                ? sg_cloud_build_uplink(
+                    uplink, sizeof(uplink), &config_snapshot, &in, &out,
+                    unix_ts, (uint32_t)out.seq)
+                : -1;
             if (up_len > 0
                 && sg_mqtt_publish_uplink(uplink, (size_t)up_len) == ESP_OK) {
                 has_published = true;
