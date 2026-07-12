@@ -131,7 +131,7 @@ QPushButton#DangerButton {{
     color: #ffdada;
     border: 1px solid {STATUS["danger"]};
 }}
-QLineEdit, QComboBox {{
+QLineEdit, QComboBox, QSpinBox {{
     background: #0a1715;
     border: 1px solid {SURFACE["line"]};
     border-radius: 6px;
@@ -166,6 +166,39 @@ QTextEdit {{
     border-radius: 8px;
     color: {SURFACE["text"]};
     padding: 8px;
+}}
+QPlainTextEdit {{
+    background: #06110f;
+    color: {SURFACE["text"]};
+    border: 1px solid {SURFACE["line"]};
+    border-radius: 6px;
+    selection-background-color: {STATUS["accent"]};
+    selection-color: #04110d;
+}}
+QTabWidget::pane {{
+    border: 1px solid {SURFACE["line"]};
+    border-radius: 6px;
+    background: {SURFACE["app_bg"]};
+    top: -1px;
+}}
+QTabBar::tab {{
+    background: {SURFACE["panel"]};
+    color: {SURFACE["muted"]};
+    border: 1px solid {SURFACE["line"]};
+    padding: 8px 16px;
+    min-width: 88px;
+}}
+QTabBar::tab:selected {{
+    background: {SURFACE["panel_lift"]};
+    color: {SURFACE["text"]};
+    border-bottom-color: {STATUS["accent"]};
+}}
+QFrame#MedicalBaseline {{
+    background: {SURFACE["panel_soft"]};
+    border-left: 3px solid {STATUS["accent"]};
+}}
+QLabel#ValidationStatus {{
+    min-height: 22px;
 }}
 QLabel#MetricTitle {{
     color: {SURFACE["muted"]};

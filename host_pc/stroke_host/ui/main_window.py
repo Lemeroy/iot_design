@@ -64,6 +64,7 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QMainWindow,
     QPushButton,
+    QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -74,9 +75,9 @@ from ..fusion import LEVEL_DANGER, LEVEL_INSUFFICIENT, LEVEL_NORMAL, LEVEL_WARNI
 from ..io.cdc_reader import CdcReader
 from ..io.frame_recorder import FrameRecorder
 from ..io.mqtt_pub import MqttConfig, MqttPublisher
-from ..io.s3_bridge import S3Bridge
 from ..io.sim_source import RealSource, SimSource, SyntheticFrameSource
 from ..main import PerceptionPipeline
+from .config_panel import ConfigPanel
 from .theme import (
     APP_STYLE,
     HERO_LAYOUT,
@@ -125,18 +126,6 @@ DISCLAIMER = (
 )
 
 
-def _extract_score(percept: Optional[dict], key: str) -> Optional[int]:
-    if not percept:
-        return None
-    m = percept.get(key)
-    if not isinstance(m, dict):
-        return None
-    s = m.get("score")
-    if s is None or s < 0:
-        return None
-    return int(s)
-
-
 class _AdviceProxy(QObject):
     """跨线程信号代理: paho 后台线程 -> Qt 主线程."""
     new_advice = pyqtSignal(dict)
@@ -151,74 +140,18 @@ class BackendWorker(QObject):
     stats_ready = pyqtSignal(dict)
     error = pyqtSignal(str)
 
-    def __init__(self, args, mqtt_pub=None, profile_dict: Optional[dict] = None,
-                 s3_bridge: Optional[S3Bridge] = None) -> None:
+    def __init__(self, args) -> None:
         super().__init__()
         self._args = args
         self._stop = False
         self._src = None
         self._rec: Optional[FrameRecorder] = None
         self._pipe: Optional[PerceptionPipeline] = None
-        self._mqtt = mqtt_pub
-        self._s3 = s3_bridge
-        self._profile_dict = profile_dict or {"age": 60, "gender": "other"}
         self._n = 0
         self._t0 = time.time()
-        self._n_s3_hit = 0
-        self._n_s3_miss = 0
 
     def request_stop(self) -> None:
         self._stop = True
-
-    def _fuse_via_s3_or_local(self, percept: dict, seq: int, frame) -> tuple[dict, str]:
-        """尝试把 percept 发给 S3 让它融合, 拿回结果; 超时/失败降级本地 fuse()."""
-        # 本地兜底始终算好, 万一 S3 慢就用它
-        local = fuse(percept).as_dict()
-        local["source"] = "pc-local"
-
-        if self._s3 is None:
-            return local, "pc-local"
-
-        # 提取 scores + 附加字段, 发给 S3
-        scores_pack = {
-            "face":   _extract_score(percept, "face"),
-            "speech": _extract_score(percept, "speech"),
-            "tongue": _extract_score(percept, "tongue"),
-            "eye":    _extract_score(percept, "eye"),
-            "csi":    _extract_score(percept, "csi"),  # None -> S3 用自产
-        }
-        # face_theta / speech_p_clear 供 S3 单项否决用
-        f_raw = ((percept.get("face") or {}).get("raw") or {})
-        theta = f_raw.get("theta_abs_deg")
-        if theta is not None:
-            scores_pack["face_theta"] = float(theta)
-        s_raw = ((percept.get("speech") or {}).get("raw") or {})
-        p_clear = s_raw.get("p_clear")
-        if p_clear is not None:
-            scores_pack["speech_p_clear"] = float(p_clear)
-
-        try:
-            self._s3.send_scores(scores_pack, seq=seq)
-        except Exception as e:
-            log.debug("s3 send err: %s", e)
-            self._n_s3_miss += 1
-            return local, "pc-local"
-
-        # 等 S3 回结果 (超时 300ms, 保证 UI 流畅)
-        try:
-            fu = self._s3.wait_fusion(seq=seq, timeout=0.30)
-        except Exception as e:
-            log.debug("s3 wait err: %s", e)
-            fu = None
-
-        if fu is None:
-            self._n_s3_miss += 1
-            return local, "pc-local (s3 timeout)"
-
-        self._n_s3_hit += 1
-        fu = dict(fu)
-        fu["source"] = "s3"
-        return fu, "s3"
 
     def _make_source(self):
         s = self._args.source
@@ -269,39 +202,15 @@ class BackendWorker(QObject):
                     except Exception as e:
                         log.debug("perception err: %s", e)
                 fusion_dict = {}
-                fusion_source = "none"
                 if percept:
-                    # 尝试从 S3 拿融合结果; 超时降级本地
-                    fusion_dict, fusion_source = self._fuse_via_s3_or_local(
-                        percept, self._n, frame)
+                    fusion_dict = fuse(percept).as_dict()
+                    fusion_dict["source"] = "pc-reference"
                 else:
                     js = frame.json or {}
                     if js.get("csi_score") is not None:
                         fake = {"csi": {"score": int(js["csi_score"]),
                                         "raw": {}, "reasons": []}}
                         fusion_dict = fuse(fake).as_dict()
-                        fusion_source = "pc-local"
-
-                # ---- MQTT uplink (只发数值, 节流) ----
-                if self._mqtt is not None and fusion_dict:
-                    scores_out = {
-                        "face": _extract_score(percept, "face"),
-                        "speech": _extract_score(percept, "speech"),
-                        "tongue": _extract_score(percept, "tongue"),
-                        "eye": _extract_score(percept, "eye"),
-                        "csi": _extract_score(percept, "csi") or (frame.json or {}).get("csi_score"),
-                        "final": fusion_dict.get("final", 0),
-                    }
-                    try:
-                        self._mqtt.publish_uplink(
-                            scores=scores_out,
-                            level=fusion_dict.get("level", "insufficient"),
-                            reasons=fusion_dict.get("reasons", []),
-                            veto_by=fusion_dict.get("veto_by", []),
-                            profile=self._profile_dict,
-                        )
-                    except Exception as e:
-                        log.debug("mqtt publish err: %s", e)
 
                 fmeta = {
                     "type_name": frame.type_name,
@@ -327,8 +236,6 @@ class BackendWorker(QObject):
                         "elapsed": dt,
                         "rec_dir": (self._rec._session_dir.name
                                     if self._rec and self._rec._session_dir else None),
-                        "s3_hit": self._n_s3_hit,
-                        "s3_miss": self._n_s3_miss,
                     })
                     last_stats = now
         except Exception as e:
@@ -409,8 +316,6 @@ class MainWindow(QMainWindow):
         self._thread: Optional[QThread] = None
         self._worker: Optional[BackendWorker] = None
         self._mqtt: Optional[MqttPublisher] = None
-        self._s3: Optional[S3Bridge] = None
-        self._profile_dict: dict = {}
         self._tts = TtsWorker()
         self._tts.open()
         self._last_level = LEVEL_NORMAL
@@ -443,6 +348,13 @@ class MainWindow(QMainWindow):
         root = QVBoxLayout(central)
         root.setContentsMargins(14, 12, 14, 12)
         root.setSpacing(14)
+        self.workspace_tabs = QTabWidget()
+        root.addWidget(self.workspace_tabs)
+
+        monitor_page = QWidget()
+        monitor_root = QVBoxLayout(monitor_page)
+        monitor_root.setContentsMargins(0, 0, 0, 0)
+        monitor_root.setSpacing(14)
 
         # ---- 顶部工具条 ----
         top = QFrame()
@@ -486,14 +398,6 @@ class MainWindow(QMainWindow):
         self.chk_cloud.setChecked(bool(os.environ.get("SG_MQTT_HOST")))
         bar.addWidget(self.chk_cloud)
 
-        self.chk_s3 = QCheckBox("S3 Fusion")
-        self.chk_s3.setChecked(False)
-        self.chk_s3.setToolTip(
-            "在 Port 里填 S3 的 COM 口, 勾选此项后 PC 感知分会发到 S3, "
-            "由 S3 端计算融合分并回传; 超时会自动降级本地融合."
-        )
-        bar.addWidget(self.chk_s3)
-
         self.btn_start = QPushButton("Start")
         self.btn_stop = QPushButton("Stop")
         self.btn_start.setObjectName("PrimaryButton")
@@ -504,7 +408,7 @@ class MainWindow(QMainWindow):
         bar.addWidget(self.btn_start)
         bar.addWidget(self.btn_stop)
         bar.addStretch(1)
-        root.addWidget(top)
+        monitor_root.addWidget(top)
 
         # ---- 主体: 左总灯 + 右5卡 ----
         body = QHBoxLayout()
@@ -608,7 +512,7 @@ class MainWindow(QMainWindow):
         right.addStretch(1)
         body.addLayout(right, stretch=3)
 
-        root.addLayout(body, stretch=1)
+        monitor_root.addLayout(body, stretch=1)
 
         # ---- 底部: 统计 + 免责 ----
         self.lbl_stats = QLabel("idle")
@@ -616,7 +520,7 @@ class MainWindow(QMainWindow):
         self.lbl_stats.setStyleSheet(
             f"color: {SURFACE['muted']}; font-family: Consolas;"
         )
-        root.addWidget(self.lbl_stats)
+        monitor_root.addWidget(self.lbl_stats)
 
         lbl_disc = QLabel(DISCLAIMER)
         lbl_disc.setWordWrap(True)
@@ -624,7 +528,11 @@ class MainWindow(QMainWindow):
             f"color: {SURFACE['muted']}; font-size: 10px; padding: 8px; "
             f"background: {SURFACE['panel']}; border-left: 3px solid {STATUS['accent']};"
         )
-        root.addWidget(lbl_disc)
+        monitor_root.addWidget(lbl_disc)
+
+        self.config_panel = ConfigPanel(self._args.profile)
+        self.workspace_tabs.addTab(monitor_page, "监测")
+        self.workspace_tabs.addTab(self.config_panel, "设备配置")
 
     # ---------- lifecycle ----------
     def _on_start(self) -> None:
@@ -636,15 +544,12 @@ class MainWindow(QMainWindow):
         args.perception = self.chk_perception.isChecked()
         args.no_record = not self.chk_record.isChecked()
 
-        # 加载 profile 供 MQTT uplink 使用
+        # Profile selects the advice topic observed by this optional PC UI.
         try:
             pf = load_profile(args.profile)
-            self._profile_dict = pf.user.model_dump()
             device_id = pf.device_id
         except Exception as e:
             log.warning("profile load failed: %s", e)
-            self._profile_dict = {"age": 60, "gender": "other",
-                                  "conditions": [], "meds": [], "stroke_history": False}
             device_id = "sg-0001"
 
         # 启动 MQTT
@@ -663,21 +568,8 @@ class MainWindow(QMainWindow):
                 )
                 self._mqtt.start()
 
-        # 启动 S3 Bridge (CDC 双向)
-        if self.chk_s3.isChecked() and args.port:
-            try:
-                self._s3 = S3Bridge(args.port, args.baud)
-                self._s3.start()
-                self.txt_reasons.append(f"=== S3Bridge connected @ {args.port} ===")
-            except Exception as e:
-                log.warning("S3Bridge start failed: %s", e)
-                self.txt_reasons.append(f"!! S3Bridge failed: {e}")
-                self._s3 = None
-
         self._thread = QThread(self)
-        self._worker = BackendWorker(args, mqtt_pub=self._mqtt,
-                                     profile_dict=self._profile_dict,
-                                     s3_bridge=self._s3)
+        self._worker = BackendWorker(args)
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
         self._worker.frame_ready.connect(self._on_frame)
@@ -701,12 +593,6 @@ class MainWindow(QMainWindow):
         if self._mqtt is not None:
             self._mqtt.stop()
             self._mqtt = None
-        if self._s3 is not None:
-            try:
-                self._s3.stop()
-            except Exception:
-                pass
-            self._s3 = None
         self._blink_timer.stop()
         self.btn_start.setEnabled(True)
         self.btn_stop.setEnabled(False)
