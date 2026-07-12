@@ -21,6 +21,17 @@ from .schemas import LevelT, Profile, Scores
 
 log = logging.getLogger(__name__)
 
+SG_ADVICE_TEXT_MAX_BYTES = 384
+
+
+def _truncate_utf8(text: str, max_bytes: int = SG_ADVICE_TEXT_MAX_BYTES) -> str:
+    encoded = text.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return text
+    suffix = b"..."
+    prefix = encoded[:max_bytes - len(suffix)].decode("utf-8", errors="ignore")
+    return prefix + suffix.decode("ascii")
+
 SYSTEM_PROMPT = """你是"卒中卫士"AI 健康助手。基于用户的五模态评分与档案,
 生成一段面向老人及其家属的**简短建议**(120 字以内, 简体中文):
 
@@ -103,15 +114,14 @@ class DoubaoAdvisor:
                 timeout=15,
             )
             text = (resp.choices[0].message.content or "").strip()
-            # 截断保护
-            if len(text) > 240:
-                text = text[:237] + "..."
+            text = _truncate_utf8(text)
             latency = int((time.time() - t0) * 1000)
             return text, latency
         except Exception as e:
             log.exception("doubao call failed")
-            self.available = False
-            self._client = None
+            if getattr(e, "status_code", None) in {400, 401, 403, 404}:
+                self.available = False
+                self._client = None
             return self._fallback(level, profile), int((time.time() - t0) * 1000)
 
     @staticmethod

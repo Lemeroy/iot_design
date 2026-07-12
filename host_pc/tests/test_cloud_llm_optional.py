@@ -1,6 +1,7 @@
 import importlib
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -19,7 +20,7 @@ def test_advisor_falls_back_when_openai_sdk_is_unavailable(monkeypatch):
     assert advisor._client is None
 
 
-def test_advisor_disables_failed_llm_without_exposing_provider_error(monkeypatch):
+def test_advisor_retries_after_transient_failure_without_exposing_provider_error(monkeypatch):
     monkeypatch.syspath_prepend(str(BACKEND))
     module = importlib.import_module("app.llm_advice")
     schemas = importlib.import_module("app.schemas")
@@ -45,7 +46,7 @@ def test_advisor_disables_failed_llm_without_exposing_provider_error(monkeypatch
         [],
     )
 
-    assert advisor.available is False
+    assert advisor.available is True
     assert "sensitive provider" not in text
     assert "request id" not in text
 
@@ -59,6 +60,37 @@ def test_advisor_requires_endpoint_id_when_api_key_is_present(monkeypatch):
 
     assert advisor.model == ""
     assert advisor.available is False
+
+
+def test_advisor_limits_chinese_advice_by_utf8_bytes(monkeypatch):
+    monkeypatch.syspath_prepend(str(BACKEND))
+    module = importlib.import_module("app.llm_advice")
+    schemas = importlib.import_module("app.schemas")
+
+    long_chinese_text = "\u5065" * 240
+
+    class LongCompletions:
+        @staticmethod
+        def create(**kwargs):
+            message = SimpleNamespace(content=long_chinese_text)
+            return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    class LongAdviceClient:
+        chat = SimpleNamespace(completions=LongCompletions())
+
+    advisor = module.DoubaoAdvisor(api_key="")
+    advisor.available = True
+    advisor._client = LongAdviceClient()
+    text, _ = advisor.generate(
+        schemas.Scores(face=82, speech=78, tongue=85, eye=88, csi=80, final=82),
+        "normal",
+        schemas.Profile(age=68, gender="other", conditions=["hypertension"]),
+        [],
+    )
+
+    assert len(text.encode("utf-8")) <= 384
+    assert text.endswith("...")
+    assert text.encode("utf-8").decode("utf-8") == text
 
 
 def test_system_prompt_forbids_inventing_unlisted_medication(monkeypatch):
