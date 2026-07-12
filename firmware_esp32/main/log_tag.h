@@ -6,3 +6,4 @@
 #define SG_TAG_WIFI     "sg-wifi"
 #define SG_TAG_MQTT     "sg-mqtt"
 #define SG_TAG_TIME     "sg-time"
+#define SG_TAG_MANAGER  "sg-manager"

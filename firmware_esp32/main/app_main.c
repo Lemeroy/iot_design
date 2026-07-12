@@ -12,6 +12,7 @@
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
+#include "esp_netif_ip_addr.h"
 #include "esp_timer.h"
 #include "nvs_flash.h"
 #include "sdkconfig.h"
@@ -31,6 +32,7 @@
 #include "device_config.h"
 #include "cloud_contract.h"
 #include "local_alert.h"
+#include "sg_manager_api.h"
 
 /* WiFi 配置 (来自 Kconfig, sdkconfig.defaults 里给了 YOUR_SSID 占位) */
 #ifndef CONFIG_STROKEGUARD_WIFI_SSID
@@ -80,7 +82,9 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
         s_wifi_got_ip = false;
         esp_wifi_connect();
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
-        ESP_LOGI(SG_TAG_WIFI, "GOT_IP");
+        const ip_event_got_ip_t *event = (const ip_event_got_ip_t *)data;
+        ESP_LOGI(SG_TAG_WIFI, "GOT_IP address=" IPSTR,
+                 IP2STR(&event->ip_info.ip));
         s_wifi_got_ip = true;
     }
 }
@@ -305,6 +309,17 @@ void app_main(void)
     while (!s_wifi_got_ip && wait < 30) {
         vTaskDelay(pdMS_TO_TICKS(500));
         wait++;
+    }
+
+    if (s_wifi_got_ip && s_device_config_loaded
+        && sg_device_config_manager_ready(&s_device_config)) {
+        esp_err_t manager_err = sg_manager_api_start();
+        if (manager_err != ESP_OK) {
+            ESP_LOGW(SG_TAG_MANAGER, "manager API unavailable err=%s",
+                     esp_err_to_name(manager_err));
+        }
+    } else {
+        ESP_LOGW(SG_TAG_MANAGER, "manager API disabled: no IP or token");
     }
 
     ESP_ERROR_CHECK(sg_csi_start());

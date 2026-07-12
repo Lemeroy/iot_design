@@ -19,6 +19,7 @@ idf_component_register(
         "sg_mqtt.c"
         "sg_time.c"
         "local_alert.c"
+        "sg_manager_api.c"
     INCLUDE_DIRS "."
     REQUIRES
         esp_wifi
@@ -35,4 +36,5 @@ idf_component_register(
         esp_driver_usb_serial_jtag
         lwip
         mqtt
+        esp_http_server
 )

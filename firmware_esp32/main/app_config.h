@@ -77,6 +77,11 @@
 #define SG_MQTT_PUBLISH_PERIOD_MS 10000
 #define SG_ADVICE_MAX_AGE_SEC       300
 
+/* Medical screening thresholds are fixed and exposed read-only. */
+#define SG_FACE_DANGER_MAX          30
+#define SG_FACE_MOUTH_DEG_DANGER    20
+#define SG_SPEECH_DANGER_MAX        35
+
 #define SG_TASK_ADVICE_STACK    4096
 #define SG_TASK_ADVICE_PRIO     5
 #define SG_TASK_ADVICE_CORE     0

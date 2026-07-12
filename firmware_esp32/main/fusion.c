@@ -7,6 +7,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include "app_config.h"
 
 /* ---- 与 Python fusion.py 一致的常量 ---- */
 #define W_FACE     0.35f
@@ -18,9 +19,6 @@
 #define FINAL_DANGER_MAX     40
 #define FINAL_WARNING_MAX    70
 
-#define FACE_DANGER_MAX       30
-#define FACE_MOUTH_DEG_DANGER 20.0f
-#define SPEECH_DANGER_MAX     35
 #define SPEECH_P_DANGER_MAX   0.4f
 #define EYE_WARNING_MAX       30
 #define CSI_WARNING_MAX       30
@@ -128,23 +126,23 @@ void sg_fusion_compute(const sg_scores_in_t *in,
 
     /* 3. 单项否决 (danger) */
     if (a_face) {
-        if (face <= FACE_DANGER_MAX) {
+        if (face <= SG_FACE_DANGER_MAX) {
             out->veto_face = 1;
-            add_reason(out, "veto: F=%d <= %d", face, FACE_DANGER_MAX);
+            add_reason(out, "veto: F=%d <= %d", face, SG_FACE_DANGER_MAX);
         } else if (!isnan(in->face_theta_deg)
-                   && in->face_theta_deg >= FACE_MOUTH_DEG_DANGER) {
+                   && in->face_theta_deg >= SG_FACE_MOUTH_DEG_DANGER) {
             out->veto_face = 1;
             add_reason(out, "veto: mouth_angle=%.1fdeg >= %.1fdeg",
                        (double)in->face_theta_deg,
-                       (double)FACE_MOUTH_DEG_DANGER);
+                       (double)SG_FACE_MOUTH_DEG_DANGER);
         }
     }
-    if (a_speech && speech <= SPEECH_DANGER_MAX) {
+    if (a_speech && speech <= SG_SPEECH_DANGER_MAX) {
         if (!isnan(in->speech_p_clear)
             && in->speech_p_clear < SPEECH_P_DANGER_MAX) {
             out->veto_speech = 1;
             add_reason(out, "veto: S=%d <= %d & p_clear=%.2f < %.2f",
-                       speech, SPEECH_DANGER_MAX,
+                       speech, SG_SPEECH_DANGER_MAX,
                        (double)in->speech_p_clear,
                        (double)SPEECH_P_DANGER_MAX);
         }

@@ -12,6 +12,7 @@
 #include "fusion.h"
 #include "local_alert.h"
 #include "device_config.h"
+#include "sg_manager_api.h"
 
 static char captured_level[16];
 static char captured_text[SG_ADVICE_TEXT_MAX + 128];
@@ -187,6 +188,134 @@ TEST_CASE("version one NVS config migrates without losing profile", "[e1][config
     TEST_ASSERT_EQUAL_STRING("M", migrated.gender);
     TEST_ASSERT_EQUAL_STRING("diabetes", migrated.conditions[0]);
     TEST_ASSERT_TRUE(sg_device_config_manager_ready(&migrated));
+}
+
+static void assert_patch_result(const char *json,
+                                sg_manager_parse_err_t expected)
+{
+    uint32_t revision = 0;
+    sg_profile_patch_t patch = { 0 };
+    TEST_ASSERT_EQUAL(expected, sg_manager_parse_profile_patch(
+        json, strlen(json), &revision, &patch));
+}
+
+TEST_CASE("manager parser accepts a bounded profile update", "[e1][manager]")
+{
+    const char *json =
+        "{\"schema_version\":1,\"expected_revision\":7,\"profile\":{"
+        "\"age\":69,\"gender\":\"F\","
+        "\"conditions\":[\"hypertension\"],\"meds\":[\"aspirin\"],"
+        "\"stroke_history\":true}}";
+    uint32_t revision = 0;
+    sg_profile_patch_t patch = { 0 };
+    TEST_ASSERT_EQUAL(SG_MANAGER_OK, sg_manager_parse_profile_patch(
+        json, strlen(json), &revision, &patch));
+    TEST_ASSERT_EQUAL_UINT32(7, revision);
+    TEST_ASSERT_EQUAL_UINT8(69, patch.age);
+    TEST_ASSERT_EQUAL_STRING("F", patch.gender);
+    TEST_ASSERT_EQUAL_UINT8(1, patch.condition_count);
+    TEST_ASSERT_EQUAL_STRING("hypertension", patch.conditions[0]);
+    TEST_ASSERT_EQUAL_UINT8(1, patch.med_count);
+    TEST_ASSERT_EQUAL_STRING("aspirin", patch.meds[0]);
+    TEST_ASSERT_TRUE(patch.stroke_history);
+
+    const char *utf8_json =
+        "{\"schema_version\":1,\"expected_revision\":8,\"profile\":{"
+        "\"age\":70,\"gender\":\"other\","
+        "\"conditions\":[\"\xE9\xAB\x98\xE8\xA1\x80\xE5\x8E\x8B\"],"
+        "\"meds\":[],\"stroke_history\":false}}";
+    TEST_ASSERT_EQUAL(SG_MANAGER_OK, sg_manager_parse_profile_patch(
+        utf8_json, strlen(utf8_json), &revision, &patch));
+}
+
+TEST_CASE("manager parser rejects non-whitelisted structures", "[e1][manager]")
+{
+    assert_patch_result(
+        "{\"schema_version\":1,\"expected_revision\":1,\"profile\":{"
+        "\"age\":60,\"gender\":\"M\",\"conditions\":[],\"meds\":[],"
+        "\"stroke_history\":false},\"mqtt_uri\":\"mqtt://x\"}",
+        SG_MANAGER_INVALID_FIELD);
+    assert_patch_result(
+        "{\"schema_version\":1,\"expected_revision\":1,"
+        "\"expected_revision\":2,\"profile\":{\"age\":60,"
+        "\"gender\":\"M\",\"conditions\":[],\"meds\":[],"
+        "\"stroke_history\":false}}",
+        SG_MANAGER_INVALID_FIELD);
+    assert_patch_result(
+        "{\"schema_version\":1,\"expected_revision\":1,\"profile\":{"
+        "\"age\":60,\"gender\":\"M\",\"conditions\":[],\"meds\":[],"
+        "\"stroke_history\":false,\"face_danger\":20}}",
+        SG_MANAGER_INVALID_FIELD);
+}
+
+TEST_CASE("manager parser rejects invalid values and bounds", "[e1][manager]")
+{
+    assert_patch_result(
+        "{\"schema_version\":2,\"expected_revision\":1,\"profile\":{}}",
+        SG_MANAGER_INVALID_FIELD);
+    assert_patch_result(
+        "{\"schema_version\":1,\"expected_revision\":1.5,\"profile\":{}}",
+        SG_MANAGER_INVALID_FIELD);
+    assert_patch_result(
+        "{\"schema_version\":1,\"expected_revision\":1,\"profile\":{"
+        "\"age\":131,\"gender\":\"M\",\"conditions\":[],\"meds\":[],"
+        "\"stroke_history\":false}}",
+        SG_MANAGER_INVALID_FIELD);
+    assert_patch_result(
+        "{\"schema_version\":1,\"expected_revision\":1,\"profile\":{"
+        "\"age\":60,\"gender\":\"M\",\"conditions\":[\"a\",\"b\","
+        "\"c\",\"d\",\"e\"],\"meds\":[],\"stroke_history\":false}}",
+        SG_MANAGER_INVALID_FIELD);
+    assert_patch_result(
+        "{\"schema_version\":1,\"expected_revision\":1,\"profile\":{"
+        "\"age\":60,\"gender\":\"M\","
+        "\"conditions\":[\"12345678901234567890123456789012\"],"
+        "\"meds\":[],\"stroke_history\":false}}",
+        SG_MANAGER_INVALID_FIELD);
+    assert_patch_result("{bad", SG_MANAGER_BAD_JSON);
+
+    char invalid_utf8[] =
+        "{\"schema_version\":1,\"expected_revision\":1,\"profile\":{"
+        "\"age\":60,\"gender\":\"M\",\"conditions\":[\"\xC0\xAF\"],"
+        "\"meds\":[],\"stroke_history\":false}}";
+    assert_patch_result(invalid_utf8, SG_MANAGER_INVALID_FIELD);
+
+    char oversized[SG_MANAGER_BODY_MAX + 2];
+    memset(oversized, ' ', sizeof(oversized));
+    oversized[sizeof(oversized) - 1] = '\0';
+    assert_patch_result(oversized, SG_MANAGER_TOO_LARGE);
+}
+
+TEST_CASE("manager token comparison is exact", "[e1][manager]")
+{
+    TEST_ASSERT_TRUE(sg_manager_token_equal("unit-token", "unit-token"));
+    TEST_ASSERT_FALSE(sg_manager_token_equal("unit-token", "unit-tokeN"));
+    TEST_ASSERT_FALSE(sg_manager_token_equal("unit-token", "unit"));
+    TEST_ASSERT_FALSE(sg_manager_token_equal("", ""));
+    char too_long[SG_MANAGER_TOKEN_MAX + 2];
+    memset(too_long, 'x', sizeof(too_long));
+    too_long[sizeof(too_long) - 1] = '\0';
+    TEST_ASSERT_FALSE(sg_manager_token_equal(too_long, too_long));
+}
+
+TEST_CASE("manager response excludes credentials", "[e1][manager]")
+{
+    sg_device_config_t cfg;
+    TEST_ASSERT_EQUAL(ESP_OK, sg_device_config_snapshot(&cfg));
+    strlcpy(cfg.mqtt_pass, "forbidden-mqtt-secret", sizeof(cfg.mqtt_pass));
+    strlcpy(cfg.manager_token, "forbidden-manager-secret",
+            sizeof(cfg.manager_token));
+    char response[SG_MANAGER_RESPONSE_MAX];
+    int length = sg_manager_build_config_json(response, sizeof(response), &cfg);
+    TEST_ASSERT_GREATER_THAN(0, length);
+    TEST_ASSERT_NOT_NULL(strstr(response, "\"schema_version\":1"));
+    TEST_ASSERT_NOT_NULL(strstr(response, "\"revision\":"));
+    TEST_ASSERT_NOT_NULL(strstr(response, "\"readonly\":"));
+    TEST_ASSERT_NOT_NULL(strstr(response, "\"profile_write\""));
+    TEST_ASSERT_NULL(strstr(response, "forbidden-mqtt-secret"));
+    TEST_ASSERT_NULL(strstr(response, "forbidden-manager-secret"));
+    TEST_ASSERT_NULL(strstr(response, "mqtt_pass"));
+    TEST_ASSERT_NULL(strstr(response, "manager_token"));
 }
 
 void app_main(void)

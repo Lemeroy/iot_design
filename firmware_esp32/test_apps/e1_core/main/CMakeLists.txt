@@ -4,6 +4,7 @@ idf_component_register(
         "../../../main/fusion.c"
         "../../../main/local_alert.c"
         "../../../main/device_config.c"
+        "../../../main/sg_manager_api.c"
     INCLUDE_DIRS "../../../main"
-    REQUIRES unity freertos log nvs_flash esp_hw_support
+    REQUIRES unity freertos log nvs_flash esp_hw_support json esp_http_server
 )

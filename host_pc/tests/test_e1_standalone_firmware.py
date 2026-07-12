@@ -72,6 +72,41 @@ def test_nvs_v2_supports_locked_revisioned_profile_updates():
     assert "config STROKEGUARD_MANAGER_TOKEN" in kconfig
 
 
+def test_firmware_exposes_bounded_authenticated_manager_api():
+    header = read("sg_manager_api.h")
+    source = read("sg_manager_api.c")
+    app = read("app_main.c")
+    cmake = read("CMakeLists.txt")
+
+    assert "SG_MANAGER_BODY_MAX 1024" in header
+    assert "SG_MANAGER_AUTH_MAX 80" in header
+    assert "SG_MANAGER_TASK_STACK 12288" in header
+    assert "sg_manager_parse_profile_patch" in header
+    assert "sg_manager_token_equal" in header
+    assert "sg_manager_api_start" in header
+    assert '"/api/v1/config"' in source
+    assert "httpd_register_uri_handler" in source
+    assert "Authorization" in source
+    assert "Bearer " in source
+    assert "Cache-Control" in source
+    assert "no-store" in source
+    assert "sg_manager_api_start" in app
+    assert '"sg_manager_api.c"' in cmake
+    assert "esp_http_server" in cmake
+    assert "IPSTR" in app
+    assert "IP2STR" in app
+
+
+def test_manager_api_does_not_serialize_or_log_credentials():
+    source = read("sg_manager_api.c")
+
+    assert 'cJSON_AddStringToObject(root, "manager_token"' not in source
+    assert 'cJSON_AddStringToObject(root, "mqtt_pass"' not in source
+    assert 'cJSON_AddStringToObject(root, "mqtt_user"' not in source
+    assert 'ESP_LOGI' not in source or "request_body" not in source
+    assert "Authorization: %s" not in source
+
+
 def test_firmware_cloud_contract_is_numeric_only_and_bounded():
     header = read("cloud_contract.h")
     source = read("cloud_contract.c")
