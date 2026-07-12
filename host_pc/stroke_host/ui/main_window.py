@@ -74,6 +74,7 @@ from ..config.profile_loader import load_profile
 from ..fusion import LEVEL_DANGER, LEVEL_INSUFFICIENT, LEVEL_NORMAL, LEVEL_WARNING, fuse
 from ..io.cdc_reader import CdcReader
 from ..io.frame_recorder import FrameRecorder
+from ..io.device_config_client import DeviceConfigClient, DeviceConfigError
 from ..io.mqtt_pub import MqttConfig, MqttPublisher
 from ..io.sim_source import RealSource, SimSource, SyntheticFrameSource
 from ..main import PerceptionPipeline
@@ -129,6 +130,46 @@ DISCLAIMER = (
 class _AdviceProxy(QObject):
     """跨线程信号代理: paho 后台线程 -> Qt 主线程."""
     new_advice = pyqtSignal(dict)
+
+
+class DeviceConfigWorker(QObject):
+    succeeded = pyqtSignal(str, object)
+    conflict = pyqtSignal(object)
+    failed = pyqtSignal(str)
+    finished = pyqtSignal()
+
+    def __init__(self, operation: str, profile, revision: int | None) -> None:
+        super().__init__()
+        self._operation = operation
+        self._profile = profile
+        self._revision = revision
+
+    def run(self) -> None:
+        try:
+            client = DeviceConfigClient(
+                self._profile.device_id, self._profile.device
+            )
+            if self._operation == "pull":
+                response = client.get_config()
+            else:
+                assert self._revision is not None
+                response = client.put_profile(
+                    self._profile.user, self._revision
+                )
+        except DeviceConfigError as exc:
+            if exc.kind == "conflict":
+                try:
+                    self.conflict.emit(client.get_config())
+                except DeviceConfigError as refresh_error:
+                    self.failed.emit(str(refresh_error))
+            else:
+                self.failed.emit(str(exc))
+        except Exception:
+            self.failed.emit("设备配置同步失败")
+        else:
+            self.succeeded.emit(self._operation, response)
+        finally:
+            self.finished.emit()
 
 
 # ------------------------------------------------------------------------
@@ -316,6 +357,8 @@ class MainWindow(QMainWindow):
         self._thread: Optional[QThread] = None
         self._worker: Optional[BackendWorker] = None
         self._mqtt: Optional[MqttPublisher] = None
+        self._config_thread: Optional[QThread] = None
+        self._config_worker: Optional[DeviceConfigWorker] = None
         self._tts = TtsWorker()
         self._tts.open()
         self._last_level = LEVEL_NORMAL
@@ -531,10 +574,47 @@ class MainWindow(QMainWindow):
         monitor_root.addWidget(lbl_disc)
 
         self.config_panel = ConfigPanel(self._args.profile)
+        self.config_panel.pull_requested.connect(self._pull_device_config)
+        self.config_panel.push_requested.connect(self._push_device_config)
         self.workspace_tabs.addTab(monitor_page, "监测")
         self.workspace_tabs.addTab(self.config_panel, "设备配置")
 
     # ---------- lifecycle ----------
+    def _pull_device_config(self) -> None:
+        try:
+            profile = self.config_panel.current_profile()
+        except ValueError:
+            self.config_panel.sync_failed("本地 YAML 配置无效")
+            return
+        self._start_config_sync("pull", profile, None)
+
+    def _push_device_config(self, profile, revision: int) -> None:
+        self._start_config_sync("push", profile, revision)
+
+    def _start_config_sync(self, operation: str, profile, revision) -> None:
+        if self._config_thread and self._config_thread.isRunning():
+            return
+        self.config_panel.set_sync_busy(True)
+        thread = QThread(self)
+        worker = DeviceConfigWorker(operation, profile, revision)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.succeeded.connect(self.config_panel.sync_succeeded)
+        worker.conflict.connect(self.config_panel.show_conflict)
+        worker.failed.connect(self.config_panel.sync_failed)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(self._config_sync_finished)
+        self._config_thread = thread
+        self._config_worker = worker
+        thread.start()
+
+    def _config_sync_finished(self) -> None:
+        self.config_panel.set_sync_busy(False)
+        self._config_thread = None
+        self._config_worker = None
+
     def _on_start(self) -> None:
         if self._thread and self._thread.isRunning():
             return
@@ -618,6 +698,9 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, evt) -> None:  # noqa: N802
         self._on_stop()
+        if self._config_thread is not None:
+            self._config_thread.quit()
+            self._config_thread.wait(5000)
         self._tts.close()
         super().closeEvent(evt)
 

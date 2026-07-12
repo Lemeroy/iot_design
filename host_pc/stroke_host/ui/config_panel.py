@@ -31,6 +31,10 @@ from ..config.profile_loader import (
     parse_profile_yaml,
 )
 from ..config.profile_store import dump_profile_yaml, save_profile_atomic
+from ..io.device_config_client import (
+    DeviceConfigResponse,
+    save_manager_token,
+)
 
 
 class _LineNumberArea(QWidget):
@@ -129,13 +133,16 @@ class YamlEditor(QPlainTextEdit):
 class ConfigPanel(QWidget):
     profile_saved = pyqtSignal(object)
     pull_requested = pyqtSignal()
-    push_requested = pyqtSignal(object)
+    push_requested = pyqtSignal(object, int)
 
     def __init__(self, profile_path: str | Path, parent=None) -> None:
         super().__init__(parent)
         self._profile_path = Path(profile_path)
         self._sync_busy = False
         self._valid_profile: ProfileFile | None = None
+        self._device_revision: int | None = None
+        self._revision_identity: tuple[str, str, int] | None = None
+        self._conflict_response: DeviceConfigResponse | None = None
         self._build_ui()
         self._load_initial_profile()
 
@@ -177,10 +184,26 @@ class ConfigPanel(QWidget):
         self.conditions = QLineEdit()
         self.meds = QLineEdit()
         self.stroke_history = QCheckBox()
+        self.token_edit = QLineEdit()
+        self.token_edit.setEchoMode(QLineEdit.Password)
+        self.token_edit.setMaxLength(64)
+        self.token_edit.setPlaceholderText("本机系统凭据库")
+        self.save_token_button = QPushButton("保存密钥")
+        self.save_token_button.clicked.connect(self.save_token)
+        token_row = QWidget()
+        token_layout = QHBoxLayout(token_row)
+        token_layout.setContentsMargins(0, 0, 0, 0)
+        token_layout.setSpacing(8)
+        token_layout.addWidget(self.token_edit, stretch=1)
+        token_layout.addWidget(self.save_token_button)
+        self.revision_label = QLabel("未读取")
+        self.revision_label.setObjectName("SmallMeta")
 
         form.addRow("设备 ID", self.device_id)
         form.addRow("局域网地址", self.host)
         form.addRow("管理端口", self.port)
+        form.addRow("管理密钥", token_row)
+        form.addRow("设备版本", self.revision_label)
         form.addRow("年龄", self.age)
         form.addRow("性别", self.gender)
         form.addRow("慢性病", self.conditions)
@@ -221,6 +244,21 @@ class ConfigPanel(QWidget):
         yaml_root.addWidget(self.apply_yaml_button, alignment=Qt.AlignRight)
         self.mode_tabs.addTab(yaml_page, "YAML")
         self.mode_tabs.currentChanged.connect(self._mode_changed)
+
+        self.conflict_bar = QFrame()
+        self.conflict_bar.setObjectName("ConflictBar")
+        conflict_layout = QHBoxLayout(self.conflict_bar)
+        conflict_layout.setContentsMargins(10, 8, 10, 8)
+        conflict_layout.addWidget(QLabel("检测到设备端更新"))
+        conflict_layout.addStretch(1)
+        self.use_local_button = QPushButton("使用本地")
+        self.use_device_button = QPushButton("使用设备")
+        self.use_local_button.clicked.connect(self._use_local_conflict)
+        self.use_device_button.clicked.connect(self._use_device_conflict)
+        conflict_layout.addWidget(self.use_local_button)
+        conflict_layout.addWidget(self.use_device_button)
+        self.conflict_bar.hide()
+        root.addWidget(self.conflict_bar)
 
         actions = QHBoxLayout()
         self.pull_button = QPushButton("从设备读取")
@@ -285,7 +323,19 @@ class ConfigPanel(QWidget):
     def current_profile(self) -> ProfileFile:
         return parse_profile_yaml(self.yaml_editor.toPlainText())
 
-    def set_profile(self, profile: ProfileFile) -> None:
+    @property
+    def device_revision(self) -> int | None:
+        return self._device_revision
+
+    @staticmethod
+    def _identity(profile: ProfileFile) -> tuple[str, str, int]:
+        return (profile.device_id, profile.device.host, profile.device.port)
+
+    def set_profile(self, profile: ProfileFile, *, reset_revision: bool = True) -> None:
+        if reset_revision:
+            self._device_revision = None
+            self._revision_identity = None
+            self.revision_label.setText("未读取")
         self.device_id.setText(profile.device_id)
         self.host.setText(profile.device.host)
         self.port.setValue(profile.device.port)
@@ -333,10 +383,22 @@ class ConfigPanel(QWidget):
         else:
             self.validation_label.setText("配置有效")
             self.validation_label.setStyleSheet("color: #58d7d1; font-weight: 600;")
+            if (
+                self._revision_identity is not None
+                and self._identity(self._valid_profile) != self._revision_identity
+            ):
+                self._device_revision = None
+                self._revision_identity = None
+                self.revision_label.setText("未读取")
+        self._refresh_action_states()
+        return self._valid_profile is not None
+
+    def _refresh_action_states(self) -> None:
         valid = self._valid_profile is not None
         self.save_button.setEnabled(valid and not self._sync_busy)
-        self.sync_button.setEnabled(valid and not self._sync_busy)
-        return valid
+        self.sync_button.setEnabled(
+            valid and self._device_revision is not None and not self._sync_busy
+        )
 
     def save_local(self) -> None:
         if not self.validate_yaml():
@@ -355,11 +417,92 @@ class ConfigPanel(QWidget):
     def set_sync_busy(self, busy: bool) -> None:
         self._sync_busy = busy
         self.pull_button.setEnabled(not busy)
-        self.validate_yaml()
+        self.save_token_button.setEnabled(not busy)
+        self.use_local_button.setEnabled(not busy)
+        self.use_device_button.setEnabled(not busy)
+        self._refresh_action_states()
 
     def _emit_push(self) -> None:
-        if self.validate_yaml() and self._valid_profile is not None:
-            self.push_requested.emit(self._valid_profile)
+        if (
+            self.validate_yaml()
+            and self._valid_profile is not None
+            and self._device_revision is not None
+        ):
+            self.push_requested.emit(
+                self._valid_profile, self._device_revision
+            )
+
+    def save_token(self) -> None:
+        if not self.validate_yaml() or self._valid_profile is None:
+            return
+        token = self.token_edit.text()
+        try:
+            save_manager_token(self._valid_profile.device_id, token)
+        except (ValueError, OSError):
+            self.validation_label.setText("密钥保存失败")
+            self.validation_label.setStyleSheet(
+                "color: #ff8b8b; font-weight: 600;"
+            )
+            return
+        self.token_edit.clear()
+        self.validation_label.setText("密钥已保存到系统凭据库")
+        self.validation_label.setStyleSheet(
+            "color: #58d7d1; font-weight: 600;"
+        )
+
+    def apply_device_response(self, response: DeviceConfigResponse) -> None:
+        current = self.current_profile()
+        profile = ProfileFile(
+            device_id=current.device_id,
+            device=current.device,
+            user=response.profile,
+            thresholds=response.readonly,
+        )
+        self.set_profile(profile, reset_revision=False)
+        self._device_revision = response.revision
+        self._revision_identity = self._identity(profile)
+        self.revision_label.setText(f"revision {response.revision}")
+        self.conflict_bar.hide()
+        self.validate_yaml()
+
+    def show_conflict(self, response: DeviceConfigResponse) -> None:
+        self._conflict_response = response
+        self.validation_label.setText("设备配置已更新，请选择保留版本")
+        self.validation_label.setStyleSheet(
+            "color: #ffd166; font-weight: 600;"
+        )
+        self.conflict_bar.show()
+
+    def _use_local_conflict(self) -> None:
+        response = self._conflict_response
+        if response is None or not self.validate_yaml() or self._valid_profile is None:
+            return
+        self._device_revision = response.revision
+        self._revision_identity = self._identity(self._valid_profile)
+        self.revision_label.setText(f"revision {response.revision}")
+        self.conflict_bar.hide()
+        self.push_requested.emit(self._valid_profile, response.revision)
+
+    def _use_device_conflict(self) -> None:
+        response = self._conflict_response
+        if response is None:
+            return
+        self.apply_device_response(response)
+
+    def sync_succeeded(self, operation: str, response: DeviceConfigResponse) -> None:
+        self.apply_device_response(response)
+        self.validation_label.setText(
+            "已从设备读取" if operation == "pull" else "已同步到设备"
+        )
+        self.validation_label.setStyleSheet(
+            "color: #58d7d1; font-weight: 600;"
+        )
+
+    def sync_failed(self, message: str) -> None:
+        self.validation_label.setText(message[:160])
+        self.validation_label.setStyleSheet(
+            "color: #ff8b8b; font-weight: 600;"
+        )
 
     def _mode_changed(self, index: int) -> None:
         if index == 1:

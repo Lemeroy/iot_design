@@ -22,3 +22,13 @@ def test_config_workspace_is_integrated_as_a_separate_widget():
     )
     assert "ConfigPanel" in source
     assert "workspace_tabs" in source
+
+
+def test_device_sync_uses_a_separate_qthread_worker():
+    source = (ROOT / "stroke_host" / "ui" / "main_window.py").read_text(
+        encoding="utf-8"
+    )
+    assert "DeviceConfigWorker" in source
+    assert "_config_thread" in source
+    assert "moveToThread" in source
+    assert "show_conflict" in source
