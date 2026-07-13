@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import secrets
+import threading
 import time
 
 import httpx
@@ -36,6 +37,7 @@ def _advice() -> DownlinkPayload:
 @pytest.fixture
 def demo_app(monkeypatch):
     import cloud.backend.app.main as main
+    import cloud.backend.app.demo_api as demo_api
 
     password = secrets.token_urlsafe(24)
     monkeypatch.setenv("SG_DEMO_USER", "demo-user")
@@ -53,9 +55,87 @@ def demo_app(monkeypatch):
             return dict(cache) if isinstance(cache, dict) else None
 
     bridge = TestBridge()
+    monkeypatch.setattr(demo_api, "_login_limiter", demo_api._LoginLimiter())
+    monkeypatch.setattr(demo_api, "_login_verify_slots", asyncio.Semaphore(2))
     monkeypatch.setattr(main, "_demo_auth", auth)
     monkeypatch.setattr(main, "_bridge", bridge)
     return main.app, bridge, password
+
+
+def test_demo_login_verification_runs_off_the_event_loop_thread(demo_app, monkeypatch):
+    app, _, password = demo_app
+    verify_threads = []
+    original = DemoAuth.verify_login
+
+    def recording_verify(self, username, supplied_password):
+        verify_threads.append(threading.get_ident())
+        return original(self, username, supplied_password)
+
+    monkeypatch.setattr(DemoAuth, "verify_login", recording_verify)
+
+    async def scenario():
+        loop_thread = threading.get_ident()
+        async with await _client(app) as client:
+            response = await client.post(
+                "/demo/api/login",
+                json={"username": "demo-user", "password": password},
+            )
+        assert response.status_code == 200
+        assert verify_threads and verify_threads[0] != loop_thread
+
+    _run(scenario)
+
+
+def test_demo_login_rate_limit_is_per_client_and_expires(demo_app, monkeypatch):
+    app, _, _ = demo_app
+    import cloud.backend.app.demo_api as demo_api
+
+    now = [100.0]
+    limiter = demo_api._LoginLimiter(clock=lambda: now[0])
+    monkeypatch.setattr(demo_api, "_login_limiter", limiter)
+    calls = []
+
+    def reject(*args):
+        calls.append(args)
+        return False
+
+    monkeypatch.setattr(DemoAuth, "verify_login", reject)
+
+    async def scenario():
+        transport = httpx.ASGITransport(app=app, client=("198.51.100.10", 1234))
+        async with httpx.AsyncClient(transport=transport, base_url="https://demo.test") as client:
+            for _ in range(5):
+                response = await client.post(
+                    "/demo/api/login", json={"username": "x", "password": "y"}
+                )
+                assert response.status_code == 401
+            limited = await client.post(
+                "/demo/api/login", json={"username": "x", "password": "y"}
+            )
+            assert limited.status_code == 429
+            assert limited.json() == {"detail": "too many login attempts"}
+
+        other_transport = httpx.ASGITransport(app=app, client=("198.51.100.11", 1234))
+        async with httpx.AsyncClient(
+            transport=other_transport, base_url="https://demo.test"
+        ) as other:
+            assert (
+                await other.post(
+                    "/demo/api/login", json={"username": "x", "password": "y"}
+                )
+            ).status_code == 401
+
+        now[0] += 61
+        transport = httpx.ASGITransport(app=app, client=("198.51.100.10", 1234))
+        async with httpx.AsyncClient(transport=transport, base_url="https://demo.test") as client:
+            assert (
+                await client.post(
+                    "/demo/api/login", json={"username": "x", "password": "y"}
+                )
+            ).status_code == 401
+
+    _run(scenario)
+    assert len(calls) == 7
 
 
 def _run(scenario):

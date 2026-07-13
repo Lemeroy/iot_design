@@ -118,10 +118,15 @@ def test_demo_web_view_transitions_focus_the_new_view_through_show_view():
 
 
 def test_demo_web_logout_only_leaves_monitor_after_a_successful_or_unauthorized_response():
+    page = _read(STATIC / "index.html")
     script = _read(STATIC / "app.js")
 
+    assert 'id="connect-logout-button"' in page
+    assert page.count('data-logout') == 2
+    assert 'id="connect-logout-button" type="button"' in page
+
     logout_handler = re.search(
-        r'document\.querySelector\("#logout-button"\)\.addEventListener\("click", async \(\) => \s*\{(?P<body>.*?)\n  \}\);',
+        r"async function handleLogout\(\) \{(?P<body>.*?)\n  \}",
         script,
         re.DOTALL,
     )
@@ -150,6 +155,8 @@ def test_demo_web_logout_only_leaves_monitor_after_a_successful_or_unauthorized_
     assert "clearInterval" not in body
     assert "document.cookie" not in body
     assert "error.message" not in failure
+    assert 'document.querySelectorAll("[data-logout]")' in script
+    assert 'button.addEventListener("click", handleLogout)' in script
 
 
 def run_fixture_server() -> None:

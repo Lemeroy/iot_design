@@ -40,6 +40,7 @@
         <form id="connect-form" class="form-grid">
           <label>设备 ID<input id="device-id" name="device_id" autocomplete="off" maxlength="32" pattern="[A-Za-z0-9_-]{1,32}" required></label>
           <button type="submit">连接设备</button>
+          <button id="connect-logout-button" type="button" class="secondary" data-logout>退出登录</button>
         </form>
       </section>
 
@@ -52,7 +53,7 @@
           <div class="monitor-actions" aria-label="监测操作">
             <button id="refresh-button" type="button">刷新</button>
             <button id="disconnect-button" type="button" class="secondary">断开</button>
-            <button id="logout-button" type="button" class="secondary">退出登录</button>
+            <button id="logout-button" type="button" class="secondary" data-logout>退出登录</button>
           </div>
         </div>
 

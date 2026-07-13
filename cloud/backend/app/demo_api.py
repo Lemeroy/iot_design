@@ -1,7 +1,11 @@
 """Read-only API for the preliminary authenticated device monitor."""
 from __future__ import annotations
 
+import asyncio
+import threading
 import time
+from collections import OrderedDict, deque
+from collections.abc import Callable
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
@@ -19,6 +23,38 @@ from .schemas import (
 
 DEMO_SESSION_COOKIE = "sg_demo_session"
 ONLINE_WINDOW_SECONDS = 30
+LOGIN_WINDOW_SECONDS = 60
+LOGIN_MAX_ATTEMPTS = 5
+LOGIN_MAX_CLIENTS = 1024
+
+
+class _LoginLimiter:
+    """Small process-local limiter for the single-account preliminary demo."""
+
+    def __init__(self, *, clock: Callable[[], float] = time.monotonic) -> None:
+        self._clock = clock
+        self._attempts: OrderedDict[str, deque[float]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def allow(self, client_id: str) -> bool:
+        now = self._clock()
+        cutoff = now - LOGIN_WINDOW_SECONDS
+        with self._lock:
+            attempts = self._attempts.setdefault(client_id, deque())
+            while attempts and attempts[0] <= cutoff:
+                attempts.popleft()
+            if len(attempts) >= LOGIN_MAX_ATTEMPTS:
+                self._attempts.move_to_end(client_id)
+                return False
+            attempts.append(now)
+            self._attempts.move_to_end(client_id)
+            while len(self._attempts) > LOGIN_MAX_CLIENTS:
+                self._attempts.popitem(last=False)
+            return True
+
+
+_login_limiter = _LoginLimiter()
+_login_verify_slots = asyncio.Semaphore(2)
 
 router = APIRouter(prefix="/demo/api")
 
@@ -82,7 +118,12 @@ async def login(request: Request, response: Response) -> DemoSessionResp:
     auth = _auth()
     if not isinstance(username, str) or not isinstance(password, str) or auth is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid username or password")
-    if not auth.verify_login(username, password):
+    client_id = request.client.host if request.client is not None else "unknown"
+    if not _login_limiter.allow(client_id):
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="too many login attempts")
+    async with _login_verify_slots:
+        verified = await asyncio.to_thread(auth.verify_login, username, password)
+    if not verified:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid username or password")
     _set_session(response, auth, device_id=None)
     return DemoSessionResp(authenticated=True)

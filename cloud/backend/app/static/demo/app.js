@@ -166,7 +166,7 @@
     try { await request("/demo/api/disconnect", { method: "POST" }); showView("connect"); report("设备已断开"); }
     catch (_) { report("断开失败，请重试"); }
   });
-  document.querySelector("#logout-button").addEventListener("click", async () => {
+  async function handleLogout() {
     try {
       await request("/demo/api/logout", { method: "POST" });
       showView("login");
@@ -175,6 +175,9 @@
       if (error.status === 401) { showView("login"); report("会话已结束，请重新登录"); return; }
       report("退出失败，请重试");
     }
+  }
+  document.querySelectorAll("[data-logout]").forEach((button) => {
+    button.addEventListener("click", handleLogout);
   });
 
   restoreSession();
