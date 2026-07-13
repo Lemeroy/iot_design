@@ -267,6 +267,53 @@ class AuthStore:
             row = db.execute("SELECT * FROM devices WHERE device_id = ?", (normalized,)).fetchone()
         return _device_from_row(row)
 
+    def get_device(self, device_id: str) -> DeviceRecord | None:
+        try:
+            normalized = _normalize_device_id(device_id)
+        except ValueError:
+            return None
+        with self._operation() as db:
+            row = db.execute("SELECT * FROM devices WHERE device_id = ?", (normalized,)).fetchone()
+        return None if row is None else _device_from_row(row)
+
+    def list_devices(self, *, owner_user_id: int | None = None) -> list[DeviceRecord]:
+        with self._operation() as db:
+            if owner_user_id is None:
+                rows = db.execute("SELECT * FROM devices ORDER BY device_id").fetchall()
+            else:
+                rows = db.execute(
+                    "SELECT * FROM devices WHERE owner_user_id = ? ORDER BY device_id",
+                    (int(owner_user_id),),
+                ).fetchall()
+        return [_device_from_row(row) for row in rows]
+
+    def assign_device(
+        self, device_id: str, owner_user_id: int, *, now: int | None = None
+    ) -> DeviceRecord | None:
+        normalized = _normalize_device_id(device_id)
+        timestamp = _timestamp(now)
+        with self._operation() as db:
+            db.execute(
+                "UPDATE devices SET owner_user_id = ?, updated_at = ? WHERE device_id = ?",
+                (int(owner_user_id), timestamp, normalized),
+            )
+            row = db.execute("SELECT * FROM devices WHERE device_id = ?", (normalized,)).fetchone()
+        return None if row is None else _device_from_row(row)
+
+    def unassign_device(self, device_id: str, *, now: int | None = None) -> DeviceRecord | None:
+        try:
+            normalized = _normalize_device_id(device_id)
+        except ValueError:
+            return None
+        timestamp = _timestamp(now)
+        with self._operation() as db:
+            db.execute(
+                "UPDATE devices SET owner_user_id = NULL, updated_at = ? WHERE device_id = ?",
+                (timestamp, normalized),
+            )
+            row = db.execute("SELECT * FROM devices WHERE device_id = ?", (normalized,)).fetchone()
+        return None if row is None else _device_from_row(row)
+
     def create_pairing_code(self, device_id: str, created_by: int, *, now: int | None = None) -> str:
         normalized = _normalize_device_id(device_id)
         timestamp = _timestamp(now)

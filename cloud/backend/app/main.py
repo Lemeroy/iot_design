@@ -16,15 +16,14 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException
 
 from .auth_api import LoginRateLimiter, bootstrap_auth_store, router as auth_router
+from .device_api import router as device_router
 from .db_influx import InfluxWriter
 from .llm_advice import DoubaoAdvisor
 from .mqtt_bridge import MqttBridge
 from .schemas import (
     HealthResp,
-    LatestResp,
     ManualAdviceReq,
     ManualAdviceResp,
-    Scores,
 )
 
 logging.basicConfig(
@@ -49,6 +48,7 @@ async def lifespan(app: FastAPI):
     _influx = InfluxWriter()
     loop = asyncio.get_running_loop()
     _bridge = MqttBridge(loop, _advisor, _influx)
+    app.state.bridge = _bridge
     _bridge.start()
     log.info("backend ready")
     try:
@@ -63,6 +63,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="StrokeGuard Cloud", version="0.1.0-m5", lifespan=lifespan)
 app.include_router(auth_router)
+app.include_router(device_router)
 
 
 @app.get("/health", response_model=HealthResp)
@@ -72,24 +73,6 @@ async def health() -> HealthResp:
         mqtt=_bridge.connected() if _bridge else False,
         influx=_influx.ping() if _influx else False,
         llm=_advisor.available if _advisor else False,
-    )
-
-
-@app.get("/devices/{device_id}/latest", response_model=LatestResp)
-async def latest(device_id: str) -> LatestResp:
-    if _bridge is None:
-        raise HTTPException(500, "bridge not ready")
-    cache = _bridge.latest.get(device_id)
-    if not cache:
-        return LatestResp(device_id=device_id)
-    up = cache.get("uplink")
-    adv = cache.get("advice")
-    return LatestResp(
-        device_id=device_id,
-        last_uplink_ts=up.ts if up else None,
-        last_advice=adv,
-        latest_scores=up.scores if up else None,
-        latest_level=up.level if up else None,
     )
 
 

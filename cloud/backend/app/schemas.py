@@ -66,6 +66,24 @@ class LatestResp(StrictModel):
     latest_level: Optional[LevelT] = None
 
 
+class DeviceResponse(StrictModel):
+    device_id: str
+    last_seen_at: int
+
+
+class AdminDeviceResponse(DeviceResponse):
+    owner_user_id: Optional[int] = None
+
+
+class PairDeviceRequest(StrictModel):
+    code: str
+
+
+class PairingCodeResponse(StrictModel):
+    device_id: str
+    code: str
+
+
 class ManualAdviceReq(StrictModel):
     """开发/演示: 手动触发一次 LLM 建议 (不经过 MQTT)."""
     scores: Scores

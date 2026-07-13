@@ -195,6 +195,7 @@ def test_missing_auth_configuration_disables_auth_without_stopping_cloud_lifespa
         assert disabled_client.post("/api/auth/login", json={"username": "a", "password": "b"}).status_code == 503
         assert disabled_client.get("/api/auth/me").status_code == 503
         assert disabled_client.get("/api/admin/users").status_code == 503
+        assert disabled_client.get("/api/devices").status_code == 503
 
 
 def test_login_failure_is_generic_and_rate_limited(client):
