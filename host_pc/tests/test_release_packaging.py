@@ -8,7 +8,8 @@ def test_demo_entry_uses_package_import_and_main_guard():
     source = (ROOT / "host_pc" / "stroke_host" / "demo_entry.py").read_text(
         encoding="utf-8"
     )
-    assert "from stroke_host.ui.main_window import main" in source
+    assert "from stroke_host.demo.window import main" in source
+    assert "stroke_host.ui.main_window" not in source
     assert 'if __name__ == "__main__"' in source
 
 
