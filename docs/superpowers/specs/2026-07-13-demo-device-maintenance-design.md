@@ -85,9 +85,10 @@ hardware:
     enabled: false
     pins: {}
   microphone:
-    model: INMP441
+    model: NMO432
     enabled: false
     sample_rate: 16000
+    channel: left
     pins: {}
 ```
 
@@ -98,8 +99,9 @@ hardware:
 - `schema_version` 必须为 `1`。
 - `device.id` 必须符合现有 MQTT 设备 ID 约束且不能为空。
 - Wi-Fi SSID、MQTT URI 和必需凭据必须解析成功后才能编译。
-- 摄像头仅支持声明 `GC2145`，麦克风仅支持声明 `INMP441`。
-- 启用 GC2145 或 INMP441 时必须提供固件 Kconfig 要求的全部 GPIO；缺失、重复、越界或保留引脚均阻止编译。
+- 摄像头仅支持声明 `GC2145`，麦克风仅支持声明 `NMO432`。
+- NMO432 固定使用 3.3V 供电和 I2S 接口；YAML 必须声明 `SCK/BCLK`、`WS/LRCLK`、`SD/DIN` GPIO 以及与 `L/R` 接法一致的左右声道。`VDD` 接 3.3V，`GND` 接公共地，不允许接 5V。
+- 启用 GC2145 或 NMO432 时必须提供固件 Kconfig 要求的全部 GPIO；缺失、重复、越界或保留引脚均阻止编译。
 - 本阶段不猜测任何 GPIO，也不自动启用未确认硬件。
 
 ## 5. ESP-IDF 集成
@@ -157,4 +159,4 @@ YAML 到 Kconfig 的映射必须使用明确字段白名单。禁止把密码放
 - 不实现模拟数据或答辩假数据。
 - 不把 ESP-IDF、训练权重或原始音视频打包进 EXE。
 - 不实现 OTA、设备远程控制、多用户账号、历史曲线或医学档案编辑。
-- 不宣称尚未完成的 GC2145/INMP441 驱动或 F/S/T/E 真机能力已经可用。
+- 不宣称尚未完成的 GC2145/NMO432 驱动或 F/S/T/E 真机能力已经可用。
