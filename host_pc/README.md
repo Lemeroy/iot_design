@@ -1,5 +1,18 @@
 # StrokeGuard PC 端 M1a
 
+## 初赛演示入口（推荐）
+
+```powershell
+cd F:\iot_design\host_pc
+.venv\Scripts\python.exe -m stroke_host.demo.window
+```
+
+该入口是 `StrokeGuard-Demo.exe` 的源码运行方式：默认登录 VPS 并连接真实设备 `sg-0001`，不读取模拟源、不运行 PC 感知管线，也不生成替代评分。设备维护页可编辑 `config/device-deployment.example.yaml`，填写本次运行使用的 Wi-Fi/MQTT/管理凭据，调用本机 ESP-IDF v5.5.3 完成编译、确认擦除、烧录和串口监视。
+
+麦克风型号为 **NMO432**：3.3V 供电，I2S 引脚为 `SCK/BCLK`、`WS/LRCLK`、`SD/DIN`，并通过 `L/R` 选择声道。GC2145 与 NMO432 的 GPIO 未完整确认时保持 `enabled: false`，程序不会猜测引脚。
+
+下文的模拟源、PC 感知和旧观察窗口仅供研发测试，不属于初赛 EXE 的演示入口。
+
 上位机数据管线：ESP32 帧接入 + AES-GCM 加密落盘 + 24h 自动清理 + 用户档案。
 
 ## 目录

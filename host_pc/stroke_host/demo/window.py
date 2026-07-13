@@ -421,7 +421,19 @@ class DemoWindow(QMainWindow):
 
     @staticmethod
     def _default_firmware_path() -> Path:
+        if getattr(sys, "frozen", False):
+            exe_dir = Path(sys.executable).resolve().parent
+            beside_exe = exe_dir / "firmware_esp32"
+            beside_dist = exe_dir.parent / "firmware_esp32"
+            return beside_exe if beside_exe.exists() else beside_dist
         return Path(__file__).resolve().parents[3] / "firmware_esp32"
+
+    @staticmethod
+    def _example_yaml_path() -> Path:
+        bundle_root = getattr(sys, "_MEIPASS", None)
+        if bundle_root:
+            return Path(bundle_root) / "stroke_host" / "config" / "device-deployment.example.yaml"
+        return Path(__file__).resolve().parents[2] / "config" / "device-deployment.example.yaml"
 
     def show_login(self, message: str = "") -> None:
         self.stack.setCurrentWidget(self.login_page)
@@ -537,7 +549,7 @@ class DemoWindow(QMainWindow):
         self._thread_pool.start(task)
 
     def _load_example_yaml(self) -> None:
-        path = Path(__file__).resolve().parents[2] / "config" / "device-deployment.example.yaml"
+        path = self._example_yaml_path()
         if path.is_file():
             self.deployment_path.setText(str(path))
             self.yaml_editor.setPlainText(path.read_text(encoding="utf-8"))

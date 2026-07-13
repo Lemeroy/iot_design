@@ -92,6 +92,8 @@ def test_release_wrapper_preserves_two_artifact_build_and_checks_demo_handoff_co
     assert "mfcc" in package.lower()
     assert "landmarks" in package.lower()
     assert "roi" in package.lower()
+    assert "host_pc/stroke_host/demo/window.py" in package
+    assert "host_pc/config/device-deployment.example.yaml" in package
 
 
 def test_release_wrapper_validates_paths_without_building_and_reuses_its_helper():

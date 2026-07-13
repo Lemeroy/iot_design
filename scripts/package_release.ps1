@@ -9,6 +9,8 @@ $forbiddenReleasePathPatterns = @(
     "(^|/)\.env$",
     "(^|/)(?:\.pytest_cache|\.mypy_cache|\.ruff_cache|\.cache)(?:/|$)",
     "(^|/)(?:__pycache__|data|build|dist)(?:/|$)",
+    "(^|/)device-deployment\.local\.ya?ml$",
+    "(^|/)\.strokeguard-build(?:/|$)",
     "/cloud/native/(?:runtime|state|logs|run|downloads)/",
     "\.(?:log|pyc)$"
 )
@@ -68,6 +70,8 @@ try {
         "/cloud/backend/app/static/demo/app.css$",
         "/cloud/backend/app/static/demo/app.js$",
         "/cloud/README.md$",
+        "/host_pc/stroke_host/demo/window.py$",
+        "/host_pc/config/device-deployment.example.yaml$",
         "/README.md$"
     )
     foreach ($pattern in $required) {

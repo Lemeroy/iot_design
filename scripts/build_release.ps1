@@ -45,12 +45,21 @@ try {
             --windowed `
             --name "StrokeGuard-Demo" `
             --paths (Join-Path $repoRoot "host_pc") `
+            --add-data "$(Join-Path $repoRoot 'host_pc\config\device-deployment.example.yaml');stroke_host\config" `
             --distpath $distPath `
             --workpath (Join-Path $repoRoot ".release-build\work") `
             --specpath (Join-Path $repoRoot ".release-build\spec") `
-            --collect-submodules "keyring.backends" `
-            --collect-submodules "pyttsx3.drivers" `
-            --hidden-import "pyttsx3.drivers.sapi5" `
+            --exclude-module "numpy" `
+            --exclude-module "cv2" `
+            --exclude-module "mediapipe" `
+            --exclude-module "sounddevice" `
+            --exclude-module "pyttsx3" `
+            --exclude-module "keyring" `
+            --exclude-module "cryptography" `
+            --exclude-module "paho" `
+            --exclude-module "torch" `
+            --exclude-module "ultralytics" `
+            --exclude-module "matplotlib" `
             (Join-Path $repoRoot "host_pc\stroke_host\demo_entry.py")
         if ($LASTEXITCODE -ne 0) {
             throw "PyInstaller build failed"
@@ -77,6 +86,8 @@ try {
             "/data/",
             "/build/",
             "/dist/",
+            "/device-deployment\.local\.ya?ml$",
+            "/\.strokeguard-build/",
             "__pycache__",
             "\.pyc$",
             "\.log$",

@@ -177,6 +177,20 @@ cd host_pc
 
 外设引脚尚未由实物接线确认，固件 Kconfig 默认使用 `-1` 表示未分配；不要按猜测启用驱动。接线状态见 [wiring.md](docs/wiring.md)。
 
+## 初赛桌面演示程序
+
+`dist/StrokeGuard-Demo.exe` 默认连接 VPS 上的真实设备 `sg-0001`，只显示实时 F/S/T/E/CSI、镜端融合状态和最新豆包建议。它不提供模拟数据；云端不可达、登录失效、设备离线和模态未接入会分别显示。数据不足时融合评分显示“未形成”，不会把无效的 `0` 误显示为危险评分。
+
+“设备维护”页提供：
+
+- 部署 YAML 编辑与严格校验；
+- `device_id`、2.4 GHz Wi-Fi、MQTT 和管理 Token 的运行时输入；
+- GC2145 与 NMO432 配置校验，未填写完整 GPIO 时禁止启用；
+- COM 口扫描、ESP-IDF v5.5.3 编译、确认后擦除、烧录和串口日志；
+- 敏感字段日志脱敏。
+
+启动 EXE 后输入 VPS 演示账号和密码，程序自动连接 `sg-0001`。账号和密码只保留在当前进程会话中。设备部署密钥应通过界面运行时输入或本机环境变量提供，不得写入 Git。
+
 ## Preliminary External Monitor
 
 The preliminary external monitor is read-only. A viewer connects by device ID only after a valid MQTT uplink in the last 30 seconds. Synchronization is limited to monitoring scores/status and latest LLM advice; it does not synchronize profile, Wi-Fi, MQTT, fusion, thresholds, veto rules, or remote commands.
