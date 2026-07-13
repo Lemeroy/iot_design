@@ -142,6 +142,12 @@ cd host_pc
 
 外设引脚尚未由实物接线确认，固件 Kconfig 默认使用 `-1` 表示未分配；不要按猜测启用驱动。接线状态见 [wiring.md](docs/wiring.md)。
 
+## Preliminary External Monitor
+
+The preliminary external monitor is read-only. A viewer connects by device ID only after a valid MQTT uplink in the last 30 seconds. Synchronization is limited to monitoring scores/status and latest LLM advice; it does not synchronize profile, Wi-Fi, MQTT, fusion, thresholds, veto rules, or remote commands.
+
+HTTPS is the normal mode. Plain HTTP is allowed only for the preliminary demo with `SG_ALLOW_INSECURE_HTTP=1`. Raw audio, raw video, MFCC, landmarks, and ROI remain local and do not appear in demo API or deployment examples.
+
 ## 医学免责声明
 
 本设备是家庭健康风险提示工具，不是医疗诊断设备，不能替代医生的临床评估与治疗建议。若出现突发面部歪斜、言语不清、单侧肢体无力、视物异常、平衡障碍或意识改变等症状，无论设备结果如何，都应立即拨打 120，不等待复测或云端建议。

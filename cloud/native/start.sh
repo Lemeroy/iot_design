@@ -76,6 +76,10 @@ start_backend() {
     export MQTT_USER="$MQTT_APP_USER"
     export MQTT_PASS="$MQTT_APP_PASS"
     export INFLUX_URL="http://127.0.0.1:8086"
+    export SG_DEMO_USER="${SG_DEMO_USER:-}"
+    export SG_DEMO_PASSWORD="${SG_DEMO_PASSWORD:-}"
+    export SG_DEMO_SESSION_SECRET="${SG_DEMO_SESSION_SECRET:-}"
+    export SG_ALLOW_INSECURE_HTTP="${SG_ALLOW_INSECURE_HTTP:-}"
     cd "$cloud_root/backend"
     nohup "$python_bin" -m uvicorn app.main:app --host 0.0.0.0 --port 8000 \
         >"$logs_dir/backend.log" 2>&1 &

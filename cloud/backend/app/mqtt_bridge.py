@@ -1,8 +1,4 @@
-"""EMQX MQTT 桥: sub uplink -> Influx + LLM -> pub downlink.
-
-线程模型: 独立线程跑 paho-mqtt loop, 用 asyncio.run_coroutine_threadsafe 把
-LLM 生成任务丢到 FastAPI 的 event loop 里执行 (避免阻塞 MQTT 心跳).
-"""
+"""EMQX MQTT uplink-to-advice bridge."""
 from __future__ import annotations
 
 import asyncio
@@ -12,6 +8,7 @@ import os
 import re
 import threading
 import time
+
 import paho.mqtt.client as mqtt
 
 from .db_influx import InfluxWriter
@@ -26,10 +23,12 @@ DEVICE_RE = re.compile(r"^strokeguard/([^/]+)/uplink$")
 
 
 class MqttBridge:
-    def __init__(self,
-                 loop: asyncio.AbstractEventLoop,
-                 advisor: DoubaoAdvisor,
-                 influx: InfluxWriter) -> None:
+    def __init__(
+        self,
+        loop: asyncio.AbstractEventLoop,
+        advisor: DoubaoAdvisor,
+        influx: InfluxWriter,
+    ) -> None:
         self._loop = loop
         self._advisor = advisor
         self._influx = influx
@@ -50,9 +49,7 @@ class MqttBridge:
 
         self._connected = threading.Event()
         self._stop = threading.Event()
-
-        # 最新缓存 (只保内存, InfluxDB 保长历史)
-        self.latest = {}  # device_id -> {"uplink": UplinkPayload, "advice": DownlinkPayload}
+        self.latest = {}
         self._cache_lock = threading.RLock()
 
     def cache_snapshot(self, device_id: str) -> dict | None:
@@ -61,10 +58,23 @@ class MqttBridge:
             cache = self.latest.get(device_id)
             return dict(cache) if isinstance(cache, dict) else None
 
-    def _generation_is_current(self, device_id: str, generation: int) -> bool:
-        with self._cache_lock:
-            cache = self.latest.get(device_id)
-            return isinstance(cache, dict) and cache.get("generation") == generation
+    def _is_stopping(self) -> bool:
+        stop = getattr(self, "_stop", None)
+        return stop is not None and stop.is_set()
+
+    def _schedule_advice_worker(self, device_id: str, token: object) -> None:
+        worker = self._advice_worker(device_id, token)
+        try:
+            asyncio.run_coroutine_threadsafe(worker, self._loop)
+        except Exception:
+            worker.close()
+            log.exception("could not schedule advice worker for %s", device_id)
+            with self._cache_lock:
+                cache = self.latest.get(device_id)
+                if isinstance(cache, dict) and cache.get("advice_worker") is token:
+                    cache.pop("advice_worker", None)
+                    cache.pop("pending_uplink", None)
+                    cache.pop("pending_generation", None)
 
     def connected(self) -> bool:
         return self._connected.is_set() and self._client.is_connected()
@@ -102,90 +112,130 @@ class MqttBridge:
         device_id = m.group(1)
         try:
             payload = json.loads(msg.payload.decode("utf-8"))
-        except Exception as e:
-            log.warning("bad uplink json from %s: %s", device_id, e)
+        except Exception as error:
+            log.warning("bad uplink json from %s: %s", device_id, error)
             return
         try:
             up = UplinkPayload(**payload)
-        except Exception as e:
-            log.warning("uplink schema error from %s: %s", device_id, e)
+        except Exception as error:
+            log.warning("uplink schema error from %s: %s", device_id, error)
             return
         if up.device_id != device_id:
             log.warning("uplink device mismatch topic=%s", device_id)
             return
 
-        # Influx 写入放本线程 (轻量)
-        # Store receipt time only after JSON, schema, and topic-device validation.
         received_at = time.time()
+        worker_token = None
         with self._cache_lock:
             cache = self.latest.setdefault(device_id, {})
             generation = int(cache.get("generation", 0)) + 1
             cache["generation"] = generation
             cache["uplink"] = up
             cache["received_at"] = received_at
-            cache.pop("advice", None)
-
-        self._influx.write_uplink(
-            device_id=up.device_id, scores=up.scores,
-            level=up.level, profile=up.profile, ts_sec=up.ts,
-        )
-
-        # 缓存
-
-        # LLM 调用: 交给 asyncio loop 做, 避免阻塞 mqtt 线程
-        asyncio.run_coroutine_threadsafe(
-            self._handle_advice(device_id, up, generation), self._loop
-        )
-
-    # ---- async LLM ----
-    async def _handle_advice(self, device_id: str, up: UplinkPayload, generation: int) -> None:
-        # 简单节流: normal 级别每 60s 才发一次建议, warning/danger 立即
-        with self._cache_lock:
-            cache = self.latest.get(device_id)
-            if not isinstance(cache, dict) or cache.get("generation") != generation:
-                return
-            last_advice_ts = cache.get("last_advice_ts")
-        now = int(time.time())
-        if (
-            up.level == "normal"
-            and isinstance(last_advice_ts, int)
-            and (now - last_advice_ts) < 60
-        ):
-            return
+            cache["pending_uplink"] = up
+            cache["pending_generation"] = generation
+            if cache.get("advice_worker") is None:
+                worker_token = object()
+                cache["advice_worker"] = worker_token
 
         try:
-            advice_text, latency = await asyncio.to_thread(
-                self._advisor.generate,
-                up.scores, up.level, up.profile, up.reasons,
+            self._influx.write_uplink(
+                device_id=up.device_id,
+                scores=up.scores,
+                level=up.level,
+                profile=up.profile,
+                ts_sec=up.ts,
             )
-            advice_source = self._advisor.model if self._advisor.available else "fallback"
-        except Exception as e:
-            log.exception("advisor err")
-            advice_text = "建议服务暂时不可用；请以镜端风险提示为准，如有突发症状立即拨打120。"
-            latency = 0
-            advice_source = "fallback"
+        except Exception:
+            log.exception("could not write uplink for %s", device_id)
 
-        down = DownlinkPayload(
-            level=up.level,
-            advice_text=advice_text,
-            ts=now,
-            source=advice_source,
-        )
-        with self._cache_lock:
-            cache = self.latest.get(device_id)
-            if not isinstance(cache, dict) or cache.get("generation") != generation:
-                return
-            cache["advice"] = down
-            cache["last_advice_ts"] = down.ts
+        if worker_token is not None:
+            self._schedule_advice_worker(device_id, worker_token)
 
-        # 发布 downlink
-        if not self._generation_is_current(device_id, generation):
-            return
-        topic = TOPIC_DOWNLINK_FMT.format(device_id=device_id)
-        self._client.publish(topic, down.model_dump_json(), qos=1, retain=False)
-        log.info("downlink -> %s (%d ms, %d chars)", topic, latency, len(advice_text))
+    # ---- async LLM ----
+    async def _advice_worker(self, device_id: str, token: object) -> None:
+        """Iteratively drain one device's newest pending advice generation."""
+        try:
+            while True:
+                with self._cache_lock:
+                    cache = self.latest.get(device_id)
+                    if not isinstance(cache, dict) or cache.get("advice_worker") is not token:
+                        return
+                    up = cache.pop("pending_uplink", None)
+                    generation = cache.pop("pending_generation", None)
+                    last_advice_ts = cache.get("last_advice_ts")
 
-        # Influx 记录 advice
-        if not self._generation_is_current(device_id, generation):
-            return
-        self._influx.write_advice(device_id, up.level, advice_text, latency)
+                if not isinstance(up, UplinkPayload) or not isinstance(generation, int):
+                    return
+
+                now = int(time.time())
+                if (
+                    up.level == "normal"
+                    and isinstance(last_advice_ts, int)
+                    and (now - last_advice_ts) < 60
+                ):
+                    continue
+
+                try:
+                    advice_text, latency = await asyncio.to_thread(
+                        self._advisor.generate,
+                        up.scores,
+                        up.level,
+                        up.profile,
+                        up.reasons,
+                    )
+                    advice_source = self._advisor.model if self._advisor.available else "fallback"
+                except Exception:
+                    log.exception("advisor err")
+                    advice_text = (
+                        "Advice service is temporarily unavailable; follow the displayed risk "
+                        "level and call 120 for sudden symptoms."
+                    )
+                    latency = 0
+                    advice_source = "fallback"
+
+                down = DownlinkPayload(
+                    level=up.level,
+                    advice_text=advice_text,
+                    ts=now,
+                    source=advice_source,
+                )
+                with self._cache_lock:
+                    cache = self.latest.get(device_id)
+                    if not isinstance(cache, dict):
+                        return
+                    previous_generation = cache.get("advice_generation", 0)
+                    if not isinstance(previous_generation, int):
+                        previous_generation = 0
+                    if generation >= previous_generation:
+                        cache["advice"] = down
+                        cache["advice_generation"] = generation
+                        cache["last_advice_ts"] = down.ts
+
+                # A completed older generation remains valid advice and is published in order.
+                topic = TOPIC_DOWNLINK_FMT.format(device_id=device_id)
+                try:
+                    self._client.publish(topic, down.model_dump_json(), qos=1, retain=False)
+                    log.info("downlink -> %s (%d ms, %d chars)", topic, latency, len(advice_text))
+                except Exception:
+                    log.exception("could not publish advice for %s generation %s", device_id, generation)
+
+                try:
+                    self._influx.write_advice(device_id, up.level, advice_text, latency)
+                except Exception:
+                    log.exception("could not write advice for %s generation %s", device_id, generation)
+        finally:
+            replacement_token = None
+            with self._cache_lock:
+                cache = self.latest.get(device_id)
+                if isinstance(cache, dict) and cache.get("advice_worker") is token:
+                    cache.pop("advice_worker", None)
+                    if (
+                        not self._is_stopping()
+                        and isinstance(cache.get("pending_uplink"), UplinkPayload)
+                        and isinstance(cache.get("pending_generation"), int)
+                    ):
+                        replacement_token = object()
+                        cache["advice_worker"] = replacement_token
+            if replacement_token is not None:
+                self._schedule_advice_worker(device_id, replacement_token)

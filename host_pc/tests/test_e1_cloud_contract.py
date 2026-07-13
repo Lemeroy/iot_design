@@ -140,7 +140,7 @@ def test_bridge_cache_snapshot_returns_an_isolated_copy(monkeypatch):
     assert bridge.cache_snapshot("sg-0001")["received_at"] == 1234.5
 
 
-def test_bridge_discards_advice_when_a_newer_uplink_arrives_during_generation(monkeypatch):
+def test_bridge_keeps_completed_advice_when_a_newer_uplink_arrives_during_generation(monkeypatch):
     fake_influx_module = types.ModuleType("cloud.backend.app.db_influx")
     fake_influx_module.InfluxWriter = object
     monkeypatch.setitem(sys.modules, "cloud.backend.app.db_influx", fake_influx_module)
@@ -148,17 +148,25 @@ def test_bridge_discards_advice_when_a_newer_uplink_arrives_during_generation(mo
     mqtt_bridge = importlib.import_module("cloud.backend.app.mqtt_bridge")
 
     started = threading.Event()
-    release = threading.Event()
+    release_first = threading.Event()
+    second_started = threading.Event()
+    release_second = threading.Event()
 
     class BlockingAdvisor:
         available = True
         model = "test-advisor"
+        calls = 0
 
         @staticmethod
         def generate(*args):
-            started.set()
-            assert release.wait(timeout=1)
-            return "stale advice", 12
+            BlockingAdvisor.calls += 1
+            if BlockingAdvisor.calls == 1:
+                started.set()
+                assert release_first.wait(timeout=1)
+                return "stale advice", 12
+            second_started.set()
+            assert release_second.wait(timeout=1)
+            return "current advice", 12
 
     class Client:
         published = []
@@ -194,7 +202,7 @@ def test_bridge_discards_advice_when_a_newer_uplink_arrives_during_generation(mo
     monkeypatch.setattr(mqtt_bridge.asyncio, "run_coroutine_threadsafe", schedule)
 
     first = valid_payload()
-    second = {**valid_payload(), "seq": 2, "ts": 1783760001}
+    second = {**valid_payload(), "level": "warning", "seq": 2, "ts": 1783760001}
     bridge._on_message(
         None,
         None,
@@ -210,15 +218,315 @@ def test_bridge_discards_advice_when_a_newer_uplink_arrives_during_generation(mo
         None,
         types.SimpleNamespace(topic="strokeguard/sg-0001/uplink", payload=json.dumps(second).encode("utf-8")),
     )
-    scheduled.pop().close()
-    release.set()
+    assert len(scheduled) == 0
+    release_first.set()
+    assert second_started.wait(timeout=1)
+
+    assert bridge.latest["sg-0001"]["uplink"].seq == 2
+    assert bridge.latest["sg-0001"]["uplink"].level == "warning"
+    stale_advice = bridge.latest["sg-0001"]["advice"]
+    assert stale_advice.advice_text == "stale advice"
+    assert stale_advice.level == "insufficient"
+    assert bridge._client.published == [
+        ("strokeguard/sg-0001/downlink", {
+            "schema_version": 1,
+            "level": "insufficient",
+            "advice_text": "stale advice",
+            "ts": 1234,
+            "source": "test-advisor",
+        })
+    ]
+    assert bridge._influx.advice_writes == [("sg-0001", "insufficient", "stale advice", 12)]
+
+    release_second.set()
     task.join(timeout=1)
 
     assert not task.is_alive()
-    assert bridge.latest["sg-0001"]["uplink"].seq == 2
-    assert "advice" not in bridge.latest["sg-0001"]
-    assert bridge._client.published == []
-    assert bridge._influx.advice_writes == []
+    advice = bridge.latest["sg-0001"]["advice"]
+    assert advice.advice_text == "current advice"
+    assert advice.level == "warning"
+    assert bridge._client.published == [
+        ("strokeguard/sg-0001/downlink", {
+            "schema_version": 1,
+            "level": "insufficient",
+            "advice_text": "stale advice",
+            "ts": 1234,
+            "source": "test-advisor",
+        }),
+        ("strokeguard/sg-0001/downlink", {
+            "schema_version": 1,
+            "level": "warning",
+            "advice_text": "current advice",
+            "ts": 1234,
+            "source": "test-advisor",
+        })
+    ]
+    assert bridge._influx.advice_writes == [
+        ("sg-0001", "insufficient", "stale advice", 12),
+        ("sg-0001", "warning", "current advice", 12),
+    ]
+    assert "await self._advice_worker" not in (
+        (ROOT / "cloud" / "backend" / "app" / "mqtt_bridge.py").read_text(encoding="utf-8")
+    )
+
+
+def test_bridge_many_rapid_uplinks_schedule_one_worker_and_keep_newest_pending(monkeypatch):
+    fake_influx_module = types.ModuleType("cloud.backend.app.db_influx")
+    fake_influx_module.InfluxWriter = object
+    monkeypatch.setitem(sys.modules, "cloud.backend.app.db_influx", fake_influx_module)
+    sys.modules.pop("cloud.backend.app.mqtt_bridge", None)
+    mqtt_bridge = importlib.import_module("cloud.backend.app.mqtt_bridge")
+
+    class Influx:
+        @staticmethod
+        def write_uplink(*args, **kwargs):
+            return None
+
+    bridge = mqtt_bridge.MqttBridge.__new__(mqtt_bridge.MqttBridge)
+    bridge.latest = {}
+    bridge._cache_lock = threading.RLock()
+    bridge._influx = Influx()
+    bridge._loop = object()
+
+    scheduled = []
+
+    def schedule(coro, loop):
+        scheduled.append(coro)
+
+    monkeypatch.setattr(mqtt_bridge.asyncio, "run_coroutine_threadsafe", schedule)
+    for seq in range(1, 21):
+        payload = {**valid_payload(), "seq": seq, "ts": 1783760000 + seq}
+        bridge._on_message(
+            None,
+            None,
+            types.SimpleNamespace(
+                topic="strokeguard/sg-0001/uplink",
+                payload=json.dumps(payload).encode("utf-8"),
+            ),
+        )
+
+    assert len(scheduled) == 1
+    cache = bridge.latest["sg-0001"]
+    assert cache["generation"] == 20
+    assert cache["pending_generation"] == 20
+    assert cache["pending_uplink"].seq == 20
+    scheduled.pop().close()
+
+
+def test_bridge_scheduler_failure_clears_its_pending_work_and_allows_a_later_uplink(monkeypatch):
+    fake_influx_module = types.ModuleType("cloud.backend.app.db_influx")
+    fake_influx_module.InfluxWriter = object
+    monkeypatch.setitem(sys.modules, "cloud.backend.app.db_influx", fake_influx_module)
+    sys.modules.pop("cloud.backend.app.mqtt_bridge", None)
+    mqtt_bridge = importlib.import_module("cloud.backend.app.mqtt_bridge")
+
+    class Influx:
+        @staticmethod
+        def write_uplink(*args, **kwargs):
+            return None
+
+    bridge = mqtt_bridge.MqttBridge.__new__(mqtt_bridge.MqttBridge)
+    bridge.latest = {}
+    bridge._cache_lock = threading.RLock()
+    bridge._influx = Influx()
+    bridge._loop = object()
+
+    attempted = []
+
+    def reject(coro, loop):
+        attempted.append(coro)
+        raise RuntimeError("event loop is closed")
+
+    monkeypatch.setattr(mqtt_bridge.asyncio, "run_coroutine_threadsafe", reject)
+    bridge._on_message(
+        None,
+        None,
+        types.SimpleNamespace(
+            topic="strokeguard/sg-0001/uplink", payload=json.dumps(valid_payload()).encode("utf-8")
+        ),
+    )
+
+    cache = bridge.latest["sg-0001"]
+    assert "advice_worker" not in cache
+    assert "pending_uplink" not in cache
+    assert "pending_generation" not in cache
+    assert attempted[0].cr_frame is None
+
+    scheduled = []
+    monkeypatch.setattr(
+        mqtt_bridge.asyncio, "run_coroutine_threadsafe", lambda coro, loop: scheduled.append(coro)
+    )
+    bridge._on_message(
+        None,
+        None,
+        types.SimpleNamespace(
+            topic="strokeguard/sg-0001/uplink",
+            payload=json.dumps({**valid_payload(), "seq": 2}).encode("utf-8"),
+        ),
+    )
+
+    assert len(scheduled) == 1
+    assert bridge.latest["sg-0001"]["pending_generation"] == 2
+    scheduled.pop().close()
+
+
+def test_bridge_publish_and_influx_failures_do_not_strand_newer_pending_work(monkeypatch):
+    fake_influx_module = types.ModuleType("cloud.backend.app.db_influx")
+    fake_influx_module.InfluxWriter = object
+    monkeypatch.setitem(sys.modules, "cloud.backend.app.db_influx", fake_influx_module)
+    sys.modules.pop("cloud.backend.app.mqtt_bridge", None)
+    mqtt_bridge = importlib.import_module("cloud.backend.app.mqtt_bridge")
+
+    first_started = threading.Event()
+    release_first = threading.Event()
+
+    class Advisor:
+        available = True
+        model = "test-advisor"
+        calls = []
+
+        @staticmethod
+        def generate(scores, level, profile, reasons):
+            Advisor.calls.append(level)
+            if level == "insufficient":
+                first_started.set()
+                assert release_first.wait(timeout=1)
+            return f"advice-{level}", 12
+
+    class Client:
+        calls = 0
+        published = []
+
+        def publish(self, topic, payload, **kwargs):
+            Client.calls += 1
+            if Client.calls == 1:
+                raise RuntimeError("mqtt unavailable")
+            Client.published.append(json.loads(payload))
+
+    class Influx:
+        calls = 0
+
+        @staticmethod
+        def write_uplink(*args, **kwargs):
+            return None
+
+        @staticmethod
+        def write_advice(*args):
+            Influx.calls += 1
+            if Influx.calls == 1:
+                raise RuntimeError("influx unavailable")
+
+    bridge = mqtt_bridge.MqttBridge.__new__(mqtt_bridge.MqttBridge)
+    bridge.latest = {}
+    bridge._cache_lock = threading.RLock()
+    bridge._advisor = Advisor()
+    bridge._client = Client()
+    bridge._influx = Influx()
+    bridge._loop = object()
+
+    scheduled = []
+    monkeypatch.setattr(mqtt_bridge.asyncio, "run_coroutine_threadsafe", lambda coro, loop: scheduled.append(coro))
+
+    bridge._on_message(
+        None,
+        None,
+        types.SimpleNamespace(topic="strokeguard/sg-0001/uplink", payload=json.dumps(valid_payload()).encode("utf-8")),
+    )
+    task = threading.Thread(target=lambda: asyncio.run(scheduled.pop()))
+    task.start()
+    assert first_started.wait(timeout=1)
+    bridge._on_message(
+        None,
+        None,
+        types.SimpleNamespace(
+            topic="strokeguard/sg-0001/uplink",
+            payload=json.dumps({**valid_payload(), "level": "warning", "seq": 2}).encode("utf-8"),
+        ),
+    )
+    release_first.set()
+    task.join(timeout=1)
+
+    assert not task.is_alive()
+    assert Advisor.calls == ["insufficient", "warning"]
+    assert Client.published[-1]["advice_text"] == "advice-warning"
+    assert "advice_worker" not in bridge.latest["sg-0001"]
+    assert "pending_uplink" not in bridge.latest["sg-0001"]
+
+
+def test_bridge_cancelled_worker_clears_its_token_and_schedules_one_replacement(monkeypatch):
+    fake_influx_module = types.ModuleType("cloud.backend.app.db_influx")
+    fake_influx_module.InfluxWriter = object
+    monkeypatch.setitem(sys.modules, "cloud.backend.app.db_influx", fake_influx_module)
+    sys.modules.pop("cloud.backend.app.mqtt_bridge", None)
+    mqtt_bridge = importlib.import_module("cloud.backend.app.mqtt_bridge")
+
+    class Advisor:
+        available = True
+        model = "test-advisor"
+
+        @staticmethod
+        def generate(*args):
+            return "unused", 0
+
+    class Influx:
+        @staticmethod
+        def write_uplink(*args, **kwargs):
+            return None
+
+        @staticmethod
+        def write_advice(*args, **kwargs):
+            return None
+
+    bridge = mqtt_bridge.MqttBridge.__new__(mqtt_bridge.MqttBridge)
+    bridge.latest = {}
+    bridge._cache_lock = threading.RLock()
+    bridge._advisor = Advisor()
+    bridge._client = types.SimpleNamespace(publish=lambda *args, **kwargs: None)
+    bridge._influx = Influx()
+    bridge._loop = object()
+
+    scheduled = []
+    monkeypatch.setattr(mqtt_bridge.asyncio, "run_coroutine_threadsafe", lambda coro, loop: scheduled.append(coro))
+
+    async def scenario():
+        started = asyncio.Event()
+        release = asyncio.Event()
+        calls = 0
+
+        async def controlled_to_thread(*args):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                started.set()
+                await release.wait()
+            return "advice", 12
+
+        monkeypatch.setattr(mqtt_bridge.asyncio, "to_thread", controlled_to_thread)
+        bridge._on_message(
+            None,
+            None,
+            types.SimpleNamespace(topic="strokeguard/sg-0001/uplink", payload=json.dumps(valid_payload()).encode("utf-8")),
+        )
+        worker = asyncio.create_task(scheduled.pop())
+        await started.wait()
+        bridge._on_message(
+            None,
+            None,
+            types.SimpleNamespace(
+                topic="strokeguard/sg-0001/uplink",
+                payload=json.dumps({**valid_payload(), "level": "warning", "seq": 2}).encode("utf-8"),
+            ),
+        )
+        worker.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await worker
+        assert len(scheduled) == 1
+        await scheduled.pop()
+
+    asyncio.run(scenario())
+
+    assert "advice_worker" not in bridge.latest["sg-0001"]
+    assert bridge.latest["sg-0001"]["advice"].level == "warning"
 
 
 def test_bridge_fallback_hides_provider_exception(monkeypatch):
@@ -247,15 +555,24 @@ def test_bridge_fallback_hides_provider_exception(monkeypatch):
         def write_advice(*args):
             return None
 
-    bridge = mqtt_bridge.MqttBridge.__new__(mqtt_bridge.MqttBridge)
     uplink = UplinkPayload(**valid_payload())
-    bridge.latest = {"sg-0001": {"uplink": uplink, "generation": 1}}
+    token = object()
+    bridge = mqtt_bridge.MqttBridge.__new__(mqtt_bridge.MqttBridge)
+    bridge.latest = {
+        "sg-0001": {
+            "uplink": uplink,
+            "generation": 1,
+            "pending_uplink": uplink,
+            "pending_generation": 1,
+            "advice_worker": token,
+        }
+    }
     bridge._cache_lock = threading.RLock()
     bridge._advisor = FailingAdvisor()
     bridge._client = Client()
     bridge._influx = Influx()
 
-    asyncio.run(bridge._handle_advice("sg-0001", uplink, 1))
+    asyncio.run(bridge._advice_worker("sg-0001", token))
 
     _, downlink = bridge._client.published
     assert downlink["source"] == "fallback"

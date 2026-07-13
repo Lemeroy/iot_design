@@ -195,6 +195,14 @@ python -m stroke_host.ui.main_window --source real --perception
 
 **隐私铁律**: 云端接收的载荷**只有数值分与 profile**, 不含 jpeg/mfcc/坐标. `mqtt_pub.py` 已做严格过滤.
 
+## Preliminary External Monitor
+
+The preliminary external page is a read-only monitor. After login, it connects by device ID only when that device has produced a valid MQTT uplink in the last 30 seconds. It synchronizes only monitoring scores/status and the latest LLM advice.
+
+It does not synchronize profile, Wi-Fi, MQTT settings, fusion settings, thresholds, veto rules, or remote commands. Raw audio, raw video, MFCC, landmarks, and ROI stay local and are excluded from demo API and deployment examples.
+
+HTTPS is the normal mode. Plain HTTP is allowed only for the preliminary demo when `SG_ALLOW_INSECURE_HTTP=1`; otherwise session cookies remain secure. Set `SG_DEMO_USER`, `SG_DEMO_PASSWORD`, and `SG_DEMO_SESSION_SECRET` together to enable demo login. Leaving any of them incomplete keeps authentication disabled so the normal cloud chain still starts.
+
 ## 微信小程序本地预览
 
 无 AppID (touristappid) 只能在**微信开发者工具**里预览:
