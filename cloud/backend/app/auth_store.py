@@ -22,6 +22,9 @@ SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS schema_meta (
     version INTEGER NOT NULL
 );
+DELETE FROM schema_meta
+WHERE rowid NOT IN (SELECT MIN(rowid) FROM schema_meta);
+CREATE UNIQUE INDEX IF NOT EXISTS schema_meta_singleton_unique ON schema_meta((1));
 
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY,
@@ -53,7 +56,8 @@ CREATE TABLE IF NOT EXISTS pairing_codes (
     created_by INTEGER NOT NULL REFERENCES users(id),
     created_at INTEGER NOT NULL
 );
-CREATE UNIQUE INDEX IF NOT EXISTS pairing_codes_code_hash_unique ON pairing_codes(code_hash);
+DROP INDEX IF EXISTS pairing_codes_code_hash_unique;
+CREATE INDEX IF NOT EXISTS pairing_codes_code_hash_index ON pairing_codes(code_hash);
 CREATE INDEX IF NOT EXISTS pairing_codes_device_id_index ON pairing_codes(device_id);
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -111,7 +115,7 @@ class AuthStore:
 
     def schema_version(self) -> int | None:
         with self._operation() as db:
-            row = db.execute("SELECT MAX(version) AS version FROM schema_meta").fetchone()
+            row = db.execute("SELECT version FROM schema_meta LIMIT 1").fetchone()
         return None if row is None or row["version"] is None else int(row["version"])
 
     def create_user(
@@ -225,6 +229,7 @@ class AuthStore:
         normalized = _normalize_device_id(device_id)
         timestamp = _timestamp(now)
         with self._operation() as db:
+            db.execute("BEGIN IMMEDIATE")
             device = db.execute(
                 "SELECT owner_user_id FROM devices WHERE device_id = ?", (normalized,)
             ).fetchone()
@@ -240,23 +245,30 @@ class AuthStore:
             )
             for _ in range(10):
                 code = f"{secrets.randbelow(1_000_000):06d}"
-                try:
-                    db.execute(
-                        """
-                        INSERT INTO pairing_codes(device_id, code_hash, expires_at, created_by, created_at)
-                        VALUES (?, ?, ?, ?, ?)
-                        """,
-                        (
-                            normalized,
-                            hash_pairing_code(self.pairing_secret, code),
-                            timestamp + PAIRING_CODE_TTL_SECONDS,
-                            created_by,
-                            timestamp,
-                        ),
-                    )
-                    return code
-                except sqlite3.IntegrityError:
+                code_hash = hash_pairing_code(self.pairing_secret, code)
+                active = db.execute(
+                    """
+                    SELECT 1 FROM pairing_codes
+                    WHERE code_hash = ? AND used_at IS NULL AND expires_at > ?
+                    """,
+                    (code_hash, timestamp),
+                ).fetchone()
+                if active is not None:
                     continue
+                db.execute(
+                    """
+                    INSERT INTO pairing_codes(device_id, code_hash, expires_at, created_by, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        normalized,
+                        code_hash,
+                        timestamp + PAIRING_CODE_TTL_SECONDS,
+                        created_by,
+                        timestamp,
+                    ),
+                )
+                return code
         raise PairingError("unable to create pairing code")
 
     def consume_pairing_code(self, code: str, user_id: int, *, now: int | None = None) -> str:
@@ -271,8 +283,10 @@ class AuthStore:
                 FROM pairing_codes
                 JOIN devices ON devices.device_id = pairing_codes.device_id
                 WHERE pairing_codes.code_hash = ?
+                  AND pairing_codes.used_at IS NULL
+                  AND pairing_codes.expires_at > ?
                 """,
-                (code_hash,),
+                (code_hash, timestamp),
             ).fetchone()
             user = db.execute(
                 "SELECT id FROM users WHERE id = ? AND is_active = 1", (user_id,)
@@ -280,8 +294,6 @@ class AuthStore:
             if (
                 row is None
                 or user is None
-                or row["used_at"] is not None
-                or row["expires_at"] <= timestamp
                 or row["owner_user_id"] is not None
             ):
                 raise PairingError("pairing code is invalid or expired")

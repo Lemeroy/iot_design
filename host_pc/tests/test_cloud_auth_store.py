@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -32,6 +33,21 @@ def test_initialize_creates_versioned_schema(tmp_path):
     store.initialize()
 
     assert store.schema_version() == 1
+
+
+def test_initialize_keeps_exactly_one_authoritative_version_row(tmp_path):
+    store = AuthStore(tmp_path / "auth.db", pairing_secret=PAIRING_SECRET)
+
+    store.initialize()
+    store.initialize()
+    store.initialize()
+
+    db = sqlite3.connect(tmp_path / "auth.db")
+    try:
+        versions = db.execute("SELECT version FROM schema_meta").fetchall()
+    finally:
+        db.close()
+    assert versions == [(1,)]
 
 
 def test_password_hash_verifies_only_the_original_password():
@@ -133,6 +149,54 @@ def test_pairing_code_expires_after_ten_minutes(tmp_path):
 
     with pytest.raises(PairingError):
         store.consume_pairing_code(code, user.id, now=700)
+
+
+def test_pairing_hash_can_be_reused_after_consumption(tmp_path, monkeypatch):
+    store = make_store(tmp_path)
+    admin = store.create_user("admin", hash_password(PASSWORD), "admin", now=100)
+    first_user = store.create_user("user1", hash_password(PASSWORD), "user", now=100)
+    second_user = store.create_user("user2", hash_password(PASSWORD), "user", now=100)
+    monkeypatch.setattr("cloud.backend.app.auth_store.secrets.randbelow", lambda _: 123456)
+    store.register_device("sg-0001", now=100)
+    first_code = store.create_pairing_code("sg-0001", admin.id, now=100)
+    assert store.consume_pairing_code(first_code, first_user.id, now=101) == "sg-0001"
+    store.register_device("sg-0002", now=101)
+
+    second_code = store.create_pairing_code("sg-0002", admin.id, now=101)
+
+    assert second_code == first_code == "123456"
+    assert store.consume_pairing_code(second_code, second_user.id, now=102) == "sg-0002"
+
+
+def test_pairing_hash_can_be_reused_after_expiry(tmp_path, monkeypatch):
+    store = make_store(tmp_path)
+    admin = store.create_user("admin", hash_password(PASSWORD), "admin", now=100)
+    user = store.create_user("user1", hash_password(PASSWORD), "user", now=100)
+    monkeypatch.setattr("cloud.backend.app.auth_store.secrets.randbelow", lambda _: 123456)
+    store.register_device("sg-0001", now=100)
+    first_code = store.create_pairing_code("sg-0001", admin.id, now=100)
+
+    second_code = store.create_pairing_code("sg-0001", admin.id, now=701)
+
+    assert second_code == first_code == "123456"
+    assert store.consume_pairing_code(second_code, user.id, now=702) == "sg-0001"
+
+
+def test_active_pairing_hash_collision_retries_with_a_new_code(tmp_path, monkeypatch):
+    store = make_store(tmp_path)
+    admin = store.create_user("admin", hash_password(PASSWORD), "admin", now=100)
+    values = iter((123456, 123456, 654321))
+    monkeypatch.setattr(
+        "cloud.backend.app.auth_store.secrets.randbelow", lambda _: next(values)
+    )
+    store.register_device("sg-0001", now=100)
+    first_code = store.create_pairing_code("sg-0001", admin.id, now=100)
+    store.register_device("sg-0002", now=100)
+
+    second_code = store.create_pairing_code("sg-0002", admin.id, now=100)
+
+    assert first_code == "123456"
+    assert second_code == "654321"
 
 
 def test_concurrent_pairing_consumption_has_exactly_one_winner(tmp_path):
