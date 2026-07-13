@@ -158,6 +158,28 @@ class AuthStore:
                 row = db.execute("SELECT * FROM users WHERE id = ?", (row["id"],)).fetchone()
         return _user_from_row(row)
 
+    def list_users(self) -> list[UserRecord]:
+        with self._operation() as db:
+            rows = db.execute("SELECT * FROM users ORDER BY id").fetchall()
+        return [_user_from_row(row) for row in rows]
+
+    def get_user(self, user_id: int) -> UserRecord | None:
+        with self._operation() as db:
+            row = db.execute("SELECT * FROM users WHERE id = ?", (int(user_id),)).fetchone()
+        return None if row is None else _user_from_row(row)
+
+    def set_user_active(
+        self, user_id: int, is_active: bool, *, now: int | None = None
+    ) -> UserRecord | None:
+        timestamp = _timestamp(now)
+        with self._operation() as db:
+            db.execute(
+                "UPDATE users SET is_active = ?, updated_at = ? WHERE id = ?",
+                (int(bool(is_active)), timestamp, int(user_id)),
+            )
+            row = db.execute("SELECT * FROM users WHERE id = ?", (int(user_id),)).fetchone()
+        return None if row is None else _user_from_row(row)
+
     def create_session(
         self,
         user_id: int,

@@ -78,3 +78,30 @@ class ManualAdviceResp(StrictModel):
     advice_text: str
     latency_ms: int
     model: str
+
+
+class UserResponse(StrictModel):
+    id: int
+    username: str
+    role: Literal["admin", "user"]
+    is_active: bool
+
+
+class LoginRequest(StrictModel):
+    username: str
+    password: str
+    client: Literal["browser", "pc"] = "browser"
+
+
+class LoginResponse(StrictModel):
+    user: UserResponse
+    access_token: Optional[str] = None
+
+
+class UserCreateRequest(StrictModel):
+    username: str
+    password: str
+
+
+class UserActivationUpdate(StrictModel):
+    is_active: bool

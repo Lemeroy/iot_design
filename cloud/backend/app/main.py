@@ -15,6 +15,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 
+from .auth_api import LoginRateLimiter, bootstrap_auth_store, router as auth_router
 from .db_influx import InfluxWriter
 from .llm_advice import DoubaoAdvisor
 from .mqtt_bridge import MqttBridge
@@ -41,6 +42,8 @@ _bridge: Optional[MqttBridge] = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _advisor, _influx, _bridge
+    app.state.auth_store = bootstrap_auth_store()
+    app.state.auth_limiter = LoginRateLimiter()
     _advisor = DoubaoAdvisor()
     _influx = InfluxWriter()
     loop = asyncio.get_running_loop()
@@ -58,6 +61,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="StrokeGuard Cloud", version="0.1.0-m5", lifespan=lifespan)
+app.include_router(auth_router)
 
 
 @app.get("/health", response_model=HealthResp)

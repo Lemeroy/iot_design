@@ -102,6 +102,17 @@ def test_verify_login_normalizes_username_and_rejects_bad_password(tmp_path):
     assert store.verify_login("family1", "WrongPass123!", now=101) is None
 
 
+def test_admin_user_management_lists_gets_and_deactivates_users(tmp_path):
+    store = make_store(tmp_path)
+    admin = store.create_user("admin", hash_password(PASSWORD), "admin", now=100)
+    user = store.create_user("family1", hash_password(PASSWORD), "user", now=100)
+
+    assert [record.id for record in store.list_users()] == [admin.id, user.id]
+    assert store.get_user(user.id) == user
+    assert store.set_user_active(user.id, False, now=101).is_active is False
+    assert store.verify_login("family1", PASSWORD, now=102) is None
+
+
 def test_register_device_is_idempotent_and_updates_last_seen(tmp_path):
     store = make_store(tmp_path)
 
