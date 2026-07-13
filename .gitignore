@@ -32,3 +32,4 @@ Thumbs.db
 .manager-token.local
 /dist/
 /.release-build/
+/.superpowers/
