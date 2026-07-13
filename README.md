@@ -133,6 +133,41 @@ idf.py build
 idf.py -p COM3 flash monitor
 ```
 
+### 给另一块 ESP32-S3 烧录固件
+
+以下流程只适用于与当前开发板一致的 **ESP32-S3-WROOM-1 N16R8（16 MB Flash、8 MB OPI PSRAM）**。其他 S3 模组的 Flash/PSRAM 配置可能不同，不要直接照搬镜像。
+
+1. 打开 `C:\Users\Administrator\Desktop\IDF_v5.5.3_Powershell.lnk`，进入固件目录并确认新板串口：
+
+   ```powershell
+   cd F:\iot_design\firmware_esp32
+   Get-CimInstance Win32_SerialPort | Select-Object DeviceID,Name
+   idf.py --version
+   ```
+
+2. 为新设备配置独立参数：
+
+   ```powershell
+   idf.py set-target esp32s3
+   idf.py menuconfig
+   ```
+
+   在 `StrokeGuard M1a/M1b Config` 中设置 2.4 GHz Wi-Fi、MQTT 地址/账号及唯一 `Device ID`（例如 `sg-0002`）。多块镜子不能共用同一个 `Device ID`，否则网页监控和 MQTT 主题会互相覆盖。不要把生成的 `sdkconfig` 或任何密码提交到 Git。
+
+3. 将下面的 `COM5` 替换为新板实际串口，清除旧 NVS 后构建、烧录并观察启动日志：
+
+   ```powershell
+   idf.py -p COM5 erase-flash
+   idf.py build
+   idf.py -p COM5 flash monitor
+   ```
+
+   `erase-flash` 会清除该板原有固件和 NVS，仅对确认可覆盖的目标板执行。退出串口监视按 `Ctrl+]`。
+
+4. 验收：日志应出现 Wi-Fi `GOT_IP`、CSI 启动和 MQTT 连接/上行；随后通过外网演示页连接该板的 `Device ID`，确认 CSI、最终状态和大模型建议能够同步。
+
+若多块板使用**完全相同**的配置，可先执行一次 `idf.py build`，之后逐块更换串口并运行 `idf.py -p COMx flash`，无需重复编译。但正式多设备部署仍应逐块设置唯一 `Device ID` 后重新构建、烧录。详细故障处理见 [固件 README](firmware_esp32/README.md)。
+
 PC 测试：
 
 ```powershell

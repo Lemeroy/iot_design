@@ -56,6 +56,56 @@ idf.py -p COM3 flash monitor
 `monitor` 里既能看到日志, 也能看到二进制帧(会显示为乱码, 属正常).
 USB 帧仅供 PC 端 `stroke_host` 观察和调试；运行时融合、告警和 MQTT 不依赖 PC。
 
+## 烧录到另一块 N16R8
+
+1. 使用 `C:\Users\Administrator\Desktop\IDF_v5.5.3_Powershell.lnk` 打开已加载 ESP-IDF 的 PowerShell。
+2. 插入目标板，通过以下命令确认它的新串口，不要默认仍是 `COM3`：
+
+   ```powershell
+   Get-CimInstance Win32_SerialPort | Select-Object DeviceID,Name
+   cd F:\iot_design\firmware_esp32
+   ```
+
+3. 确认目标仍是 ESP32-S3-WROOM-1 **N16R8**，然后运行 `idf.py menuconfig`。在 `StrokeGuard M1a/M1b Config` 中至少检查：
+
+   - `WiFi SSID` / `WiFi Password`：只支持 2.4 GHz Wi-Fi。
+   - `Device ID`：每台镜子必须唯一，例如 `sg-0002`、`sg-0003`。
+   - `MQTT broker URI` / 用户名 / 密码：与 VPS 的设备接入配置一致。
+   - `LAN management token`：按设备单独设置，不能写入 README 或提交 Git。
+
+4. 首次接管一块旧板时，先清除它原有的 NVS，再烧录。将 `COM5` 替换为实际串口：
+
+   ```powershell
+   idf.py set-target esp32s3
+   idf.py menuconfig
+   idf.py -p COM5 erase-flash
+   idf.py build
+   idf.py -p COM5 flash monitor
+   ```
+
+   `erase-flash` 会删除目标板上的全部固件和配置。若确认是空白新板，可直接 `build`、`flash monitor`。按 `Ctrl+]` 退出 monitor。
+
+5. 通过标准：启动日志出现 `GOT_IP`、CSI 启动、MQTT 已连接及周期上行；VPS 外网演示页用对应 `Device ID` 连接后，能看到设备在线、实时 CSI/融合状态与最新大模型建议。当前 F/S/T/E 未接入时显示 `null`/`未接入` 是预期行为。
+
+### 同配置快速复制
+
+同一台电脑上已经成功 `idf.py build` 后，可不重复构建，逐块执行：
+
+```powershell
+idf.py -p COM5 flash
+idf.py -p COM6 flash
+```
+
+这只适合临时复制**完全相同配置**的演示板。由于 `Device ID` 编译在当前配置中，多台正式设备不能直接复制同一构建产物；应修改 `Device ID`、重新 `build` 并逐台烧录。也不要复制整片 Flash/NVS 镜像，因为其中可能包含设备身份和本地凭据。
+
+### 常见问题
+
+- 找不到 `idf.py`：重新从 IDF 5.5.3 快捷方式启动 PowerShell。
+- 找不到串口：更换支持数据传输的 USB 线，检查设备管理器，并按住 `BOOT` 后点按 `RESET` 进入下载模式。
+- `Failed to connect`：关闭占用该 COM 口的串口监视器/上位机，再进入下载模式重试。
+- 烧录后反复复位或 PSRAM 报错：停止使用该镜像，核对目标模组是否确为 N16R8。
+- 能连 Wi-Fi 但网页无设备：检查 MQTT 地址和凭据、设备 ID，并确认 VPS 收到最近 30 秒内的上行。
+
 ## 局域网档案管理
 
 固件在取得 Wi-Fi 地址且配置了非空管理 Token 后启动 HTTP 服务：
