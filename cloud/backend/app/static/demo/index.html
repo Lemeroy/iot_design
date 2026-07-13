@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>StrokeGuard 远程初筛监测</title>
+    <link rel="stylesheet" href="/demo/app.css">
+  </head>
+  <body>
+    <main class="desk" aria-labelledby="page-title">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">StrokeGuard</p>
+          <h1 id="page-title">远程初筛监测</h1>
+        </div>
+        <p id="status-message" class="status-message">正在检查会话</p>
+        <p id="live-message" class="visually-hidden" aria-live="polite" aria-atomic="true"></p>
+      </header>
+
+      <section id="login-view" class="access-view" aria-labelledby="login-title" hidden>
+        <div class="access-copy">
+          <p class="eyebrow">受限访问</p>
+          <h2 id="login-title">登录监测台</h2>
+          <p>仅同步设备监测数据与最新大模型建议。</p>
+        </div>
+        <form id="login-form" class="form-grid">
+          <label>用户名<input id="username" name="username" autocomplete="username" required></label>
+          <label>密码<input id="password" name="password" type="password" autocomplete="current-password" required></label>
+          <button type="submit">登录</button>
+        </form>
+      </section>
+
+      <section id="connect-view" class="access-view" aria-labelledby="connect-title" hidden>
+        <div class="access-copy">
+          <p class="eyebrow">已登录</p>
+          <h2 id="connect-title">连接演示设备</h2>
+          <p>输入已在线的设备 ID 以查看只读监测数据。</p>
+        </div>
+        <form id="connect-form" class="form-grid">
+          <label>设备 ID<input id="device-id" name="device_id" autocomplete="off" maxlength="32" pattern="[A-Za-z0-9_-]{1,32}" required></label>
+          <button type="submit">连接设备</button>
+        </form>
+      </section>
+
+      <section id="monitor-view" class="monitor" aria-label="设备监测数据" hidden>
+        <div class="monitor-head">
+          <div>
+            <p class="eyebrow">已连接设备</p>
+            <h2 id="connected-device">--</h2>
+          </div>
+          <div class="monitor-actions" aria-label="监测操作">
+            <button id="refresh-button" type="button">刷新</button>
+            <button id="disconnect-button" type="button" class="secondary">断开</button>
+            <button id="logout-button" type="button" class="secondary">退出登录</button>
+          </div>
+        </div>
+
+        <section class="state-strip" aria-label="设备状态">
+          <div><span id="online-indicator" class="indicator offline" aria-hidden="true"></span><strong id="online-state">离线</strong></div>
+          <p>VPS 收到时间 <time id="receipt-time">--</time></p>
+        </section>
+
+        <section class="score-section" aria-labelledby="scores-title">
+          <div class="section-heading"><p class="eyebrow">监测分数</p><h3 id="scores-title">本次上传</h3></div>
+          <div class="score-grid">
+            <article class="score-tile"><p>F 面部</p><strong id="score-face">未接入</strong></article>
+            <article class="score-tile"><p>S 言语</p><strong id="score-speech">未接入</strong></article>
+            <article class="score-tile"><p>T 舌部</p><strong id="score-tongue">未接入</strong></article>
+            <article class="score-tile"><p>E 眼动</p><strong id="score-eye">未接入</strong></article>
+            <article class="score-tile"><p>CSI</p><strong id="score-csi">未接入</strong></article>
+            <article class="score-tile final-tile"><p>最终评分</p><strong id="score-final">未接入</strong></article>
+          </div>
+        </section>
+
+        <section class="assessment-grid" aria-label="风险提示和最新建议">
+          <section id="risk-panel" class="risk-panel level-insufficient" aria-labelledby="risk-title">
+            <div class="section-heading"><p class="eyebrow">S3 风险提示</p><h3 id="risk-title">数据不足</h3></div>
+            <p id="risk-copy" class="risk-copy">当前数据不足，不能形成风险提示。</p>
+            <div class="detail-columns">
+              <div><h4>原因</h4><ul id="reason-list"><li>未接入</li></ul></div>
+              <div><h4>否决项</h4><ul id="veto-list"><li>无</li></ul></div>
+            </div>
+          </section>
+
+          <section class="advice-panel" aria-labelledby="advice-title">
+            <div class="section-heading"><p class="eyebrow">最新建议</p><h3 id="advice-title">大模型就医提醒</h3></div>
+            <p id="advice-text" class="advice-text">尚未收到建议。</p>
+            <details id="advice-details">
+              <summary>查看来源与时间</summary>
+              <p>来源 <strong id="advice-source">--</strong></p>
+              <p>生成时间 <time id="advice-time">--</time></p>
+            </details>
+          </section>
+        </section>
+        <p class="medical-note">本页仅提供风险提示与就医提醒，不作诊断。</p>
+      </section>
+    </main>
+    <script src="/demo/app.js"></script>
+  </body>
+</html>

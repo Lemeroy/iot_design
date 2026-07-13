@@ -14,10 +14,12 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 
 from .db_influx import InfluxWriter
 from .demo_api import router as demo_api_router
 from .demo_auth import DemoAuth
+from .demo_web import DEMO_STATIC_DIRECTORY
 from .llm_advice import DoubaoAdvisor
 from .mqtt_bridge import MqttBridge
 from .schemas import (
@@ -63,6 +65,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="StrokeGuard Cloud", version="0.1.0-m5", lifespan=lifespan)
 app.include_router(demo_api_router)
+app.mount("/demo", StaticFiles(directory=DEMO_STATIC_DIRECTORY, html=True), name="demo")
 
 
 @app.get("/health", response_model=HealthResp)
