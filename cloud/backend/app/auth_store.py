@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     id INTEGER PRIMARY KEY,
     id_hash TEXT NOT NULL,
     user_id INTEGER NOT NULL REFERENCES users(id),
+    client_type TEXT NOT NULL DEFAULT 'browser' CHECK (client_type IN ('browser', 'pc')),
     expires_at INTEGER NOT NULL,
     revoked_at INTEGER,
     created_at INTEGER NOT NULL,
@@ -111,6 +112,12 @@ class AuthStore:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._operation() as db:
             db.executescript(SCHEMA_V1)
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(sessions)")}
+            if "client_type" not in columns:
+                db.execute(
+                    "ALTER TABLE sessions ADD COLUMN client_type TEXT NOT NULL DEFAULT 'browser' "
+                    "CHECK (client_type IN ('browser', 'pc'))"
+                )
             db.execute("INSERT OR IGNORE INTO schema_meta(version) VALUES (1)")
 
     def schema_version(self) -> int | None:
@@ -186,23 +193,35 @@ class AuthStore:
         expires_at: int,
         *,
         token: str | None = None,
+        client_type: str = "browser",
         now: int | None = None,
     ) -> str:
         raw_token = token or new_session_token()
+        _validate_client_type(client_type)
         timestamp = _timestamp(now)
         with self._operation() as db:
             db.execute(
                 """
-                INSERT INTO sessions(id_hash, user_id, expires_at, created_at, last_seen_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO sessions(id_hash, user_id, client_type, expires_at, created_at, last_seen_at)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (hash_session_token(raw_token), user_id, int(expires_at), timestamp, timestamp),
+                (
+                    hash_session_token(raw_token),
+                    user_id,
+                    client_type,
+                    int(expires_at),
+                    timestamp,
+                    timestamp,
+                ),
             )
         return raw_token
 
-    def authenticate_session(self, token: str, *, now: int | None = None) -> UserRecord | None:
+    def authenticate_session(
+        self, token: str, *, client_type: str = "browser", now: int | None = None
+    ) -> UserRecord | None:
         timestamp = _timestamp(now)
         token_hash = hash_session_token(token)
+        _validate_client_type(client_type)
         with self._operation() as db:
             row = db.execute(
                 """
@@ -211,9 +230,10 @@ class AuthStore:
                 WHERE sessions.id_hash = ?
                   AND sessions.expires_at > ?
                   AND sessions.revoked_at IS NULL
+                  AND sessions.client_type = ?
                   AND users.is_active = 1
                 """,
-                (token_hash, timestamp),
+                (token_hash, timestamp, client_type),
             ).fetchone()
             if row is None:
                 return None
@@ -375,6 +395,11 @@ def _normalize_device_id(device_id: str) -> str:
 
 def _timestamp(value: int | None) -> int:
     return int(time.time()) if value is None else int(value)
+
+
+def _validate_client_type(client_type: str) -> None:
+    if client_type not in {"browser", "pc"}:
+        raise ValueError("client type must be browser or pc")
 
 
 def _user_from_row(row: sqlite3.Row) -> UserRecord:

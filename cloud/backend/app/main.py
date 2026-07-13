@@ -43,6 +43,7 @@ _bridge: Optional[MqttBridge] = None
 async def lifespan(app: FastAPI):
     global _advisor, _influx, _bridge
     app.state.auth_store = bootstrap_auth_store()
+    app.state.auth_enabled = app.state.auth_store is not None
     app.state.auth_limiter = LoginRateLimiter()
     _advisor = DoubaoAdvisor()
     _influx = InfluxWriter()

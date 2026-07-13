@@ -80,6 +80,22 @@ def test_session_tokens_are_random_and_only_the_hash_is_persisted(tmp_path):
     assert first.encode("ascii") not in (tmp_path / "auth.db").read_bytes()
 
 
+def test_session_client_type_is_persisted_and_required_for_authentication(tmp_path):
+    store = make_store(tmp_path)
+    user = store.create_user("admin", hash_password(PASSWORD), "admin", now=100)
+    token = store.create_session(
+        user.id, expires_at=200, token="pc-session", client_type="pc", now=100
+    )
+
+    assert store.authenticate_session(token, client_type="pc", now=101).id == user.id
+    assert store.authenticate_session(token, client_type="browser", now=101) is None
+    db = sqlite3.connect(tmp_path / "auth.db")
+    try:
+        assert db.execute("SELECT client_type FROM sessions").fetchone() == ("pc",)
+    finally:
+        db.close()
+
+
 def test_revoked_session_cannot_authenticate(tmp_path):
     store = make_store(tmp_path)
     user = store.create_user("admin", hash_password(PASSWORD), "admin", now=100)

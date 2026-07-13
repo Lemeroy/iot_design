@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import threading
 import time
-from collections import defaultdict, deque
+from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
@@ -26,48 +28,76 @@ AUTH_FAILURE_DETAIL = "\u8d26\u53f7\u6216\u5bc6\u7801\u9519\u8bef"
 MAX_LOGIN_FAILURES = 5
 LOGIN_FAILURE_WINDOW_SECONDS = 5 * 60
 
-router = APIRouter()
+
+class AuthConfigurationError(ValueError):
+    pass
+
+
+def require_auth_available(request: Request) -> None:
+    if not getattr(request.app.state, "auth_enabled", False):
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Authentication is unavailable")
+
+
+router = APIRouter(dependencies=[Depends(require_auth_available)])
+
+
+@dataclass(frozen=True)
+class LoginAttempt:
+    key: tuple[str, str]
+    identifier: int
 
 
 class LoginRateLimiter:
     def __init__(self) -> None:
-        self._failures: dict[tuple[str, str], deque[float]] = defaultdict(deque)
+        self._attempts: dict[tuple[str, str], dict[int, float]] = defaultdict(dict)
+        self._lock = threading.Lock()
+        self._next_identifier = 0
 
-    def check(self, ip_address: str, username: str) -> None:
-        failures = self._recent_failures(ip_address, username)
-        if len(failures) >= MAX_LOGIN_FAILURES:
-            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many login attempts")
-
-    def record_failure(self, ip_address: str, username: str) -> None:
-        self._recent_failures(ip_address, username).append(time.monotonic())
-
-    def clear(self, ip_address: str, username: str) -> None:
-        self._failures.pop((ip_address, username), None)
-
-    def _recent_failures(self, ip_address: str, username: str) -> deque[float]:
+    def begin_attempt(self, ip_address: str, username: str) -> LoginAttempt:
         key = (ip_address, username)
-        failures = self._failures[key]
+        with self._lock:
+            attempts = self._recent_attempts(key)
+            if len(attempts) >= MAX_LOGIN_FAILURES:
+                raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many login attempts")
+            self._next_identifier += 1
+            identifier = self._next_identifier
+            attempts[identifier] = time.monotonic()
+        return LoginAttempt(key, identifier)
+
+    def complete_attempt(self, attempt: LoginAttempt, *, failed: bool) -> None:
+        if failed:
+            return
+        with self._lock:
+            attempts = self._attempts.get(attempt.key)
+            if attempts is not None:
+                attempts.pop(attempt.identifier, None)
+                if not attempts:
+                    self._attempts.pop(attempt.key, None)
+
+    def _recent_attempts(self, key: tuple[str, str]) -> dict[int, float]:
+        attempts = self._attempts[key]
         cutoff = time.monotonic() - LOGIN_FAILURE_WINDOW_SECONDS
-        while failures and failures[0] <= cutoff:
-            failures.popleft()
-        return failures
+        for identifier, timestamp in tuple(attempts.items()):
+            if timestamp <= cutoff:
+                del attempts[identifier]
+        return attempts
 
 
-def bootstrap_auth_store() -> AuthStore:
-    db_path = Path(_required_env("SG_AUTH_DB"))
-    pairing_secret = _required_env("SG_PAIRING_SECRET").encode("utf-8")
-    store = AuthStore(db_path, pairing_secret=pairing_secret)
-    store.initialize()
-    if not store.list_users():
-        username = _required_env("SG_INITIAL_ADMIN_USER")
-        password = _required_env("SG_INITIAL_ADMIN_PASSWORD")
-        try:
+def bootstrap_auth_store() -> AuthStore | None:
+    try:
+        db_path = Path(_required_env("SG_AUTH_DB"))
+        pairing_secret = _required_env("SG_PAIRING_SECRET").encode("utf-8")
+        store = AuthStore(db_path, pairing_secret=pairing_secret)
+        store.initialize()
+        if not store.list_users():
+            username = _required_env("SG_INITIAL_ADMIN_USER")
+            password = _required_env("SG_INITIAL_ADMIN_PASSWORD")
             store.create_user(username, hash_password(password), "admin")
-        finally:
-            os.environ.pop("SG_INITIAL_ADMIN_PASSWORD", None)
-    else:
+        return store
+    except AuthConfigurationError:
+        return None
+    finally:
         os.environ.pop("SG_INITIAL_ADMIN_PASSWORD", None)
-    return store
 
 
 def get_current_user(
@@ -75,11 +105,11 @@ def get_current_user(
     authorization: str | None = Header(default=None),
     session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ) -> UserRecord:
-    token = _session_token(authorization, session_cookie)
+    token, client_type = _session_credentials(authorization, session_cookie)
     if token is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
     try:
-        user = request.app.state.auth_store.authenticate_session(token)
+        user = request.app.state.auth_store.authenticate_session(token, client_type=client_type)
     except ValueError:
         user = None
     if user is None:
@@ -98,42 +128,42 @@ def login(payload: LoginRequest, response: Response, request: Request) -> LoginR
     ip_address = request.client.host if request.client else "unknown"
     username = _normalized_username(payload.username)
     limiter: LoginRateLimiter = request.app.state.auth_limiter
-    limiter.check(ip_address, username)
+    attempt = limiter.begin_attempt(ip_address, username)
     try:
         user = request.app.state.auth_store.verify_login(payload.username, payload.password)
     except ValueError:
         user = None
     if user is None:
-        limiter.record_failure(ip_address, username)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, AUTH_FAILURE_DETAIL)
-    limiter.clear(ip_address, username)
+    limiter.complete_attempt(attempt, failed=False)
     token = request.app.state.auth_store.create_session(
-        user.id, expires_at=int(time.time()) + SESSION_TTL_SECONDS
+        user.id, expires_at=int(time.time()) + SESSION_TTL_SECONDS, client_type=payload.client
     )
-    response.set_cookie(
-        SESSION_COOKIE,
-        token,
-        httponly=True,
-        secure=True,
-        samesite="strict",
-        max_age=SESSION_TTL_SECONDS,
-    )
+    if payload.client == "browser":
+        response.set_cookie(
+            SESSION_COOKIE,
+            token,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            max_age=SESSION_TTL_SECONDS,
+        )
     return LoginResponse(user=_public_user(user), access_token=token if payload.client == "pc" else None)
 
 
 @router.post("/api/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(
-    response: Response,
     request: Request,
     authorization: str | None = Header(default=None),
     session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ) -> Response:
-    token = _session_token(authorization, session_cookie)
+    token, _ = _session_credentials(authorization, session_cookie)
     if token is not None:
         try:
             request.app.state.auth_store.revoke_session(token)
         except ValueError:
             pass
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
     response.delete_cookie(SESSION_COOKIE, httponly=True, secure=True, samesite="strict")
     return response
 
@@ -153,8 +183,10 @@ def create_user(
         user = request.app.state.auth_store.create_user(
             payload.username, hash_password(payload.password), "user"
         )
-    except (sqlite3.IntegrityError, ValueError):
+    except sqlite3.IntegrityError:
         raise HTTPException(status.HTTP_409_CONFLICT, "Username is unavailable") from None
+    except ValueError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid user input") from None
     return _public_user(user)
 
 
@@ -181,7 +213,7 @@ def set_user_active(
 def _required_env(name: str) -> str:
     value = os.environ.get(name, "").strip()
     if not value:
-        raise RuntimeError(f"{name} is required")
+        raise AuthConfigurationError(f"{name} is required")
     return value
 
 
@@ -189,11 +221,13 @@ def _normalized_username(username: str) -> str:
     return username.strip().casefold() if isinstance(username, str) else ""
 
 
-def _session_token(authorization: str | None, session_cookie: str | None) -> str | None:
+def _session_credentials(
+    authorization: str | None, session_cookie: str | None
+) -> tuple[str | None, str]:
     if authorization is not None:
         scheme, _, token = authorization.partition(" ")
-        return token if scheme.casefold() == "bearer" and token else None
-    return session_cookie
+        return (token, "pc") if scheme.casefold() == "bearer" and token else (None, "pc")
+    return session_cookie, "browser"
 
 
 def _public_user(user: UserRecord) -> UserResponse:

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 LevelT = Literal["normal", "warning", "danger", "insufficient"]
 
@@ -99,8 +99,15 @@ class LoginResponse(StrictModel):
 
 
 class UserCreateRequest(StrictModel):
-    username: str
-    password: str
+    username: str = Field(min_length=1)
+    password: str = Field(min_length=1)
+
+    @field_validator("username")
+    @classmethod
+    def username_must_not_be_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("username is required")
+        return value
 
 
 class UserActivationUpdate(StrictModel):
