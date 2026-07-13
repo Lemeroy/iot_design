@@ -3,6 +3,10 @@ host_pc/.venv/
 host_pc/**/__pycache__/
 host_pc/*.egg-info/
 host_pc/.pytest_cache/
+host_pc/config/device-deployment.local.yaml
+host_pc/config/.env
+host_pc/.generated-sdkconfig.defaults
+host_pc/maintenance-*.log
 
 firmware_esp32/build/
 firmware_esp32/sdkconfig

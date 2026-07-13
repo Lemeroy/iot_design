@@ -1,0 +1,27 @@
+schema_version: 1
+
+device:
+  id: sg-0001
+  management_token: ${STROKEGUARD_MANAGER_TOKEN}
+
+wifi:
+  ssid: ${STROKEGUARD_WIFI_SSID}
+  password: ${STROKEGUARD_WIFI_PASSWORD}
+
+mqtt:
+  uri: mqtt://106.75.229.61:1883
+  username: ${STROKEGUARD_MQTT_USERNAME}
+  password: ${STROKEGUARD_MQTT_PASSWORD}
+
+hardware:
+  camera:
+    model: GC2145
+    enabled: false
+    pins: {}
+  microphone:
+    model: NMO432
+    enabled: false
+    sample_rate: 16000
+    channel: left
+    pins: {}
+
