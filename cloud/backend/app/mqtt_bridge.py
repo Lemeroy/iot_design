@@ -12,8 +12,6 @@ import os
 import re
 import threading
 import time
-from typing import Optional
-
 import paho.mqtt.client as mqtt
 
 from .db_influx import InfluxWriter
@@ -55,6 +53,18 @@ class MqttBridge:
 
         # 最新缓存 (只保内存, InfluxDB 保长历史)
         self.latest = {}  # device_id -> {"uplink": UplinkPayload, "advice": DownlinkPayload}
+        self._cache_lock = threading.RLock()
+
+    def cache_snapshot(self, device_id: str) -> dict | None:
+        """Return a consistent, isolated view of one device's latest cache."""
+        with self._cache_lock:
+            cache = self.latest.get(device_id)
+            return dict(cache) if isinstance(cache, dict) else None
+
+    def _generation_is_current(self, device_id: str, generation: int) -> bool:
+        with self._cache_lock:
+            cache = self.latest.get(device_id)
+            return isinstance(cache, dict) and cache.get("generation") == generation
 
     def connected(self) -> bool:
         return self._connected.is_set() and self._client.is_connected()
@@ -105,26 +115,42 @@ class MqttBridge:
             return
 
         # Influx 写入放本线程 (轻量)
+        # Store receipt time only after JSON, schema, and topic-device validation.
+        received_at = time.time()
+        with self._cache_lock:
+            cache = self.latest.setdefault(device_id, {})
+            generation = int(cache.get("generation", 0)) + 1
+            cache["generation"] = generation
+            cache["uplink"] = up
+            cache["received_at"] = received_at
+            cache.pop("advice", None)
+
         self._influx.write_uplink(
             device_id=up.device_id, scores=up.scores,
             level=up.level, profile=up.profile, ts_sec=up.ts,
         )
 
         # 缓存
-        self.latest.setdefault(device_id, {})["uplink"] = up
 
         # LLM 调用: 交给 asyncio loop 做, 避免阻塞 mqtt 线程
         asyncio.run_coroutine_threadsafe(
-            self._handle_advice(device_id, up), self._loop
+            self._handle_advice(device_id, up, generation), self._loop
         )
 
     # ---- async LLM ----
-    async def _handle_advice(self, device_id: str, up: UplinkPayload) -> None:
+    async def _handle_advice(self, device_id: str, up: UplinkPayload, generation: int) -> None:
         # 简单节流: normal 级别每 60s 才发一次建议, warning/danger 立即
-        cache = self.latest.setdefault(device_id, {})
-        last_adv: Optional[DownlinkPayload] = cache.get("advice")
+        with self._cache_lock:
+            cache = self.latest.get(device_id)
+            if not isinstance(cache, dict) or cache.get("generation") != generation:
+                return
+            last_advice_ts = cache.get("last_advice_ts")
         now = int(time.time())
-        if up.level == "normal" and last_adv and (now - last_adv.ts) < 60:
+        if (
+            up.level == "normal"
+            and isinstance(last_advice_ts, int)
+            and (now - last_advice_ts) < 60
+        ):
             return
 
         try:
@@ -145,12 +171,21 @@ class MqttBridge:
             ts=now,
             source=advice_source,
         )
-        cache["advice"] = down
+        with self._cache_lock:
+            cache = self.latest.get(device_id)
+            if not isinstance(cache, dict) or cache.get("generation") != generation:
+                return
+            cache["advice"] = down
+            cache["last_advice_ts"] = down.ts
 
         # 发布 downlink
+        if not self._generation_is_current(device_id, generation):
+            return
         topic = TOPIC_DOWNLINK_FMT.format(device_id=device_id)
         self._client.publish(topic, down.model_dump_json(), qos=1, retain=False)
         log.info("downlink -> %s (%d ms, %d chars)", topic, latency, len(advice_text))
 
         # Influx 记录 advice
+        if not self._generation_is_current(device_id, generation):
+            return
         self._influx.write_advice(device_id, up.level, advice_text, latency)

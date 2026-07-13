@@ -78,3 +78,29 @@ class ManualAdviceResp(StrictModel):
     advice_text: str
     latency_ms: int
     model: str
+
+
+class DemoSessionResp(StrictModel):
+    authenticated: bool
+    device_id: Optional[str] = None
+
+
+class DemoConnectReq(StrictModel):
+    device_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,32}$")
+
+
+class DemoAdviceResp(StrictModel):
+    advice_text: str
+    source: str
+    ts: int
+
+
+class DemoDeviceResp(StrictModel):
+    device_id: str
+    online: bool
+    received_at: Optional[float] = None
+    scores: Optional[Scores] = None
+    level: Optional[LevelT] = None
+    reasons: List[str] = Field(default_factory=list)
+    veto_by: List[str] = Field(default_factory=list)
+    advice: Optional[DemoAdviceResp] = None

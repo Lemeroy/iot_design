@@ -16,6 +16,8 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException
 
 from .db_influx import InfluxWriter
+from .demo_api import router as demo_api_router
+from .demo_auth import DemoAuth
 from .llm_advice import DoubaoAdvisor
 from .mqtt_bridge import MqttBridge
 from .schemas import (
@@ -36,11 +38,13 @@ log = logging.getLogger("sg-backend")
 _advisor: Optional[DoubaoAdvisor] = None
 _influx: Optional[InfluxWriter] = None
 _bridge: Optional[MqttBridge] = None
+_demo_auth: Optional[DemoAuth] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _advisor, _influx, _bridge
+    global _advisor, _influx, _bridge, _demo_auth
+    _demo_auth = DemoAuth.from_env()
     _advisor = DoubaoAdvisor()
     _influx = InfluxWriter()
     loop = asyncio.get_running_loop()
@@ -58,6 +62,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="StrokeGuard Cloud", version="0.1.0-m5", lifespan=lifespan)
+app.include_router(demo_api_router)
 
 
 @app.get("/health", response_model=HealthResp)
@@ -74,7 +79,7 @@ async def health() -> HealthResp:
 async def latest(device_id: str) -> LatestResp:
     if _bridge is None:
         raise HTTPException(500, "bridge not ready")
-    cache = _bridge.latest.get(device_id)
+    cache = _bridge.cache_snapshot(device_id)
     if not cache:
         return LatestResp(device_id=device_id)
     up = cache.get("uplink")
