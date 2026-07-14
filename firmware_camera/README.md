@@ -5,9 +5,11 @@ This ESP-IDF v5.5.3 project targets the Hiwonder ESP32-S3-Cam board
 `esp32-camera` capture plus ESP-WHO `human_face_detect`, then exposes only a
 4-byte face bounding box to the N16R8 main controller over I2C.
 
-Raw images never leave the camera board. The current output is face presence
-and normalized geometry only; it is not a FAST facial asymmetry score and must
-not be treated as a medical F result.
+Raw images are not uploaded. The normal device output is face presence and
+normalized geometry only. An explicit USB debug session may send requested
+JPEG frames directly to the attached PC; frames are not saved or uploaded.
+The face box is not a FAST facial asymmetry score and must not be treated as a
+medical F result.
 
 ## Wiring
 
@@ -55,3 +57,17 @@ idf.py -p COM4 flash monitor
 
 The app uses a custom `3 MB` factory partition and `8 MB` flash because the
 embedded ESP-WHO model is larger than the default 1 MB app partition.
+
+## Local USB Preview
+
+Close every COM4 serial monitor before opening the preview; COM4 must be closed
+by other programs because one process owns the port. From the repository root:
+
+```powershell
+host_pc\.venv\Scripts\python.exe host_pc\tools\camera_usb_preview.py --port COM4
+```
+
+The debug protocol uses `921600 8N1`. The PC requests one JPEG at a time, so
+preview work stops when the window disconnects. Images remain on the directly
+connected PC, are not saved, and are not uploaded to MQTT, VPS, or the large
+model. I2C face-box polling at `0x52`/`0x01` continues during preview.

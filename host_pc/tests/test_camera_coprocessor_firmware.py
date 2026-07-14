@@ -91,6 +91,15 @@ def test_camera_project_contains_build_and_privacy_documentation():
     assert "raw images" in readme.lower()
     assert "GPIO47" in readme and "GPIO48" in readme
     assert "0x52" in readme and "0x01" in readme
+    for token in (
+        "camera_usb_preview.py",
+        "COM4",
+        "921600",
+        "must be closed",
+        "not saved",
+        "not uploaded",
+    ):
+        assert token in readme
 
 
 def test_two_board_bringup_documents_approved_wiring_and_safety():
@@ -102,3 +111,5 @@ def test_two_board_bringup_documents_approved_wiring_and_safety():
         assert token in text
     assert "5 V jumper disconnected" in text
     assert "not a\ndiagnosis" in text
+    assert "camera_usb_preview.py" in text
+    assert "I2C remains active" in text

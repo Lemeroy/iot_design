@@ -45,6 +45,20 @@ run `erase-flash` unless intentionally clearing all local configuration. Keep
 the inter-board 5 V jumper disconnected; both boards are powered by USB and
 share only GND plus I2C.
 
+## Local camera preview
+
+The optional USB preview is only for local debugging. Close `idf.py monitor`
+and every other COM4 serial tool, then run from `F:\iot_design`:
+
+```powershell
+host_pc\.venv\Scripts\python.exe host_pc\tools\camera_usb_preview.py --port COM4
+```
+
+The camera preview uses `921600 8N1`. It requests one JPEG at a time and does
+not record or upload frames. The N16R8 connection is separate: I2C remains active
+on GPIO8/GPIO9 while the PC preview window is connected. The displayed box is
+face-presence geometry only, not an F score.
+
 ## Expected behavior
 
 - Camera I2C address is `0x52`, face register is `0x01`, and N16R8 polls every
