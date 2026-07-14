@@ -1,5 +1,6 @@
 #include "camera_capture_adapter.h"
 #include "camera_score_target.h"
+#include "camera_usb_preview.h"
 
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -15,6 +16,7 @@ void app_main(void)
         ESP_LOGW(TAG, "camera acquisition unavailable; serving model_missing");
     }
     ESP_ERROR_CHECK(sg_camera_score_target_init());
+    ESP_ERROR_CHECK(sg_camera_usb_preview_init());
 
     while (1) {
         (void)sg_camera_capture_observe(&observation);

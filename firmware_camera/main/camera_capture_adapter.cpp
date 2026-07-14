@@ -1,4 +1,5 @@
 #include "camera_capture_adapter.h"
+#include "camera_usb_preview.h"
 
 #include <algorithm>
 #include <cmath>
@@ -93,7 +94,7 @@ extern "C" esp_err_t sg_camera_capture_init(void)
 
     sensor_t *sensor = esp_camera_sensor_get();
     if (sensor != nullptr) {
-        (void)sensor->set_vflip(sensor, 0);
+        (void)sensor->set_vflip(sensor, 1);
         (void)sensor->set_hmirror(sensor, 0);
     }
 
@@ -103,7 +104,6 @@ extern "C" esp_err_t sg_camera_capture_init(void)
         ESP_LOGE(TAG, "human face model allocation failed");
         return ESP_ERR_NO_MEM;
     }
-
     ESP_LOGI(TAG, "GC2145 + human_face_detect ready");
     return ESP_OK;
 }
@@ -123,7 +123,6 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
     if (fb == nullptr) {
         return ESP_FAIL;
     }
-
     dl::image::img_t img = {
         .data = fb->buf,
         .width = (uint16_t)fb->width,
@@ -133,12 +132,19 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
     auto &results = s_model->run(img);
     out->face_bbox = pick_largest_face(results, fb->width, fb->height);
 
+    const long long latency_ms =
+        (long long)((esp_timer_get_time() - start_us) / 1000);
+
+    if (sg_camera_usb_preview_requested()) {
+        (void)sg_camera_usb_preview_send(fb, &out->face_bbox);
+    }
+
     esp_camera_fb_return(fb);
     if (out->face_bbox.valid) {
         ESP_LOGI(TAG, "face bbox cx=%u cy=%u w=%u h=%u latency=%lldms",
                  out->face_bbox.center_x, out->face_bbox.center_y,
                  out->face_bbox.width, out->face_bbox.height,
-                 (long long)((esp_timer_get_time() - start_us) / 1000));
+                 latency_ms);
     }
     return ESP_OK;
 }

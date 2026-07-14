@@ -58,6 +58,31 @@ def test_camera_address_matches_shared_protocol():
     assert "CONFIG_STROKEGUARD_CAMERA_I2C_ADDRESS=0x52" in defaults
 
 
+def test_camera_orientation_matches_esp_who_s3_default():
+    adapter = read("camera_capture_adapter.cpp")
+
+    assert "set_vflip(sensor, 1)" in adapter
+
+
+def test_camera_usb_preview_is_request_gated_and_crc_protected():
+    adapter = read("camera_capture_adapter.cpp")
+    preview = read("camera_usb_preview.c")
+    cmake = read("CMakeLists.txt")
+
+    assert "sg_camera_usb_preview_requested" in adapter
+    assert "sg_camera_usb_preview_send" in adapter
+    assert "frame2jpg" in preview
+    assert "SG_CAMERA_PREVIEW_REQUEST" in preview
+    assert "SG_CAMERA_PREVIEW_MAX_JPEG" in preview
+    assert "sg_camera_preview_crc32" in preview
+    assert "921600" in preview
+    assert "camera_usb_preview.c" in cmake
+    assert "camera_preview_protocol.c" in cmake
+    assert "frame preview" not in adapter
+    assert "frame diagnostic" not in adapter
+    assert "set_score_thr(0.30f" not in adapter
+
+
 def test_camera_project_contains_build_and_privacy_documentation():
     assert (CAMERA / "CMakeLists.txt").is_file()
     assert (CAMERA / "sdkconfig.defaults").is_file()
