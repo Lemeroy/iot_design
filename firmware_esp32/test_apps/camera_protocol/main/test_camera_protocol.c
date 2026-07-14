@@ -1,5 +1,3 @@
-#include <string.h>
-
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "unity.h"
@@ -7,80 +5,49 @@
 
 #include "camera_scores_protocol.h"
 
-static sg_camera_scores_v1_t valid_frame(void)
+TEST_CASE("vendor camera protocol uses documented address and face register", "[camera_protocol]")
 {
-    sg_camera_scores_v1_t frame = {
-        .version = SG_CAMERA_PROTOCOL_V1,
-        .sequence = 7,
-        .face = 81,
-        .tongue = 72,
-        .eye = 90,
-        .quality = 88,
-        .valid_mask = SG_CAMERA_VALID_FACE | SG_CAMERA_VALID_EYE,
-        .status = SG_CAMERA_STATUS_READY,
-        .mouth_angle_x10 = 35,
-        .latency_ms = 42,
+    TEST_ASSERT_EQUAL_UINT8(0x52, SG_CAMERA_I2C_ADDRESS);
+    TEST_ASSERT_EQUAL_UINT8(0x01, SG_CAMERA_FACE_REGISTER);
+    TEST_ASSERT_EQUAL_UINT32(4, sizeof(sg_camera_face_response_t));
+}
+
+TEST_CASE("vendor face bbox parses a detected face", "[camera_protocol]")
+{
+    const uint8_t raw[4] = {100, 80, 42, 36};
+    sg_camera_face_bbox_t bbox = {0};
+    TEST_ASSERT_EQUAL(SG_CAMERA_PROTOCOL_OK,
+                      sg_camera_face_bbox_parse(raw, sizeof(raw), &bbox));
+    TEST_ASSERT_TRUE(bbox.valid);
+    TEST_ASSERT_EQUAL_UINT8(100, bbox.center_x);
+    TEST_ASSERT_EQUAL_UINT8(80, bbox.center_y);
+    TEST_ASSERT_EQUAL_UINT8(42, bbox.width);
+    TEST_ASSERT_EQUAL_UINT8(36, bbox.height);
+}
+
+TEST_CASE("vendor face bbox treats all zero bytes as no face", "[camera_protocol]")
+{
+    const uint8_t raw[4] = {0, 0, 0, 0};
+    sg_camera_face_bbox_t bbox = {
+        .valid = true,
+        .center_x = 1,
+        .center_y = 1,
+        .width = 1,
+        .height = 1,
     };
-    frame.crc16 = sg_camera_scores_crc(&frame);
-    return frame;
-}
-
-TEST_CASE("camera score v1 validates known frame", "[camera_protocol]")
-{
-    sg_camera_scores_v1_t frame = valid_frame();
-    TEST_ASSERT_EQUAL_UINT32(14, sizeof(frame));
     TEST_ASSERT_EQUAL(SG_CAMERA_PROTOCOL_OK,
-                      sg_camera_scores_validate(&frame));
+                      sg_camera_face_bbox_parse(raw, sizeof(raw), &bbox));
+    TEST_ASSERT_FALSE(bbox.valid);
+    TEST_ASSERT_EQUAL_UINT8(0, bbox.width);
+    TEST_ASSERT_EQUAL_UINT8(0, bbox.height);
 }
 
-TEST_CASE("camera score rejects corrupt CRC", "[camera_protocol]")
+TEST_CASE("vendor face bbox rejects short response", "[camera_protocol]")
 {
-    sg_camera_scores_v1_t frame = valid_frame();
-    frame.quality ^= 1U;
-    TEST_ASSERT_EQUAL(SG_CAMERA_PROTOCOL_BAD_CRC,
-                      sg_camera_scores_validate(&frame));
-}
-
-TEST_CASE("camera score rejects unsupported version", "[camera_protocol]")
-{
-    sg_camera_scores_v1_t frame = valid_frame();
-    frame.version = 2;
-    frame.crc16 = sg_camera_scores_crc(&frame);
-    TEST_ASSERT_EQUAL(SG_CAMERA_PROTOCOL_BAD_VERSION,
-                      sg_camera_scores_validate(&frame));
-}
-
-TEST_CASE("camera score rejects valid modality above 100", "[camera_protocol]")
-{
-    sg_camera_scores_v1_t frame = valid_frame();
-    frame.face = 101;
-    frame.crc16 = sg_camera_scores_crc(&frame);
+    const uint8_t raw[3] = {100, 80, 42};
+    sg_camera_face_bbox_t bbox = {0};
     TEST_ASSERT_EQUAL(SG_CAMERA_PROTOCOL_BAD_VALUE,
-                      sg_camera_scores_validate(&frame));
-}
-
-TEST_CASE("camera score ignores value when modality is invalid", "[camera_protocol]")
-{
-    sg_camera_scores_v1_t frame = valid_frame();
-    frame.tongue = 255;
-    frame.crc16 = sg_camera_scores_crc(&frame);
-    TEST_ASSERT_EQUAL(SG_CAMERA_PROTOCOL_OK,
-                      sg_camera_scores_validate(&frame));
-}
-
-TEST_CASE("camera score rejects unknown status and validity bits", "[camera_protocol]")
-{
-    sg_camera_scores_v1_t frame = valid_frame();
-    frame.status = 255;
-    frame.crc16 = sg_camera_scores_crc(&frame);
-    TEST_ASSERT_EQUAL(SG_CAMERA_PROTOCOL_BAD_VALUE,
-                      sg_camera_scores_validate(&frame));
-
-    frame = valid_frame();
-    frame.valid_mask = 0x80;
-    frame.crc16 = sg_camera_scores_crc(&frame);
-    TEST_ASSERT_EQUAL(SG_CAMERA_PROTOCOL_BAD_VALUE,
-                      sg_camera_scores_validate(&frame));
+                      sg_camera_face_bbox_parse(raw, sizeof(raw), &bbox));
 }
 
 void app_main(void)

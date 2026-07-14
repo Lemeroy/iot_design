@@ -1,6 +1,5 @@
 #include "camera_coprocessor.h"
 
-#include <math.h>
 #include <string.h>
 
 #include "driver/i2c_master.h"
@@ -17,7 +16,7 @@
 
 #define SG_CAMERA_I2C_HZ 100000U
 #define SG_CAMERA_READ_TIMEOUT_MS 100
-#define SG_CAMERA_SEQUENCE_STALE_US 2000000LL
+#define SG_CAMERA_STALE_US 2000000LL
 
 static i2c_master_bus_handle_t s_bus;
 static i2c_master_dev_handle_t s_device;
@@ -42,28 +41,25 @@ esp_err_t sg_camera_coprocessor_poll(sg_camera_observation_t *out)
         return ESP_ERR_INVALID_STATE;
     }
 
-    sg_camera_scores_v1_t frame;
-    esp_err_t err = i2c_master_receive(
-        s_device, (uint8_t *)&frame, sizeof(frame),
+    const uint8_t reg = SG_CAMERA_FACE_REGISTER;
+    uint8_t raw[sizeof(sg_camera_face_response_t)] = {0};
+    esp_err_t err = i2c_master_transmit_receive(
+        s_device, &reg, sizeof(reg), raw, sizeof(raw),
         SG_CAMERA_READ_TIMEOUT_MS);
     if (err != ESP_OK) {
         return err;
     }
-    if (sg_camera_scores_validate(&frame) != SG_CAMERA_PROTOCOL_OK) {
+    sg_camera_face_bbox_t bbox = {0};
+    if (sg_camera_face_bbox_parse(raw, sizeof(raw), &bbox)
+        != SG_CAMERA_PROTOCOL_OK) {
         return ESP_ERR_INVALID_RESPONSE;
     }
 
-    out->face_valid = (frame.valid_mask & SG_CAMERA_VALID_FACE) != 0U;
-    out->tongue_valid = (frame.valid_mask & SG_CAMERA_VALID_TONGUE) != 0U;
-    out->eye_valid = (frame.valid_mask & SG_CAMERA_VALID_EYE) != 0U;
-    out->sequence = frame.sequence;
-    out->face = frame.face;
-    out->tongue = frame.tongue;
-    out->eye = frame.eye;
-    out->quality = frame.quality;
-    out->status = frame.status;
-    out->mouth_angle_x10 = frame.mouth_angle_x10;
-    out->latency_ms = frame.latency_ms;
+    out->face_present = bbox.valid;
+    out->center_x = bbox.center_x;
+    out->center_y = bbox.center_y;
+    out->width = bbox.width;
+    out->height = bbox.height;
     out->received_us = esp_timer_get_time();
     return ESP_OK;
 }
@@ -72,9 +68,8 @@ static void camera_poll_task(void *arg)
 {
     (void)arg;
     bool online = false;
-    bool have_sequence = false;
-    uint8_t last_sequence = 0;
-    int64_t sequence_changed_us = 0;
+    bool have_fresh_face = false;
+    int64_t face_seen_us = 0;
     TickType_t last_wake = xTaskGetTickCount();
 
     while (1) {
@@ -89,30 +84,32 @@ static void camera_poll_task(void *arg)
                          esp_err_to_name(err));
             }
             online = false;
-            have_sequence = false;
+            have_fresh_face = false;
             continue;
         }
 
         if (!online) {
-            ESP_LOGI(SG_TAG_MAIN, "camera coprocessor online protocol=%u",
-                     SG_CAMERA_PROTOCOL_V1);
+            ESP_LOGI(SG_TAG_MAIN, "camera coprocessor online addr=0x%02x reg=0x%02x",
+                     SG_CAMERA_I2C_ADDRESS, SG_CAMERA_FACE_REGISTER);
             online = true;
         }
-        if (!have_sequence || observation.sequence != last_sequence) {
-            last_sequence = observation.sequence;
-            sequence_changed_us = now_us;
-            have_sequence = true;
-        } else if (now_us - sequence_changed_us > SG_CAMERA_SEQUENCE_STALE_US) {
+        if (observation.face_present) {
+            face_seen_us = now_us;
+            have_fresh_face = true;
+        } else if (have_fresh_face && now_us - face_seen_us > SG_CAMERA_STALE_US) {
+            have_fresh_face = false;
+        }
+
+        if (!have_fresh_face) {
             publish_unavailable(now_us);
             continue;
         }
 
-        bool ready = observation.status == SG_CAMERA_STATUS_READY;
-        float mouth_angle = fabsf((float)observation.mouth_angle_x10) / 10.0f;
+        ESP_LOGI(SG_TAG_MAIN, "camera face bbox cx=%u cy=%u w=%u h=%u",
+                 observation.center_x, observation.center_y,
+                 observation.width, observation.height);
         err = sg_score_bus_apply_camera(
-            ready && observation.face_valid, observation.face, mouth_angle,
-            ready && observation.tongue_valid, observation.tongue,
-            ready && observation.eye_valid, observation.eye, now_us);
+            false, 0, 0.0f, false, 0, false, 0, now_us);
         if (err != ESP_OK) {
             publish_unavailable(now_us);
             ESP_LOGW(SG_TAG_MAIN, "camera observation rejected: %s",

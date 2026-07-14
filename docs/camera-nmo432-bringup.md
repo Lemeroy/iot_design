@@ -14,7 +14,6 @@ camera expansion-board I2C connector order and 3.3 V logic level before power.
 | --- | --- | --- |
 | Camera SDA | camera GPIO47 | GPIO8 |
 | Camera SCL | camera GPIO48 | GPIO9 |
-| Camera supply | expansion-board 5V | 5V rail |
 | Camera ground | GND | GND |
 | NMO432 SCK | SCK | GPIO17 |
 | NMO432 WS | WS | GPIO18 |
@@ -38,18 +37,24 @@ Get-CimInstance Win32_SerialPort | Select-Object DeviceID,Name
 cd F:\iot_design\firmware_camera
 idf.py set-target esp32s3
 idf.py build
-$CameraPort = Read-Host "Camera expansion-board COM port"
-idf.py -p $CameraPort flash monitor
+idf.py -p COM4 flash monitor
 ```
 
-The camera expansion board must use its newly appeared port, not COM3. Do not
-run `erase-flash` unless intentionally clearing all local configuration.
+The camera expansion board must use its own USB serial port, not COM3. Do not
+run `erase-flash` unless intentionally clearing all local configuration. Keep
+the inter-board 5 V jumper disconnected; both boards are powered by USB and
+share only GND plus I2C.
 
 ## Expected behavior
 
-- Camera I2C address is `0x42`; N16R8 polls every 500 ms.
-- Until verified vendor camera source and evaluated models are integrated, the
-  camera returns `model_missing`, `valid_mask=0`, and no F/T/E scores.
+- Camera I2C address is `0x52`, face register is `0x01`, and N16R8 polls every
+  500 ms.
+- Camera firmware runs local GC2145 capture plus ESP-WHO human face detection
+  and returns four normalized bytes: `center_x`, `center_y`, `width`, `height`.
+  All zeros mean no face detected.
+- The current face box proves camera/model operation only. It is not a FAST
+  facial asymmetry score, so F/T/E remain unavailable until evaluated
+  asymmetry, tongue, and eye algorithms are added.
 - NMO432 logs aggregate RMS, peak, and valid-block counts every five seconds.
   These are electrical diagnostics, not a speech-risk score.
 - S remains unavailable without an evaluated versioned model.

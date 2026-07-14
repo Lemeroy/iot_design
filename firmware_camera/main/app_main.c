@@ -18,19 +18,9 @@ void app_main(void)
 
     while (1) {
         (void)sg_camera_capture_observe(&observation);
-        sg_camera_scores_v1_t frame = {
-            .version = SG_CAMERA_PROTOCOL_V1,
-            .face = observation.face,
-            .tongue = observation.tongue,
-            .eye = observation.eye,
-            .quality = observation.quality,
-            .valid_mask = observation.valid_mask,
-            .status = observation.status,
-            .mouth_angle_x10 = observation.mouth_angle_x10,
-            .latency_ms = observation.latency_ms,
-        };
-        frame.crc16 = sg_camera_scores_crc(&frame);
-        esp_err_t err = sg_camera_score_target_serve(&frame);
+        sg_camera_face_response_t response;
+        sg_camera_face_response_encode(&observation.face_bbox, &response);
+        esp_err_t err = sg_camera_score_target_serve(&response);
         if (err != ESP_OK && err != ESP_ERR_TIMEOUT) {
             ESP_LOGW(TAG, "I2C score serve failed: %s", esp_err_to_name(err));
         }

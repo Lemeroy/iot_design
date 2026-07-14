@@ -94,7 +94,7 @@ menu "StrokeGuard M1a/M1b Config"
         config STROKEGUARD_CAMERA_I2C_ADDRESS
             hex "Camera coprocessor I2C address"
             range 0x08 0x77
-            default 0x42
+            default 0x52
 
         config STROKEGUARD_NMO432_BCLK
             int "NMO432 SCK/BCLK GPIO"
