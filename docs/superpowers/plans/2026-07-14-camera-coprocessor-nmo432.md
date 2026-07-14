@@ -380,15 +380,15 @@ git push origin codex/preliminary-demo
 - Documents one reproducible two-board flash, wire, monitor, disconnect, reconnect, and privacy acceptance flow.
 - Does not introduce any runtime interface.
 
-- [ ] **Step 1: Add failing documentation checks**
+- [x] **Step 1: Add failing documentation checks**
 
 Verify documentation contains `GPIO8`, `GPIO9`, `GPIO17`, `GPIO18`, `GPIO16`, `0x42`, shared-ground warning, 5 V camera supply, 3.3 V NMO432 supply, I2C connector-order verification, and no claim that the installed camera is GC2145.
 
-- [ ] **Step 2: Write the bring-up guide**
+- [x] **Step 2: Write the bring-up guide**
 
 Include separate COM discovery for N16R8 and camera board; flash commands for both projects; wiring order with power removed; camera I2C logic-voltage verification; NMO432 L/R selection; expected online/offline logs; and a warning that F/S/T/E remain unavailable until evaluated models are installed.
 
-- [ ] **Step 3: Run software verification**
+- [x] **Step 3: Run software verification**
 
 Run:
 
@@ -407,7 +407,7 @@ Expected: all PC tests pass, both ESP-IDF projects build, and `git diff --check`
 
 Confirm increasing camera sequence/valid CRC, changing microphone RMS, continued CSI/MQTT operation, camera offline state after disconnect, automatic recovery after reconnect, no reboot or unbounded memory loss, `insufficient` while models are absent, and absence of JPEG/PCM/MFCC fields in MQTT and InfluxDB.
 
-- [ ] **Step 5: Commit and push**
+- [x] **Step 5: Commit and push**
 
 ```powershell
 git add firmware_esp32/README.md docs host_pc/tests

@@ -33,3 +33,13 @@ def test_camera_project_contains_build_and_privacy_documentation():
     assert "model_missing" in readme
     assert "raw images" in readme.lower()
     assert "GPIO47" in readme and "GPIO48" in readme
+
+
+def test_two_board_bringup_documents_approved_wiring_and_safety():
+    text = (ROOT / "docs" / "camera-nmo432-bringup.md").read_text("utf-8")
+    for token in (
+        "GPIO8", "GPIO9", "GPIO17", "GPIO18", "GPIO16", "0x42",
+        "3.3 V", "5V rail", "share GND", "model_missing", "insufficient",
+    ):
+        assert token in text
+    assert "not a\ndiagnosis" in text
