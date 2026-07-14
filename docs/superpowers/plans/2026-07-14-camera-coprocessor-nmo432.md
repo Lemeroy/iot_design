@@ -318,7 +318,7 @@ git push origin codex/preliminary-demo
 - Produces an I2C target at `0x42` that always returns a coherent CRC-protected snapshot.
 - `sg_camera_capture_observe(sg_camera_observation_source_t *out)` reports image quality and status; it sets no F/T/E validity bits until real model outputs exist.
 
-- [ ] **Step 1: Add failing project-structure and privacy tests**
+- [x] **Step 1: Add failing project-structure and privacy tests**
 
 ```python
 def test_camera_firmware_exposes_i2c_scores_not_network_media():
@@ -330,17 +330,17 @@ def test_camera_firmware_exposes_i2c_scores_not_network_media():
     assert "jpeg_b64" not in app
 ```
 
-- [ ] **Step 2: Run test and verify failure**
+- [x] **Step 2: Run test and verify failure**
 
 Run: `python -m pytest host_pc/tests/test_camera_coprocessor_firmware.py -q`
 
 Expected: FAIL because `firmware_camera` does not exist.
 
-- [ ] **Step 3: Implement the I2C target with an atomic snapshot**
+- [x] **Step 3: Implement the I2C target with an atomic snapshot**
 
 Create one mutex-protected 14-byte frame. Initialize it as version 1, status `model_missing`, quality 0, and `valid_mask=0`. Update sequence only when a camera observation completes. Recompute CRC before atomically replacing the readable snapshot.
 
-- [ ] **Step 4: Add the verified vendor camera project instead of guessing pins**
+- [x] **Step 4: Add the verified vendor camera project instead of guessing pins**
 
 Import the vendor-provided camera initialization source or its verified pin table into `camera_capture_adapter.c`. If neither is available, the adapter must compile in acquisition-disabled mode and return `SG_CAMERA_STATUS_ERROR` with `valid_mask=0`; flashing an invented pin map is prohibited. Record the source URL/version and sensor identity in `firmware_camera/README.md` when supplied.
 
@@ -358,7 +358,7 @@ idf.py -p $CameraPort flash monitor
 
 Expected before verified camera source: firmware boots and serves valid `model_missing` frames. Expected after verified source: local capture succeeds and quality changes with occlusion/exposure, while F/T/E remain invalid without model weights.
 
-- [ ] **Step 6: Commit and push**
+- [x] **Step 6: Commit and push**
 
 ```powershell
 git add firmware_camera firmware_common host_pc/tests/test_camera_coprocessor_firmware.py

@@ -1,0 +1,2 @@
+source F:/iot_design/firmware_camera/build/gdbinit/symbols
+source F:/iot_design/firmware_camera/build/gdbinit/connect
