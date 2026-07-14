@@ -11,6 +11,25 @@ ROOT = Path(__file__).resolve().parents[2]
 FW_MAIN = ROOT / "firmware_esp32" / "main"
 
 
+def test_firmware_hardware_contract_uses_camera_coprocessor_and_nmo432():
+    kconfig = (FW_MAIN / "Kconfig.projbuild").read_text(encoding="utf-8")
+    pins = (FW_MAIN / "board_pins.h").read_text(encoding="utf-8")
+
+    for token in (
+        "STROKEGUARD_CAMERA_COPROCESSOR_ENABLE",
+        "STROKEGUARD_CAMERA_I2C_SDA",
+        "STROKEGUARD_CAMERA_I2C_SCL",
+        "STROKEGUARD_CAMERA_I2C_ADDRESS",
+        "STROKEGUARD_NMO432_ENABLE",
+        "STROKEGUARD_NMO432_BCLK",
+        "STROKEGUARD_NMO432_WS",
+        "STROKEGUARD_NMO432_DIN",
+    ):
+        assert token in kconfig
+    assert "SG_PIN_CAMERA_I2C_SDA" in pins
+    assert "SG_PIN_NMO432_BCLK" in pins
+
+
 def test_firmware_contains_sensor_frame_builder_files():
     assert (FW_MAIN / "sensor_frame.h").exists()
     assert (FW_MAIN / "sensor_frame.c").exists()

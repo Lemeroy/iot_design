@@ -13,10 +13,7 @@ import yaml
 DEVICE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 ENV_RE = re.compile(r"^\$\{([A-Z][A-Z0-9_]*)\}$")
 RESERVED_N16R8_GPIOS = frozenset({19, 20, *range(26, 38)})
-CAMERA_PINS = (
-    "pwdn", "reset", "xclk", "siod", "sioc", "pclk", "vsync", "href",
-    "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7",
-)
+CAMERA_PINS = ("sda", "scl")
 MICROPHONE_PINS = ("sck", "ws", "sd")
 
 
@@ -41,6 +38,8 @@ class MqttConfig:
 class CameraConfig:
     model: str
     enabled: bool
+    transport: str
+    address: int
     pins: Mapping[str, int]
 
 
@@ -82,16 +81,17 @@ class DeploymentConfig:
             "CONFIG_STROKEGUARD_MQTT_USERNAME": _kconfig_string(self.mqtt.username),
             "CONFIG_STROKEGUARD_MQTT_PASSWORD": _kconfig_string(self.mqtt.password),
             "CONFIG_STROKEGUARD_MANAGER_TOKEN": _kconfig_string(self.management_token),
-            "CONFIG_STROKEGUARD_HW_CAMERA_ENABLE": "y" if self.camera.enabled else "n",
-            "CONFIG_STROKEGUARD_HW_AUDIO_IN_ENABLE": "y" if self.microphone.enabled else "n",
+            "CONFIG_STROKEGUARD_CAMERA_COPROCESSOR_ENABLE": "y" if self.camera.enabled else "n",
+            "CONFIG_STROKEGUARD_CAMERA_I2C_ADDRESS": str(self.camera.address),
+            "CONFIG_STROKEGUARD_NMO432_ENABLE": "y" if self.microphone.enabled else "n",
         }
         for name in CAMERA_PINS:
-            result[f"CONFIG_STROKEGUARD_PIN_GC2145_{name.upper()}"] = str(
+            result[f"CONFIG_STROKEGUARD_CAMERA_I2C_{name.upper()}"] = str(
                 self.camera.pins.get(name, -1)
             )
         microphone_keys = {"sck": "BCLK", "ws": "WS", "sd": "DIN"}
         for name, suffix in microphone_keys.items():
-            result[f"CONFIG_STROKEGUARD_PIN_INMP441_{suffix}"] = str(
+            result[f"CONFIG_STROKEGUARD_NMO432_{suffix}"] = str(
                 self.microphone.pins.get(name, -1)
             )
         return result
@@ -159,12 +159,28 @@ def redact_text(text: str, config: DeploymentConfig) -> str:
 
 def _camera(value: Any) -> CameraConfig:
     data = _object(value, "hardware.camera")
-    _keys(data, {"model", "enabled", "pins"}, "hardware.camera")
-    if data.get("model") != "GC2145":
-        raise DeploymentValidationError("camera model must be GC2145")
+    _keys(
+        data,
+        {"model", "enabled", "transport", "address", "pins"},
+        "hardware.camera",
+    )
+    if data.get("model") != "ESP32-S3-Cam":
+        raise DeploymentValidationError("camera model must be ESP32-S3-Cam")
     enabled = _boolean(data.get("enabled"), "hardware.camera.enabled")
+    transport = _text(data.get("transport"), "hardware.camera.transport")
+    if transport != "i2c":
+        raise DeploymentValidationError("camera.transport must be i2c")
+    address = data.get("address")
+    if isinstance(address, bool) or not isinstance(address, int) or not 0x08 <= address <= 0x77:
+        raise DeploymentValidationError("camera.address must be an I2C address from 8 to 119")
     pins = _pins(data.get("pins"), "camera.pins", CAMERA_PINS, enabled)
-    return CameraConfig(model="GC2145", enabled=enabled, pins=pins)
+    return CameraConfig(
+        model="ESP32-S3-Cam",
+        enabled=enabled,
+        transport=transport,
+        address=address,
+        pins=pins,
+    )
 
 
 def _microphone(value: Any) -> MicrophoneConfig:

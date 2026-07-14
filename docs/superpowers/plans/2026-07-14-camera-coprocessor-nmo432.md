@@ -40,14 +40,14 @@
 - Modify: `firmware_esp32/main/board_pins.h`
 - Modify: `host_pc/config/device-deployment.example.yaml`
 - Modify: `host_pc/stroke_host/deployment/schema.py`
-- Modify: `host_pc/tests/test_device_deployment.py`
+- Modify: `host_pc/tests/test_deployment_schema.py`
 - Modify: `host_pc/tests/test_firmware_m1_frame_static.py`
 
 **Interfaces:**
 - Produces Kconfig symbols `CONFIG_STROKEGUARD_CAMERA_COPROCESSOR_ENABLE`, `CONFIG_STROKEGUARD_CAMERA_I2C_SDA=8`, `CONFIG_STROKEGUARD_CAMERA_I2C_SCL=9`, `CONFIG_STROKEGUARD_CAMERA_I2C_ADDRESS=0x42`, `CONFIG_STROKEGUARD_NMO432_ENABLE`, `CONFIG_STROKEGUARD_NMO432_BCLK=17`, `CONFIG_STROKEGUARD_NMO432_WS=18`, `CONFIG_STROKEGUARD_NMO432_DIN=16`, and channel selection.
 - Removes production references that identify the installed hardware as GC2145 or INMP441; legacy files are removed only after replacement modules compile.
 
-- [ ] **Step 1: Write failing schema and static contract tests**
+- [x] **Step 1: Write failing schema and static contract tests**
 
 ```python
 def test_example_declares_camera_coprocessor_and_nmo432():
@@ -65,13 +65,13 @@ def test_camera_and_audio_defaults_match_approved_gpio_allocation():
         assert token in kconfig
 ```
 
-- [ ] **Step 2: Run tests and verify the old names fail**
+- [x] **Step 2: Run tests and verify the old names fail**
 
-Run: `python -m pytest host_pc/tests/test_device_deployment.py host_pc/tests/test_firmware_m1_frame_static.py -q`
+Run: `python -m pytest host_pc/tests/test_deployment_schema.py host_pc/tests/test_firmware_m1_frame_static.py -q`
 
 Expected: FAIL because the example and Kconfig still declare GC2145/INMP441.
 
-- [ ] **Step 3: Replace the schema and Kconfig hardware contract**
+- [x] **Step 3: Replace the schema and Kconfig hardware contract**
 
 Use an enabled camera declaration with no raw DVP pins:
 
@@ -93,16 +93,16 @@ hardware:
 
 Reject duplicate pins, camera addresses outside `0x08..0x77`, sample rates other than 16000, and unknown models. Map resolved YAML to the new Kconfig symbols without logging secrets.
 
-- [ ] **Step 4: Run focused tests and verify pass**
+- [x] **Step 4: Run focused tests and verify pass**
 
-Run: `python -m pytest host_pc/tests/test_device_deployment.py host_pc/tests/test_firmware_m1_frame_static.py -q`
+Run: `python -m pytest host_pc/tests/test_deployment_schema.py host_pc/tests/test_firmware_m1_frame_static.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit and push**
+- [x] **Step 5: Commit and push**
 
 ```powershell
-git add firmware_esp32/main/Kconfig.projbuild firmware_esp32/main/board_pins.h host_pc/config/device-deployment.example.yaml host_pc/stroke_host/deployment/schema.py host_pc/tests
+git add firmware_esp32/main/Kconfig.projbuild firmware_esp32/main/board_pins.h host_pc/config/device-deployment.example.yaml host_pc/stroke_host/deployment/schema.py host_pc/tests docs/superpowers/plans/2026-07-14-camera-coprocessor-nmo432.md
 git commit -m "refactor(device): model camera coprocessor and NMO432"
 git push origin codex/preliminary-demo
 ```

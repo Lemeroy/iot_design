@@ -15,13 +15,19 @@ mqtt:
 
 hardware:
   camera:
-    model: GC2145
-    enabled: false
-    pins: {}
+    model: ESP32-S3-Cam
+    enabled: true
+    transport: i2c
+    address: 66
+    pins:
+      sda: 8
+      scl: 9
   microphone:
     model: NMO432
-    enabled: false
+    enabled: true
     sample_rate: 16000
     channel: left
-    pins: {}
-
+    pins:
+      sck: 17
+      ws: 18
+      sd: 16

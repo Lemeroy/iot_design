@@ -55,17 +55,13 @@ menu "StrokeGuard M1a/M1b Config"
 
     menu "M1b hardware scaffold"
 
-        config STROKEGUARD_HW_CAMERA_ENABLE
-            bool "Enable GC2145 camera driver"
+        config STROKEGUARD_CAMERA_COPROCESSOR_ENABLE
+            bool "Enable ESP32-S3-Cam I2C coprocessor"
             default n
-            help
-                Disabled until the GC2145 module and board wiring are confirmed.
 
-        config STROKEGUARD_HW_AUDIO_IN_ENABLE
-            bool "Enable INMP441 microphone capture"
+        config STROKEGUARD_NMO432_ENABLE
+            bool "Enable NMO432 microphone capture"
             default n
-            help
-                Disabled until the INMP441 module and I2S pins are confirmed.
 
         config STROKEGUARD_HW_DISPLAY_ENABLE
             bool "Enable ST7789 TFT display"
@@ -85,81 +81,35 @@ menu "StrokeGuard M1a/M1b Config"
             help
                 Disabled until RGB LED, buzzer, and button pins are confirmed.
 
-        config STROKEGUARD_PIN_GC2145_PWDN
-            int "GC2145 PWDN GPIO (-1 = unassigned)"
-            default -1
+        config STROKEGUARD_CAMERA_I2C_SDA
+            int "Camera coprocessor I2C SDA GPIO"
+            range 0 48
+            default 8
 
-        config STROKEGUARD_PIN_GC2145_RESET
-            int "GC2145 RESET GPIO (-1 = unassigned)"
-            default -1
+        config STROKEGUARD_CAMERA_I2C_SCL
+            int "Camera coprocessor I2C SCL GPIO"
+            range 0 48
+            default 9
 
-        config STROKEGUARD_PIN_GC2145_XCLK
-            int "GC2145 XCLK GPIO (-1 = unassigned)"
-            default -1
+        config STROKEGUARD_CAMERA_I2C_ADDRESS
+            hex "Camera coprocessor I2C address"
+            range 0x08 0x77
+            default 0x42
 
-        config STROKEGUARD_PIN_GC2145_SIOD
-            int "GC2145 SIOD/SDA GPIO (-1 = unassigned)"
-            default -1
+        config STROKEGUARD_NMO432_BCLK
+            int "NMO432 SCK/BCLK GPIO"
+            range 0 48
+            default 17
 
-        config STROKEGUARD_PIN_GC2145_SIOC
-            int "GC2145 SIOC/SCL GPIO (-1 = unassigned)"
-            default -1
+        config STROKEGUARD_NMO432_WS
+            int "NMO432 WS/LRCLK GPIO"
+            range 0 48
+            default 18
 
-        config STROKEGUARD_PIN_GC2145_PCLK
-            int "GC2145 PCLK GPIO (-1 = unassigned)"
-            default -1
-
-        config STROKEGUARD_PIN_GC2145_VSYNC
-            int "GC2145 VSYNC GPIO (-1 = unassigned)"
-            default -1
-
-        config STROKEGUARD_PIN_GC2145_HREF
-            int "GC2145 HREF GPIO (-1 = unassigned)"
-            default -1
-
-        config STROKEGUARD_PIN_GC2145_D0
-            int "GC2145 D0 GPIO (-1 = unassigned)"
-            default -1
-
-        config STROKEGUARD_PIN_GC2145_D1
-            int "GC2145 D1 GPIO (-1 = unassigned)"
-            default -1
-
-        config STROKEGUARD_PIN_GC2145_D2
-            int "GC2145 D2 GPIO (-1 = unassigned)"
-            default -1
-
-        config STROKEGUARD_PIN_GC2145_D3
-            int "GC2145 D3 GPIO (-1 = unassigned)"
-            default -1
-
-        config STROKEGUARD_PIN_GC2145_D4
-            int "GC2145 D4 GPIO (-1 = unassigned)"
-            default -1
-
-        config STROKEGUARD_PIN_GC2145_D5
-            int "GC2145 D5 GPIO (-1 = unassigned)"
-            default -1
-
-        config STROKEGUARD_PIN_GC2145_D6
-            int "GC2145 D6 GPIO (-1 = unassigned)"
-            default -1
-
-        config STROKEGUARD_PIN_GC2145_D7
-            int "GC2145 D7 GPIO (-1 = unassigned)"
-            default -1
-
-        config STROKEGUARD_PIN_INMP441_BCLK
-            int "INMP441 BCLK GPIO (-1 = unassigned)"
-            default -1
-
-        config STROKEGUARD_PIN_INMP441_WS
-            int "INMP441 WS/LRCLK GPIO (-1 = unassigned)"
-            default -1
-
-        config STROKEGUARD_PIN_INMP441_DIN
-            int "INMP441 SD/DIN GPIO (-1 = unassigned)"
-            default -1
+        config STROKEGUARD_NMO432_DIN
+            int "NMO432 SD/DIN GPIO"
+            range 0 48
+            default 16
 
         config STROKEGUARD_PIN_ST7789_MOSI
             int "ST7789 MOSI GPIO (-1 = unassigned)"

@@ -31,19 +31,25 @@ def deployment_data():
             "password": "${STROKEGUARD_MQTT_PASSWORD}",
         },
         "hardware": {
-            "camera": {"model": "GC2145", "enabled": False, "pins": {}},
+            "camera": {
+                "model": "ESP32-S3-Cam",
+                "enabled": True,
+                "transport": "i2c",
+                "address": 0x42,
+                "pins": {"sda": 8, "scl": 9},
+            },
             "microphone": {
                 "model": "NMO432",
-                "enabled": False,
+                "enabled": True,
                 "sample_rate": 16000,
                 "channel": "left",
-                "pins": {},
+                "pins": {"sck": 17, "ws": 18, "sd": 16},
             },
         },
     }
 
 
-def test_valid_disabled_hardware_config_resolves_environment_and_maps_kconfig():
+def test_valid_hardware_config_resolves_environment_and_maps_kconfig():
     from stroke_host.deployment.schema import validate_deployment
 
     config = validate_deployment(deployment_data(), BASE_ENV)
@@ -52,8 +58,13 @@ def test_valid_disabled_hardware_config_resolves_environment_and_maps_kconfig():
     assert config.wifi.ssid == "StrokeLab"
     assert config.microphone.model == "NMO432"
     assert config.kconfig["CONFIG_STROKEGUARD_DEVICE_ID"] == '"sg-0002"'
-    assert config.kconfig["CONFIG_STROKEGUARD_HW_CAMERA_ENABLE"] == "n"
-    assert config.kconfig["CONFIG_STROKEGUARD_HW_AUDIO_IN_ENABLE"] == "n"
+    assert config.camera.transport == "i2c"
+    assert config.camera.address == 0x42
+    assert config.kconfig["CONFIG_STROKEGUARD_CAMERA_COPROCESSOR_ENABLE"] == "y"
+    assert config.kconfig["CONFIG_STROKEGUARD_CAMERA_I2C_SDA"] == "8"
+    assert config.kconfig["CONFIG_STROKEGUARD_CAMERA_I2C_SCL"] == "9"
+    assert config.kconfig["CONFIG_STROKEGUARD_CAMERA_I2C_ADDRESS"] == "66"
+    assert config.kconfig["CONFIG_STROKEGUARD_NMO432_ENABLE"] == "y"
     assert "manager-secret" in config.secrets
     assert "wifi-secret" in config.secrets
     assert "mqtt-secret" in config.secrets
@@ -72,8 +83,8 @@ mqtt:
   username: '${STROKEGUARD_MQTT_USERNAME}'
   password: '${STROKEGUARD_MQTT_PASSWORD}'
 hardware:
-  camera: {model: GC2145, enabled: false, pins: {}}
-  microphone: {model: NMO432, enabled: false, sample_rate: 16000, channel: left, pins: {}}
+  camera: {model: ESP32-S3-Cam, enabled: true, transport: i2c, address: 66, pins: {sda: 8, scl: 9}}
+  microphone: {model: NMO432, enabled: true, sample_rate: 16000, channel: left, pins: {sck: 17, ws: 18, sd: 16}}
 """,
         encoding="utf-8",
     )
@@ -90,7 +101,9 @@ hardware:
         (lambda d: d["device"].update({"extra": 1}), "unknown field"),
         (lambda d: d["device"].update({"id": "bad id"}), "device.id"),
         (lambda d: d["mqtt"].update({"uri": "http://not-mqtt"}), "mqtt.uri"),
-        (lambda d: d["hardware"]["camera"].update({"model": "OV2640"}), "GC2145"),
+        (lambda d: d["hardware"]["camera"].update({"model": "GC2145"}), "ESP32-S3-Cam"),
+        (lambda d: d["hardware"]["camera"].update({"transport": "uart"}), "transport"),
+        (lambda d: d["hardware"]["camera"].update({"address": 0x78}), "address"),
         (lambda d: d["hardware"]["microphone"].update({"model": "INMP441"}), "NMO432"),
         (lambda d: d["hardware"]["microphone"].update({"channel": "center"}), "channel"),
     ],
@@ -119,9 +132,7 @@ def test_enabled_nmo432_requires_complete_i2s_pins():
     from stroke_host.deployment.schema import DeploymentValidationError, validate_deployment
 
     data = deployment_data()
-    data["hardware"]["microphone"].update(
-        {"enabled": True, "pins": {"sck": 4, "ws": 5}}
-    )
+    data["hardware"]["microphone"]["pins"] = {"sck": 17, "ws": 18}
 
     with pytest.raises(DeploymentValidationError, match="microphone.pins.*sd"):
         validate_deployment(data, BASE_ENV)
@@ -132,25 +143,23 @@ def test_enabled_nmo432_maps_i2s_pins_and_channel():
 
     data = deployment_data()
     data["hardware"]["microphone"].update(
-        {"enabled": True, "channel": "right", "pins": {"sck": 4, "ws": 5, "sd": 6}}
+        {"enabled": True, "channel": "right", "pins": {"sck": 17, "ws": 18, "sd": 16}}
     )
 
     config = validate_deployment(data, BASE_ENV)
 
-    assert config.kconfig["CONFIG_STROKEGUARD_HW_AUDIO_IN_ENABLE"] == "y"
-    assert config.kconfig["CONFIG_STROKEGUARD_PIN_INMP441_BCLK"] == "4"
-    assert config.kconfig["CONFIG_STROKEGUARD_PIN_INMP441_WS"] == "5"
-    assert config.kconfig["CONFIG_STROKEGUARD_PIN_INMP441_DIN"] == "6"
+    assert config.kconfig["CONFIG_STROKEGUARD_NMO432_ENABLE"] == "y"
+    assert config.kconfig["CONFIG_STROKEGUARD_NMO432_BCLK"] == "17"
+    assert config.kconfig["CONFIG_STROKEGUARD_NMO432_WS"] == "18"
+    assert config.kconfig["CONFIG_STROKEGUARD_NMO432_DIN"] == "16"
     assert config.microphone.channel == "right"
 
 
-def test_enabled_gc2145_requires_all_sixteen_signal_pins():
+def test_camera_coprocessor_requires_fixed_i2c_pins():
     from stroke_host.deployment.schema import DeploymentValidationError, validate_deployment
 
     data = deployment_data()
-    data["hardware"]["camera"].update(
-        {"enabled": True, "pins": {"pwdn": 1, "reset": 2, "xclk": 3}}
-    )
+    data["hardware"]["camera"]["pins"] = {"sda": 8}
 
     with pytest.raises(DeploymentValidationError, match="camera.pins"):
         validate_deployment(data, BASE_ENV)
@@ -162,7 +171,7 @@ def test_enabled_hardware_rejects_out_of_range_or_reserved_gpio(bad_pin):
 
     data = deployment_data()
     data["hardware"]["microphone"].update(
-        {"enabled": True, "pins": {"sck": bad_pin, "ws": 5, "sd": 6}}
+        {"enabled": True, "pins": {"sck": bad_pin, "ws": 18, "sd": 16}}
     )
 
     with pytest.raises(DeploymentValidationError, match="GPIO"):
@@ -173,30 +182,11 @@ def test_enabled_hardware_rejects_duplicate_gpio_across_modules():
     from stroke_host.deployment.schema import DeploymentValidationError, validate_deployment
 
     data = deployment_data()
-    camera_pins = {
-        "pwdn": 0,
-        "reset": 1,
-        "xclk": 2,
-        "siod": 3,
-        "sioc": 4,
-        "pclk": 5,
-        "vsync": 6,
-        "href": 7,
-        "d0": 8,
-        "d1": 9,
-        "d2": 10,
-        "d3": 11,
-        "d4": 12,
-        "d5": 13,
-        "d6": 14,
-        "d7": 15,
-    }
-    data["hardware"]["camera"].update({"enabled": True, "pins": camera_pins})
     data["hardware"]["microphone"].update(
-        {"enabled": True, "pins": {"sck": 4, "ws": 17, "sd": 18}}
+        {"enabled": True, "pins": {"sck": 8, "ws": 17, "sd": 18}}
     )
 
-    with pytest.raises(DeploymentValidationError, match="duplicate GPIO 4"):
+    with pytest.raises(DeploymentValidationError, match="duplicate GPIO 8"):
         validate_deployment(data, BASE_ENV)
 
 
