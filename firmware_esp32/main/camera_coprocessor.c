@@ -70,6 +70,8 @@ static void camera_poll_task(void *arg)
     bool online = false;
     bool have_fresh_face = false;
     int64_t face_seen_us = 0;
+    unsigned poll_failures = 0;
+    esp_err_t last_poll_error = ESP_OK;
     TickType_t last_wake = xTaskGetTickCount();
 
     while (1) {
@@ -79,6 +81,12 @@ static void camera_poll_task(void *arg)
         int64_t now_us = esp_timer_get_time();
         if (err != ESP_OK) {
             publish_unavailable(now_us);
+            poll_failures++;
+            if (poll_failures == 1 || err != last_poll_error || poll_failures % 20 == 0) {
+                ESP_LOGW(SG_TAG_MAIN, "camera poll failed: %s count=%u",
+                         esp_err_to_name(err), poll_failures);
+            }
+            last_poll_error = err;
             if (online) {
                 ESP_LOGW(SG_TAG_MAIN, "camera coprocessor offline: %s",
                          esp_err_to_name(err));
@@ -87,6 +95,9 @@ static void camera_poll_task(void *arg)
             have_fresh_face = false;
             continue;
         }
+
+        poll_failures = 0;
+        last_poll_error = ESP_OK;
 
         if (!online) {
             ESP_LOGI(SG_TAG_MAIN, "camera coprocessor online addr=0x%02x reg=0x%02x",
