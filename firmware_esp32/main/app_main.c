@@ -28,6 +28,7 @@
 #include "fusion.h"
 #include "score_bus.h"
 #include "camera_coprocessor.h"
+#include "audio_nmo432.h"
 #include "sg_time.h"
 #include "sg_mqtt.h"
 #include "device_config.h"
@@ -39,6 +40,7 @@
 #ifndef CONFIG_STROKEGUARD_WIFI_SSID
 #define CONFIG_STROKEGUARD_WIFI_SSID "YOUR_SSID"
 #endif
+
 #ifndef CONFIG_STROKEGUARD_WIFI_PASSWORD
 #define CONFIG_STROKEGUARD_WIFI_PASSWORD "YOUR_PASS"
 #endif
@@ -269,6 +271,14 @@ void app_main(void)
     if (camera_err != ESP_OK) {
         ESP_LOGW(SG_TAG_MAIN, "camera coprocessor init failed: %s",
                  esp_err_to_name(camera_err));
+    }
+#endif
+
+#if CONFIG_STROKEGUARD_NMO432_ENABLE
+    esp_err_t audio_err = sg_audio_nmo432_init();
+    if (audio_err != ESP_OK) {
+        ESP_LOGW(SG_TAG_MAIN, "NMO432 init failed: %s",
+                 esp_err_to_name(audio_err));
     }
 #endif
 

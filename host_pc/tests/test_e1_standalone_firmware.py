@@ -37,6 +37,29 @@ def test_camera_coprocessor_is_polled_locally_with_validity():
     assert "ESP_ERROR_CHECK(sg_camera_coprocessor_init" not in app
 
 
+def test_nmo432_uses_real_16khz_i2s_capture_without_cloud_audio():
+    source = read("audio_nmo432.c")
+    header = read("audio_nmo432.h")
+    app = read("app_main.c")
+    cmake = read("CMakeLists.txt")
+    cloud = read("cloud_contract.c").lower()
+
+    assert "i2s_new_channel" in source
+    assert "I2S_STD_CLK_DEFAULT_CONFIG(16000)" in source
+    assert "I2S_DATA_BIT_WIDTH_32BIT" in source
+    assert "i2s_channel_read" in source
+    assert "SG_PIN_NMO432_BCLK" in source
+    assert "SG_PIN_NMO432_WS" in source
+    assert "SG_PIN_NMO432_DIN" in source
+    assert "SG_NMO432_BLOCK_SAMPLES 320" in header
+    assert '#include "audio_nmo432.h"' in app
+    assert "sg_audio_nmo432_init" in app
+    assert app.index("sg_audio_nmo432_init") > app.index("void app_main")
+    assert '"audio_nmo432.c"' in cmake
+    for forbidden in ("pcm", "mfcc", "audio_b64"):
+        assert forbidden not in cloud
+
+
 def test_production_app_does_not_accept_pc_scores():
     app = read("app_main.c")
     cmake = read("CMakeLists.txt")

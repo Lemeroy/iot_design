@@ -152,6 +152,7 @@ def test_enabled_nmo432_maps_i2s_pins_and_channel():
     assert config.kconfig["CONFIG_STROKEGUARD_NMO432_BCLK"] == "17"
     assert config.kconfig["CONFIG_STROKEGUARD_NMO432_WS"] == "18"
     assert config.kconfig["CONFIG_STROKEGUARD_NMO432_DIN"] == "16"
+    assert config.kconfig["CONFIG_STROKEGUARD_NMO432_CHANNEL_LEFT"] == "n"
     assert config.microphone.channel == "right"
 
 

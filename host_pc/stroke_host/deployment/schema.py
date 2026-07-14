@@ -94,6 +94,9 @@ class DeploymentConfig:
             result[f"CONFIG_STROKEGUARD_NMO432_{suffix}"] = str(
                 self.microphone.pins.get(name, -1)
             )
+        result["CONFIG_STROKEGUARD_NMO432_CHANNEL_LEFT"] = (
+            "y" if self.microphone.channel == "left" else "n"
+        )
         return result
 
 

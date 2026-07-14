@@ -253,7 +253,7 @@ git push origin codex/preliminary-demo
 - Produces `esp_err_t sg_audio_nmo432_init(void)` and `esp_err_t sg_audio_nmo432_read(sg_audio_block_t *out, TickType_t timeout)`.
 - `sg_audio_block_t` owns 320 signed 16-bit mono samples (20 ms at 16 kHz), RMS, peak, clipped-sample count, and validity. No raw block is exposed to MQTT code.
 
-- [ ] **Step 1: Add failing static checks for the ESP-IDF standard I2S driver**
+- [x] **Step 1: Add failing static checks for the ESP-IDF standard I2S driver**
 
 ```python
 def test_nmo432_uses_real_16khz_i2s_capture():
@@ -265,17 +265,17 @@ def test_nmo432_uses_real_16khz_i2s_capture():
     assert "GPIO_NUM_17" in source or "SG_PIN_NMO432_BCLK" in source
 ```
 
-- [ ] **Step 2: Run the test and verify failure**
+- [x] **Step 2: Run the test and verify failure**
 
 Run: `python -m pytest host_pc/tests/test_e1_standalone_firmware.py -q`
 
 Expected: FAIL because the NMO432 implementation does not exist.
 
-- [ ] **Step 3: Implement mono capture and safe sample conversion**
+- [x] **Step 3: Implement mono capture and safe sample conversion**
 
 Configure standard Philips I2S receive-only mode at 16 kHz, 32-bit slots, selected left/right slot, BCLK GPIO17, WS GPIO18, DIN GPIO16. Right-shift the microphone's signed sample into int16 with saturation. Mark blocks invalid when reads time out, all samples are constant, or clipping exceeds 5 percent; do not turn quality metrics into an S medical score.
 
-- [ ] **Step 4: Start a bounded audio task and expose diagnostics locally**
+- [x] **Step 4: Start a bounded audio task and expose diagnostics locally**
 
 Maintain latest RMS/peak/validity in RAM and log one aggregate line every 5 seconds. Do not serialize PCM, MFCC, or audio-derived features into cloud uplinks. Keep `speech=-1` until a versioned evaluated model is integrated.
 
@@ -291,7 +291,7 @@ idf.py -p COM3 flash monitor
 
 Expected: boot succeeds; speaking changes RMS/peak; silence does not produce a speech score; Wi-Fi, CSI, MQTT, and camera polling continue.
 
-- [ ] **Step 6: Commit and push**
+- [x] **Step 6: Commit and push**
 
 ```powershell
 git add firmware_esp32/main host_pc/tests/test_e1_standalone_firmware.py

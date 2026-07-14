@@ -111,6 +111,10 @@ menu "StrokeGuard M1a/M1b Config"
             range 0 48
             default 16
 
+        config STROKEGUARD_NMO432_CHANNEL_LEFT
+            bool "NMO432 outputs on left I2S slot"
+            default y
+
         config STROKEGUARD_PIN_ST7789_MOSI
             int "ST7789 MOSI GPIO (-1 = unassigned)"
             default -1

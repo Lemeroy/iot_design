@@ -91,6 +91,10 @@
 #define SG_TASK_CAMERA_PRIO      5
 #define SG_TASK_CAMERA_CORE      0
 
+#define SG_TASK_AUDIO_STACK      4096
+#define SG_TASK_AUDIO_PRIO       5
+#define SG_TASK_AUDIO_CORE       1
+
 /* ==== CDC RX 任务 (JSON 帧解析) ==== */
 #define SG_TASK_CDC_RX_STACK    4096
 #define SG_TASK_CDC_RX_PRIO     5

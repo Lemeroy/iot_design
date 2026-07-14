@@ -14,7 +14,7 @@ DOCS = ROOT / "docs"
 MODULES = {
     "board_pins": ["SG_PIN_UNASSIGNED"],
     "camera_coprocessor": ["sg_camera_coprocessor_init", "sg_camera_coprocessor_poll"],
-    "audio_inmp441": ["sg_audio_inmp441_init", "sg_audio_inmp441_read_mfcc"],
+    "audio_nmo432": ["sg_audio_nmo432_init", "sg_audio_nmo432_read"],
     "display_st7789": ["sg_display_st7789_init", "sg_display_st7789_show_status"],
     "audio_out_max98357": ["sg_audio_out_max98357_init", "sg_audio_out_max98357_play_prompt"],
     "alert_io": ["sg_alert_io_init", "sg_alert_io_set_level"],

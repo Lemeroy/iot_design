@@ -9,7 +9,7 @@ idf_component_register(
         "sensor_frame.c"
         "camera_coprocessor.c"
         "../../firmware_common/camera_scores_protocol.c"
-        "audio_inmp441.c"
+        "audio_nmo432.c"
         "display_st7789.c"
         "audio_out_max98357.c"
         "alert_io.c"
@@ -31,6 +31,7 @@ idf_component_register(
         json
         driver
         esp_driver_i2c
+        esp_driver_i2s
         freertos
         esp_hw_support
         esp_system
