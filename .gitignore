@@ -18,6 +18,12 @@ firmware_esp32/test_apps/*/build/
 firmware_esp32/test_apps/*/sdkconfig
 firmware_esp32/test_apps/*/sdkconfig.old
 
+firmware_camera/build/
+firmware_camera/sdkconfig
+firmware_camera/sdkconfig.old
+firmware_camera/managed_components/
+firmware_camera/dependencies.lock
+
 *.pyc
 
 .downloads/
