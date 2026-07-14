@@ -120,7 +120,7 @@ git push origin codex/preliminary-demo
 - Produces `sg_camera_scores_v1_t`, `sg_camera_scores_crc(const sg_camera_scores_v1_t *)`, and `sg_camera_scores_validate(const sg_camera_scores_v1_t *)`.
 - Validation returns the project enum `SG_CAMERA_PROTOCOL_OK`, `SG_CAMERA_PROTOCOL_BAD_VERSION`, `SG_CAMERA_PROTOCOL_BAD_CRC`, or `SG_CAMERA_PROTOCOL_BAD_VALUE`; score fields are usable only when their `valid_mask` bit is set.
 
-- [ ] **Step 1: Write Unity tests for packed size, CRC, version, range, and mask handling**
+- [x] **Step 1: Write Unity tests for packed size, CRC, version, range, and mask handling**
 
 ```c
 TEST_CASE("camera score v1 validates known frame", "[camera_protocol]")
@@ -143,7 +143,7 @@ TEST_CASE("camera score v1 validates known frame", "[camera_protocol]")
 
 Also corrupt one byte, set version 2, set `face=101` while face-valid, and verify each is rejected.
 
-- [ ] **Step 2: Build the test app and verify it fails before implementation**
+- [x] **Step 2: Build the test app and verify it fails before implementation**
 
 Run from an ESP-IDF v5.5.3 shell:
 
@@ -155,17 +155,17 @@ idf.py build
 
 Expected: FAIL because the shared protocol files do not exist.
 
-- [ ] **Step 3: Implement the packed frame and CRC-16 validation**
+- [x] **Step 3: Implement the packed frame and CRC-16 validation**
 
 Use CRC-16/CCITT-FALSE parameters: polynomial `0x1021`, initial value `0xFFFF`, no reflection, xor-out `0x0000`; cover bytes from `version` through `latency_ms` and store CRC little-endian in the struct.
 
-- [ ] **Step 4: Build, flash, and run Unity tests on COM3**
+- [x] **Step 4: Build, flash, and run Unity tests on COM3**
 
 Run: `idf.py -p COM3 flash monitor`
 
 Expected: all `[camera_protocol]` cases pass with zero failures.
 
-- [ ] **Step 5: Commit and push**
+- [x] **Step 5: Commit and push**
 
 ```powershell
 git add firmware_common firmware_esp32/test_apps/camera_protocol
