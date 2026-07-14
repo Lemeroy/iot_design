@@ -27,7 +27,13 @@ def test_camera_firmware_exposes_i2c_scores_not_network_media():
     assert "GPIO_NUM_48" in target
     assert "esp_camera_init" in adapter
     assert "HumanFaceDetect" in adapter
-    assert "PIXFORMAT_RGB565" in adapter
+    assert "PIXFORMAT_YUV422" in adapter
+    assert "fmt2rgb888" in adapter
+    assert "MALLOC_CAP_SPIRAM" in adapter
+    assert "DL_IMAGE_PIX_TYPE_RGB888" in adapter
+    assert "config.pixel_format = PIXFORMAT_JPEG" not in adapter
+    assert "config.fb_count = 1" in adapter
+    assert "config.grab_mode = CAMERA_GRAB_WHEN_EMPTY" in adapter
     for forbidden in ("esp_mqtt", "jpeg_b64", "http_client"):
         assert forbidden not in app.lower()
 

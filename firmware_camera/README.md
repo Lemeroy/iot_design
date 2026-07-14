@@ -2,7 +2,8 @@
 
 This ESP-IDF v5.5.3 project targets the Hiwonder ESP32-S3-Cam board
 (`ESP32-S3-WROOM-1U-N8R8`) with the onboard GC2145 camera. It runs local
-`esp32-camera` capture plus ESP-WHO `human_face_detect`, then exposes only a
+`esp32-camera` YUV422 capture, local PSRAM RGB888 conversion, and ESP-WHO
+`human_face_detect`, then exposes only a
 4-byte face bounding box to the N16R8 main controller over I2C.
 
 Raw images are not uploaded. The normal device output is face presence and
@@ -30,6 +31,15 @@ XCLK=15, SCCB_SDA=4, SCCB_SCL=5
 D0..D7 = 11,9,8,10,12,18,17,16
 VSYNC=6, HREF=7, PCLK=13
 ```
+
+GC2145 does not provide native JPEG output through `esp32-camera`. The
+firmware captures QVGA YUV422 and converts it locally to a reusable RGB888
+PSRAM buffer for ESP-WHO. An explicit USB preview request encodes the original
+YUV422 frame to JPEG locally; it does not change the normal I2C-only output.
+The camera uses one frame buffer with `CAMERA_GRAB_WHEN_EMPTY`; real-board
+testing showed that the two-buffer latest-frame mode spliced DMA regions from
+different frames. The resulting frame rate and inference latency are pending
+final measurement.
 
 ## I2C Protocol
 

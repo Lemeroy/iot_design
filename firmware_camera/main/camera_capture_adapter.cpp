@@ -8,13 +8,19 @@
 #include <new>
 
 #include "esp_camera.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "human_face_detect.hpp"
+#include "img_converters.h"
 
 static const char *TAG = "sg_camera_capture";
+static constexpr uint16_t CAMERA_WIDTH = 320;
+static constexpr uint16_t CAMERA_HEIGHT = 240;
+static constexpr size_t RGB888_BUFFER_SIZE = CAMERA_WIDTH * CAMERA_HEIGHT * 3;
 
 static HumanFaceDetect *s_model;
+static uint8_t *s_rgb888;
 
 static uint8_t scale_to_u8(int value, int max_value)
 {
@@ -78,12 +84,12 @@ extern "C" esp_err_t sg_camera_capture_init(void)
     config.xclk_freq_hz = 15000000;
     config.ledc_timer = LEDC_TIMER_0;
     config.ledc_channel = LEDC_CHANNEL_0;
-    config.pixel_format = PIXFORMAT_RGB565;
+    config.pixel_format = PIXFORMAT_YUV422;
     config.frame_size = FRAMESIZE_QVGA;
     config.jpeg_quality = 12;
-    config.fb_count = 2;
+    config.fb_count = 1;
     config.fb_location = CAMERA_FB_IN_PSRAM;
-    config.grab_mode = CAMERA_GRAB_LATEST;
+    config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
     esp_err_t err = esp_camera_init(&config);
     if (err != ESP_OK) {
@@ -104,7 +110,15 @@ extern "C" esp_err_t sg_camera_capture_init(void)
         ESP_LOGE(TAG, "human face model allocation failed");
         return ESP_ERR_NO_MEM;
     }
-    ESP_LOGI(TAG, "GC2145 + human_face_detect ready");
+    s_rgb888 = static_cast<uint8_t *>(heap_caps_malloc(
+        RGB888_BUFFER_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (s_rgb888 == nullptr) {
+        ESP_LOGE(TAG, "RGB888 PSRAM buffer allocation failed");
+        delete s_model;
+        s_model = nullptr;
+        return ESP_ERR_NO_MEM;
+    }
+    ESP_LOGI(TAG, "GC2145 YUV422 + RGB888 human_face_detect ready");
     return ESP_OK;
 }
 
@@ -123,11 +137,22 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
     if (fb == nullptr) {
         return ESP_FAIL;
     }
+    if (fb->width != CAMERA_WIDTH || fb->height != CAMERA_HEIGHT ||
+        fb->format != PIXFORMAT_YUV422 ||
+        !fmt2rgb888(fb->buf, fb->len, fb->format, s_rgb888)) {
+        ESP_LOGE(TAG, "YUV422 to RGB888 conversion failed (%ux%u format=%d)",
+                 fb->width, fb->height, fb->format);
+        if (sg_camera_usb_preview_requested()) {
+            (void)sg_camera_usb_preview_send(fb, &out->face_bbox);
+        }
+        esp_camera_fb_return(fb);
+        return ESP_FAIL;
+    }
     dl::image::img_t img = {
-        .data = fb->buf,
+        .data = s_rgb888,
         .width = (uint16_t)fb->width,
         .height = (uint16_t)fb->height,
-        .pix_type = dl::image::DL_IMAGE_PIX_TYPE_RGB565,
+        .pix_type = dl::image::DL_IMAGE_PIX_TYPE_RGB888,
     };
     auto &results = s_model->run(img);
     out->face_bbox = pick_largest_face(results, fb->width, fb->height);
