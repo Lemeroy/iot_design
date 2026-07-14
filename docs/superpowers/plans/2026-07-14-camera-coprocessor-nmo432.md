@@ -191,7 +191,7 @@ git push origin codex/preliminary-demo
 - `sg_camera_observation_t` contains nullable validity, sequence, F/T/E, quality, status, mouth angle, latency, and monotonic receive timestamp.
 - Publishes only valid F/T/E values to `sg_score_bus`; invalid or stale values clear those modalities.
 
-- [ ] **Step 1: Add failing static tests for I2C controller ownership and score validity**
+- [x] **Step 1: Add failing static tests for I2C controller ownership and score validity**
 
 ```python
 def test_camera_coprocessor_is_polled_locally():
@@ -204,21 +204,21 @@ def test_camera_coprocessor_is_polled_locally():
     assert "sg_score_bus_update" in source
 ```
 
-- [ ] **Step 2: Run the static test and verify failure**
+- [x] **Step 2: Run the static test and verify failure**
 
 Run: `python -m pytest host_pc/tests/test_e1_standalone_firmware.py -q`
 
 Expected: FAIL because `camera_coprocessor.c` does not exist.
 
-- [ ] **Step 3: Implement bounded polling and recovery**
+- [x] **Step 3: Implement bounded polling and recovery**
 
 Initialize one 100 kHz I2C master bus on GPIO8/GPIO9, add address `0x42`, receive exactly `sizeof(sg_camera_scores_v1_t)` with a 100 ms timeout, validate version/CRC/ranges, and reject unchanged sequence values older than 2 seconds. Log state transitions only (`online`, `offline`, `protocol_error`) rather than every poll.
 
-- [ ] **Step 4: Wire the task into app startup without blocking Wi-Fi/MQTT**
+- [x] **Step 4: Wire the task into app startup without blocking Wi-Fi/MQTT**
 
 Start camera polling only when enabled. An initialization or read failure must clear F/T/E and retry with bounded backoff; it must not call `ESP_ERROR_CHECK` from the polling loop or reboot the device.
 
-- [ ] **Step 5: Run static tests and build N16R8 firmware**
+- [x] **Step 5: Run static tests and build N16R8 firmware**
 
 Run:
 
@@ -230,7 +230,7 @@ idf.py build
 
 Expected: pytest PASS and ESP-IDF build completes with no error.
 
-- [ ] **Step 6: Commit and push**
+- [x] **Step 6: Commit and push**
 
 ```powershell
 git add firmware_esp32/main host_pc/tests/test_e1_standalone_firmware.py

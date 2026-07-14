@@ -7,7 +7,8 @@ idf_component_register(
         "csi_ping.c"
         "frame_builder.c"
         "sensor_frame.c"
-        "camera_gc2145.c"
+        "camera_coprocessor.c"
+        "../../firmware_common/camera_scores_protocol.c"
         "audio_inmp441.c"
         "display_st7789.c"
         "audio_out_max98357.c"
@@ -20,7 +21,7 @@ idf_component_register(
         "sg_time.c"
         "local_alert.c"
         "sg_manager_api.c"
-    INCLUDE_DIRS "."
+    INCLUDE_DIRS "." "../../firmware_common"
     REQUIRES
         esp_wifi
         nvs_flash
@@ -29,6 +30,7 @@ idf_component_register(
         esp_timer
         json
         driver
+        esp_driver_i2c
         freertos
         esp_hw_support
         esp_system

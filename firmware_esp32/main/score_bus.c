@@ -88,6 +88,38 @@ esp_err_t sg_score_bus_set_eye(int score, int64_t now_us)
     return entry_set(&s_eye, score, NAN, now_us);
 }
 
+esp_err_t sg_score_bus_apply_camera(
+    bool face_valid, int face, float theta_deg,
+    bool tongue_valid, int tongue,
+    bool eye_valid, int eye, int64_t now_us)
+{
+    if (!s_lock || now_us <= 0) return ESP_ERR_INVALID_STATE;
+    if ((face_valid && (!score_valid(face) || !isfinite(theta_deg)
+                        || theta_deg < 0.0f || theta_deg > 90.0f))
+        || (tongue_valid && !score_valid(tongue))
+        || (eye_valid && !score_valid(eye))) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (xSemaphoreTake(s_lock, portMAX_DELAY) != pdTRUE) return ESP_ERR_TIMEOUT;
+    if (face_valid) {
+        s_face = (sg_score_entry_t){face, theta_deg, now_us};
+    } else {
+        entry_reset(&s_face);
+    }
+    if (tongue_valid) {
+        s_tongue = (sg_score_entry_t){tongue, NAN, now_us};
+    } else {
+        entry_reset(&s_tongue);
+    }
+    if (eye_valid) {
+        s_eye = (sg_score_entry_t){eye, NAN, now_us};
+    } else {
+        entry_reset(&s_eye);
+    }
+    xSemaphoreGive(s_lock);
+    return ESP_OK;
+}
+
 void sg_score_bus_snapshot(sg_scores_in_t *out, int64_t now_us,
                            uint32_t stale_ms)
 {

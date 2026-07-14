@@ -27,6 +27,7 @@
 #endif
 #include "fusion.h"
 #include "score_bus.h"
+#include "camera_coprocessor.h"
 #include "sg_time.h"
 #include "sg_mqtt.h"
 #include "device_config.h"
@@ -262,6 +263,14 @@ void app_main(void)
 
     ESP_ERROR_CHECK(sg_score_bus_init());
     ESP_ERROR_CHECK(sg_local_alert_init());
+
+#if CONFIG_STROKEGUARD_CAMERA_COPROCESSOR_ENABLE
+    esp_err_t camera_err = sg_camera_coprocessor_init();
+    if (camera_err != ESP_OK) {
+        ESP_LOGW(SG_TAG_MAIN, "camera coprocessor init failed: %s",
+                 esp_err_to_name(camera_err));
+    }
+#endif
 
     s_advice_q = xQueueCreate(1, sizeof(sg_cloud_advice_t));
     ESP_ERROR_CHECK(s_advice_q ? ESP_OK : ESP_ERR_NO_MEM);

@@ -86,6 +86,11 @@
 #define SG_TASK_ADVICE_PRIO     5
 #define SG_TASK_ADVICE_CORE     0
 
+#define SG_CAMERA_POLL_PERIOD_MS 500
+#define SG_TASK_CAMERA_STACK     4096
+#define SG_TASK_CAMERA_PRIO      5
+#define SG_TASK_CAMERA_CORE      0
+
 /* ==== CDC RX 任务 (JSON 帧解析) ==== */
 #define SG_TASK_CDC_RX_STACK    4096
 #define SG_TASK_CDC_RX_PRIO     5

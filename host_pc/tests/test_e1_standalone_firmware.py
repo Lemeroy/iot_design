@@ -19,6 +19,24 @@ def test_local_score_bus_is_wired_into_fusion():
     assert "sg_fusion_compute" in app
 
 
+def test_camera_coprocessor_is_polled_locally_with_validity():
+    app = read("app_main.c")
+    source = read("camera_coprocessor.c")
+    bus = read("score_bus.c")
+    cmake = read("CMakeLists.txt")
+
+    assert '#include "camera_coprocessor.h"' in app
+    assert "sg_camera_coprocessor_init" in app
+    assert "i2c_new_master_bus" in source
+    assert "i2c_master_receive" in source
+    assert "sg_camera_scores_validate" in source
+    assert "sg_score_bus_apply_camera" in source
+    assert "sg_score_bus_apply_camera" in bus
+    assert '"camera_coprocessor.c"' in cmake
+    assert "camera_scores_protocol.c" in cmake
+    assert "ESP_ERROR_CHECK(sg_camera_coprocessor_init" not in app
+
+
 def test_production_app_does_not_accept_pc_scores():
     app = read("app_main.c")
     cmake = read("CMakeLists.txt")
