@@ -76,7 +76,7 @@ Topic: strokeguard/<device_id>/downlink
 {"schema_version":1,"level":"warning","advice_text":"给本人或家属的安全建议文本","ts":0,"source":"doubao"}
 ```
 
-### PC 局域网管理
+### PC 监控
 
 ```text
 GET  /api/v1/config
@@ -112,19 +112,12 @@ final = 0.35 * F + 0.25 * S + 0.20 * T + 0.12 * E + 0.08 * B
 | 局域网档案管理 API | GET/PUT、鉴权、revision 冲突与 PC Keyring 已完成 |
 | 校准、签名更新与 OTA | 未完成；E5/E6 交付 |
 
-## 新里程碑
 
-1. `E1`：S3 直连 MQTT、NVS 配置、镜端融合、离线告警和建议下行。
-2. `E2`：GC2145 人脸检测、面部对称 F 和口角辅助量。
-3. `E3`：INMP441、MFCC、INT8 言语清晰度 S。
-4. `E4`：舌偏 T、眼动 E、CSI B、完整融合和镜面交互。
-5. `E5`：PC 局域网监控、受限配置、人工授权校准和模型更新。
-6. `E6`：训练/量化、TLS、OTA、硬件在环、K 折评测和打包。
 
 ## 开发入口
 
 固件环境：ESP32-S3-WROOM-1 N16R8、ESP-IDF v5.5.3、当前串口 `COM3`。
-
+         ESP32-S3-Camera、ESP-IDF v5.5.3、当前串口 `COM4`
 ```powershell
 cd firmware_esp32
 idf.py set-target esp32s3
