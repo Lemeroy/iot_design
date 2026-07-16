@@ -50,6 +50,13 @@ h4 { margin-bottom: .4rem; font-size: .92rem; }
 .indicator.online { background: var(--green); }
 .indicator.offline { background: var(--slate); }
 
+.screening-bar { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 1.25rem 0; border-bottom: 1px solid var(--line); }
+.screening-copy { min-width: 0; flex: 1; }
+.screening-copy h3 { margin-bottom: .35rem; }
+.screening-copy > p:not(.eyebrow) { margin-bottom: .55rem; font-family: "Segoe UI", sans-serif; font-weight: 700; }
+.screening-copy progress { display: block; width: min(32rem, 100%); height: .55rem; accent-color: var(--green); }
+.screening-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+
 .score-section { padding: 1.5rem 0; }
 .section-heading { margin-bottom: .8rem; }
 .score-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--surface); }
@@ -81,7 +88,7 @@ details p { margin: .5rem 0; color: #344044; font-family: "Segoe UI", sans-serif
 
 @media (max-width: 620px) {
   .desk { padding: 1.25rem .625rem 2rem; }
-  .topbar, .monitor-head, .state-strip { align-items: flex-start; flex-direction: column; }
+  .topbar, .monitor-head, .state-strip, .screening-bar { align-items: flex-start; flex-direction: column; }
   .status-message { text-align: left; }
   .access-view, .assessment-grid { grid-template-columns: 1fr; gap: 1.25rem; }
   .access-view { padding: 2rem 0; }

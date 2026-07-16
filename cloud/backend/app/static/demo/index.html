@@ -62,6 +62,19 @@
           <p>VPS 收到时间 <time id="receipt-time">--</time></p>
         </section>
 
+        <section class="screening-bar" aria-labelledby="screening-title">
+          <div class="screening-copy">
+            <p class="eyebrow">引导式筛查</p>
+            <h3 id="screening-title">F / E / T 本地感知</h3>
+            <p id="screening-instruction">设备在线后可开始筛查</p>
+            <progress id="screening-progress" max="100" value="0">0%</progress>
+          </div>
+          <div class="screening-actions">
+            <button id="screening-start" type="button">开始筛查</button>
+            <button id="screening-cancel" type="button" class="secondary" disabled>取消</button>
+          </div>
+        </section>
+
         <section class="score-section" aria-labelledby="scores-title">
           <div class="section-heading"><p class="eyebrow">监测分数</p><h3 id="scores-title">本次上传</h3></div>
           <div class="score-grid">

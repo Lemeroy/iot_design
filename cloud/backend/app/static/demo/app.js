@@ -30,6 +30,8 @@
   };
   const scoreFields = { face: "face", speech: "speech", tongue: "tongue", eye: "eye", csi: "csi", final: "final" };
   let pollTimer = null;
+  let realtimeSocket = null;
+  let reconnectTimer = null;
   let activeView = "login";
 
   function setStatus(message) { statusMessage.textContent = message; }
@@ -47,6 +49,7 @@
     const focusSelector = focusTargets[name];
     const target = focusSelector ? document.querySelector(focusSelector) : null;
     if (target) target.focus();
+    if (name !== "monitor") closeRealtime();
   }
 
   function formatTime(value) {
@@ -67,6 +70,27 @@
 
   function scoreValue(value) { return Number.isFinite(value) ? String(value) : "未接入"; }
 
+  const stageContent = {
+    0: ["设备待机", 0],
+    1: ["请正视镜面", 15],
+    2: ["请保持视线居中", 30],
+    3: ["请看向左侧", 45],
+    4: ["请看向右侧", 60],
+    5: ["请张口伸舌", 75],
+    6: ["筛查完成", 100],
+    7: ["采集失败，请重新筛查", 0],
+  };
+
+  function renderScreening(stage, online) {
+    const normalized = Number.isInteger(stage) && stage >= 0 && stage <= 7 ? stage : 0;
+    const [instruction, progress] = stageContent[normalized];
+    document.querySelector("#screening-instruction").textContent = instruction;
+    document.querySelector("#screening-progress").value = progress;
+    const active = normalized >= 1 && normalized <= 5;
+    document.querySelector("#screening-start").disabled = !online || active;
+    document.querySelector("#screening-cancel").disabled = !online || !active;
+  }
+
   function levelContent(level) {
     const content = {
       normal: ["正常", "当前风险提示为正常，请继续留意身体变化。"],
@@ -82,6 +106,7 @@
     Object.entries(scoreFields).forEach(([name, id]) => { document.querySelector(`#score-${id}`).textContent = scoreValue(scores[name]); });
     fields.device.textContent = data.device_id || "--";
     const online = data.online === true;
+    renderScreening(data.screening_stage, online);
     fields.online.textContent = online ? "在线" : "离线";
     fields.indicator.className = `indicator ${online ? "online" : "offline"}`;
     fields.receipt.textContent = formatTime(data.received_at);
@@ -122,12 +147,55 @@
     }
   }
 
+  function closeRealtime() {
+    if (reconnectTimer) { window.clearTimeout(reconnectTimer); reconnectTimer = null; }
+    if (realtimeSocket) {
+      const socket = realtimeSocket;
+      realtimeSocket = null;
+      socket.onclose = null;
+      socket.close();
+    }
+  }
+
+  function connectRealtime() {
+    if (activeView !== "monitor" || realtimeSocket) return;
+    const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const socket = new WebSocket(`${scheme}//${window.location.host}/demo/api/ws`);
+    realtimeSocket = socket;
+    socket.onmessage = (event) => {
+      try { renderDevice(JSON.parse(event.data)); setStatus("实时数据已更新"); }
+      catch (_) { setStatus("实时数据格式无效，继续轮询"); }
+    };
+    socket.onclose = () => {
+      if (realtimeSocket === socket) realtimeSocket = null;
+      if (activeView === "monitor") {
+        setStatus("实时连接已断开，使用 5 秒轮询");
+        reconnectTimer = window.setTimeout(connectRealtime, POLLING_MS);
+      }
+    };
+    socket.onerror = () => socket.close();
+  }
+
+  async function sendScreening(action) {
+    try {
+      await request("/demo/api/screening", {
+        method: "POST",
+        body: JSON.stringify({ action }),
+      });
+      report(action === "start" ? "筛查指令已发送" : "筛查已取消");
+      await pollDevice();
+    } catch (error) {
+      report(error.status === 409 ? "设备当前离线" : "筛查指令发送失败");
+    }
+  }
+
   async function restoreSession() {
     try {
       const session = await request("/demo/api/session");
       if (session.device_id) {
         showView("monitor");
         await pollDevice();
+        connectRealtime();
       } else {
         showView("connect");
         report("请输入设备 ID 连接监测数据");
@@ -158,10 +226,13 @@
       fields.device.textContent = session.device_id;
       report("设备已连接，正在同步监测数据");
       await pollDevice();
+      connectRealtime();
     } catch (error) { report(error.status === 409 ? "设备当前离线" : "无法连接该设备"); }
   });
 
   document.querySelector("#refresh-button").addEventListener("click", pollDevice);
+  document.querySelector("#screening-start").addEventListener("click", () => sendScreening("start"));
+  document.querySelector("#screening-cancel").addEventListener("click", () => sendScreening("cancel"));
   document.querySelector("#disconnect-button").addEventListener("click", async () => {
     try { await request("/demo/api/disconnect", { method: "POST" }); showView("connect"); report("设备已断开"); }
     catch (_) { report("断开失败，请重试"); }
@@ -182,5 +253,5 @@
 
   restoreSession();
   pollTimer = window.setInterval(pollDevice, 5000);
-  window.addEventListener("beforeunload", () => window.clearInterval(pollTimer));
+  window.addEventListener("beforeunload", () => { window.clearInterval(pollTimer); closeRealtime(); });
 })();

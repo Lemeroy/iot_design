@@ -55,6 +55,30 @@ def test_demo_web_assets_define_the_read_only_monitor_contract():
         assert "https://" not in source
 
 
+def test_demo_web_supports_guided_screening_with_websocket_fallback():
+    page = _read(STATIC / "index.html")
+    script = _read(STATIC / "app.js")
+
+    for token in (
+        'id="screening-start"',
+        'id="screening-cancel"',
+        'id="screening-instruction"',
+        'id="screening-progress"',
+    ):
+        assert token in page
+    assert 'request("/demo/api/screening"' in script
+    assert 'sendScreening("start")' in script
+    assert 'sendScreening("cancel")' in script
+    assert "new WebSocket" in script
+    assert 'request("/demo/api/device")' in script
+    assert "setInterval(pollDevice, 5000)" in script
+    assert "screening_stage" in script
+    for prompt in ("请正视镜面", "请看向左侧", "请看向右侧", "请张口伸舌", "筛查完成"):
+        assert prompt in script
+    for forbidden in ("simulate", "mockScore", "Math.random"):
+        assert forbidden not in script
+
+
 def test_demo_web_wraps_the_long_connected_device_id_on_small_screens():
     css = _read(STATIC / "app.css")
 
