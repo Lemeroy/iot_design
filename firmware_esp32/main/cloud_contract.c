@@ -44,6 +44,7 @@ int sg_cloud_build_uplink(char *buf, size_t cap,
                           const sg_device_config_t *cfg,
                           const sg_scores_in_t *scores,
                           const sg_fusion_out_t *fusion,
+                          sg_screening_stage_t screening_stage,
                           int64_t unix_ts, uint32_t seq)
 {
     if (!buf || !cfg || !scores || !fusion || cap == 0
@@ -55,7 +56,8 @@ int sg_cloud_build_uplink(char *buf, size_t cap,
         || !score_or_missing(scores->csi)
         || fusion->final < 0 || fusion->final > 100
         || fusion->n_reasons < 0
-        || fusion->n_reasons > SG_FUSION_MAX_REASONS) {
+        || fusion->n_reasons > SG_FUSION_MAX_REASONS
+        || screening_stage > SG_STAGE_ERROR) {
         return -1;
     }
 
@@ -117,6 +119,7 @@ int sg_cloud_build_uplink(char *buf, size_t cap,
     }
 
     ok = ok && cJSON_AddStringToObject(root, "device_id", cfg->device_id)
+        && cJSON_AddNumberToObject(root, "screening_stage", screening_stage)
         && cJSON_AddNumberToObject(root, "ts", (double)unix_ts)
         && cJSON_AddNumberToObject(root, "seq", seq);
 
@@ -127,6 +130,43 @@ int sg_cloud_build_uplink(char *buf, size_t cap,
     int length = (int)strlen(buf);
     cJSON_Delete(root);
     return length;
+}
+
+sg_contract_err_t sg_cloud_parse_screening_control(
+    const char *json, size_t len, sg_cloud_screening_control_t *out)
+{
+    if (!json || !out || len == 0) return SG_CONTRACT_INVALID_FIELD;
+    if (len > SG_DOWNLINK_MAX) return SG_CONTRACT_TOO_LARGE;
+    if (memchr(json, '\0', len) != NULL) return SG_CONTRACT_INVALID_JSON;
+    char input[SG_DOWNLINK_MAX + 1];
+    memcpy(input, json, len);
+    input[len] = '\0';
+    const char *end = NULL;
+    cJSON *root = cJSON_ParseWithLengthOpts(input, len + 1, &end, true);
+    if (!root || !cJSON_IsObject(root) || cJSON_GetArraySize(root) != 2) {
+        cJSON_Delete(root);
+        return SG_CONTRACT_INVALID_JSON;
+    }
+    cJSON *type = cJSON_GetObjectItemCaseSensitive(root, "type");
+    cJSON *action = cJSON_GetObjectItemCaseSensitive(root, "action");
+    if (!cJSON_IsString(type) || !type->valuestring
+        || strcmp(type->valuestring, "screening_control") != 0
+        || !cJSON_IsString(action) || !action->valuestring) {
+        cJSON_Delete(root);
+        return SG_CONTRACT_INVALID_FIELD;
+    }
+    sg_cloud_screening_control_t parsed;
+    if (strcmp(action->valuestring, "start") == 0) {
+        parsed.action = SG_SCREENING_START;
+    } else if (strcmp(action->valuestring, "cancel") == 0) {
+        parsed.action = SG_SCREENING_CANCEL;
+    } else {
+        cJSON_Delete(root);
+        return SG_CONTRACT_INVALID_FIELD;
+    }
+    *out = parsed;
+    cJSON_Delete(root);
+    return SG_CONTRACT_OK;
 }
 
 static bool utf8_valid(const char *value)

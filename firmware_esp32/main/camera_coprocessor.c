@@ -23,6 +23,16 @@
 
 static i2c_master_bus_handle_t s_bus;
 static i2c_master_dev_handle_t s_device;
+static volatile sg_screening_stage_t s_stage = SG_STAGE_IDLE;
+
+static esp_err_t read_register(uint8_t reg, uint8_t raw[4])
+{
+    esp_err_t err = i2c_master_transmit(
+        s_device, &reg, sizeof(reg), SG_CAMERA_READ_TIMEOUT_MS);
+    if (err != ESP_OK) return err;
+    vTaskDelay(pdMS_TO_TICKS(SG_CAMERA_REGISTER_SETTLE_MS));
+    return i2c_master_receive(s_device, raw, 4, SG_CAMERA_READ_TIMEOUT_MS);
+}
 
 static void publish_unavailable(int64_t now_us)
 {
@@ -44,16 +54,8 @@ esp_err_t sg_camera_coprocessor_poll(sg_camera_observation_t *out)
         return ESP_ERR_INVALID_STATE;
     }
 
-    const uint8_t reg = SG_CAMERA_FACE_METRICS_REGISTER;
     uint8_t raw[sizeof(sg_camera_face_metrics_response_t)] = {0};
-    esp_err_t err = i2c_master_transmit(
-        s_device, &reg, sizeof(reg), SG_CAMERA_READ_TIMEOUT_MS);
-    if (err != ESP_OK) {
-        return err;
-    }
-    vTaskDelay(pdMS_TO_TICKS(SG_CAMERA_REGISTER_SETTLE_MS));
-    err = i2c_master_receive(
-        s_device, raw, sizeof(raw), SG_CAMERA_READ_TIMEOUT_MS);
+    esp_err_t err = read_register(SG_CAMERA_FACE_METRICS_REGISTER, raw);
     if (err != ESP_OK) {
         return err;
     }
@@ -67,6 +69,16 @@ esp_err_t sg_camera_coprocessor_poll(sg_camera_observation_t *out)
     out->score = metrics.score;
     out->mouth_angle_deg = metrics.mouth_angle_deg;
     out->quality = metrics.quality;
+    err = read_register(SG_CAMERA_EYE_REGISTER, raw);
+    if (err != ESP_OK || sg_camera_modal_parse(raw, sizeof(raw), &out->eye)
+        != SG_CAMERA_PROTOCOL_OK) return ESP_ERR_INVALID_RESPONSE;
+    err = read_register(SG_CAMERA_TONGUE_REGISTER, raw);
+    if (err != ESP_OK || sg_camera_modal_parse(raw, sizeof(raw), &out->tongue)
+        != SG_CAMERA_PROTOCOL_OK) return ESP_ERR_INVALID_RESPONSE;
+    err = read_register(SG_CAMERA_STAGE_REGISTER, raw);
+    if (err != ESP_OK || sg_camera_stage_parse(raw, sizeof(raw), &out->screening)
+        != SG_CAMERA_PROTOCOL_OK) return ESP_ERR_INVALID_RESPONSE;
+    s_stage = out->screening.stage;
     out->received_us = esp_timer_get_time();
     return ESP_OK;
 }
@@ -121,28 +133,38 @@ static void camera_poll_task(void *arg)
             have_fresh_face = false;
         }
 
-        if (!have_fresh_face) {
-            publish_unavailable(now_us);
-            continue;
-        }
-
-        if (!observation.valid) {
-            continue;
-        }
-
-        ESP_LOGI(SG_TAG_MAIN, "camera F score=%u angle=%d quality=%u",
-                 observation.score, observation.mouth_angle_deg,
-                 observation.quality);
+        if (observation.valid) ESP_LOGI(
+            SG_TAG_MAIN, "camera F=%u E=%d T=%d stage=%u",
+            observation.score,
+            observation.eye.valid ? observation.eye.score : -1,
+            observation.tongue.valid ? observation.tongue.score : -1,
+            (unsigned)observation.screening.stage);
         err = sg_score_bus_apply_camera(
-            true, observation.score,
+            have_fresh_face && observation.valid, observation.score,
             fabsf((float)observation.mouth_angle_deg),
-            false, 0, false, 0, now_us);
+            observation.tongue.valid, observation.tongue.score,
+            observation.eye.valid, observation.eye.score, now_us);
         if (err != ESP_OK) {
             publish_unavailable(now_us);
             ESP_LOGW(SG_TAG_MAIN, "camera observation rejected: %s",
                      esp_err_to_name(err));
         }
     }
+}
+
+esp_err_t sg_camera_coprocessor_control(sg_screening_control_t control)
+{
+    if (s_device == NULL || control > SG_SCREENING_START) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    const uint8_t command[2] = {SG_CAMERA_CONTROL_REGISTER, (uint8_t)control};
+    return i2c_master_transmit(s_device, command, sizeof(command),
+                               SG_CAMERA_READ_TIMEOUT_MS);
+}
+
+sg_screening_stage_t sg_camera_coprocessor_stage(void)
+{
+    return s_stage;
 }
 
 esp_err_t sg_camera_coprocessor_init(void)

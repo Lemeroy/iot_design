@@ -45,6 +45,34 @@ def test_camera_coprocessor_is_polled_locally_with_validity():
     assert "ESP_ERROR_CHECK(sg_camera_coprocessor_init" not in app
 
 
+def test_guided_camera_scores_and_control_are_bridged_locally():
+    app = read("app_main.c")
+    camera_h = read("camera_coprocessor.h")
+    camera_c = read("camera_coprocessor.c")
+    mqtt_h = read("sg_mqtt.h")
+    mqtt_c = read("sg_mqtt.c")
+
+    for token in (
+        "sg_camera_coprocessor_control",
+        "sg_camera_coprocessor_stage",
+        "SG_CAMERA_CONTROL_REGISTER",
+        "SG_CAMERA_EYE_REGISTER",
+        "SG_CAMERA_TONGUE_REGISTER",
+        "SG_CAMERA_STAGE_REGISTER",
+        "sg_camera_modal_parse",
+        "sg_camera_stage_parse",
+    ):
+        assert token in camera_h or token in camera_c
+    assert "i2c_master_transmit(s_device, command" in camera_c
+    assert "observation.eye.valid" in camera_c
+    assert "observation.tongue.valid" in camera_c
+    assert "sg_mqtt_downlink_t" in mqtt_h
+    assert "SG_MQTT_DOWNLINK_CONTROL" in mqtt_h
+    assert "sg_cloud_parse_screening_control" in mqtt_c
+    assert "on_mqtt_downlink" in app
+    assert "sg_camera_coprocessor_control" in app
+
+
 def test_nmo432_uses_real_16khz_i2s_capture_without_cloud_audio():
     source = read("audio_nmo432.c")
     header = read("audio_nmo432.h")

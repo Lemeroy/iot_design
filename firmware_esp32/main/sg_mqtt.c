@@ -22,8 +22,8 @@ typedef struct {
 static esp_mqtt_client_handle_t s_client;
 static EventGroupHandle_t s_events;
 static sg_device_config_t s_config;
-static sg_mqtt_advice_cb_t s_advice_cb;
-static void *s_advice_ctx;
+static sg_mqtt_downlink_cb_t s_downlink_cb;
+static void *s_downlink_ctx;
 static char s_client_id[SG_DEVICE_ID_MAX + 4];
 static char s_uplink_topic[SG_MQTT_TOPIC_MAX];
 static char s_downlink_topic[SG_MQTT_TOPIC_MAX];
@@ -76,17 +76,26 @@ static void handle_data(const esp_mqtt_event_handle_t event)
     if (s_assembly.received != s_assembly.total_len) return;
 
     s_assembly.data[s_assembly.total_len] = '\0';
-    sg_cloud_advice_t advice;
+    sg_mqtt_downlink_t downlink = {0};
     sg_contract_err_t err = sg_cloud_parse_advice(
-        s_assembly.data, (size_t)s_assembly.total_len, &advice);
+        s_assembly.data, (size_t)s_assembly.total_len,
+        &downlink.payload.advice);
+    if (err == SG_CONTRACT_OK) {
+        downlink.type = SG_MQTT_DOWNLINK_ADVICE;
+    } else {
+        err = sg_cloud_parse_screening_control(
+            s_assembly.data, (size_t)s_assembly.total_len,
+            &downlink.payload.control);
+        if (err == SG_CONTRACT_OK) downlink.type = SG_MQTT_DOWNLINK_CONTROL;
+    }
     assembly_reset();
     if (err != SG_CONTRACT_OK) {
         ESP_LOGW(SG_TAG_MQTT, "downlink parse rejected err=%d", (int)err);
         return;
     }
 
-    ESP_LOGI(SG_TAG_MQTT, "downlink accepted source=%s", advice.source);
-    if (s_advice_cb) s_advice_cb(&advice, s_advice_ctx);
+    ESP_LOGI(SG_TAG_MQTT, "downlink accepted type=%u", (unsigned)downlink.type);
+    if (s_downlink_cb) s_downlink_cb(&downlink, s_downlink_ctx);
 }
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
@@ -122,14 +131,14 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
 }
 
 esp_err_t sg_mqtt_start(const sg_device_config_t *cfg,
-                        sg_mqtt_advice_cb_t cb, void *ctx)
+                        sg_mqtt_downlink_cb_t cb, void *ctx)
 {
     if (!cfg || !sg_device_config_mqtt_ready(cfg)) return ESP_ERR_INVALID_ARG;
     if (s_client) return ESP_ERR_INVALID_STATE;
 
     s_config = *cfg;
-    s_advice_cb = cb;
-    s_advice_ctx = ctx;
+    s_downlink_cb = cb;
+    s_downlink_ctx = ctx;
     assembly_reset();
 
     int client_len = snprintf(s_client_id, sizeof(s_client_id),

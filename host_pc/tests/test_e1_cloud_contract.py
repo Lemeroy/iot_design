@@ -11,6 +11,31 @@ from pydantic import ValidationError
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_edge_contract_supports_strict_screening_control_and_stage_uplink():
+    header = (ROOT / "firmware_esp32" / "main" / "cloud_contract.h").read_text(
+        encoding="utf-8"
+    )
+    source = (ROOT / "firmware_esp32" / "main" / "cloud_contract.c").read_text(
+        encoding="utf-8"
+    )
+    app = (ROOT / "firmware_esp32" / "main" / "app_main.c").read_text(
+        encoding="utf-8"
+    )
+
+    for token in (
+        "sg_cloud_parse_screening_control",
+        '"screening_control"',
+        '"start"',
+        '"cancel"',
+        '"screening_stage"',
+    ):
+        assert token in header or token in source
+    assert "sg_camera_coprocessor_stage" in app
+    assert "last_published_stage" in app
+    for forbidden in ("jpeg_b64", "mfcc", "landmarks", '"roi"'):
+        assert forbidden not in source.lower()
 sys.path.insert(0, str(ROOT))
 
 from cloud.backend.app.schemas import UplinkPayload

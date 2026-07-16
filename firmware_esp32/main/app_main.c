@@ -48,23 +48,31 @@
 static volatile bool s_wifi_got_ip = false;
 static sg_device_config_t s_device_config;
 static bool s_device_config_loaded;
-static QueueHandle_t s_advice_q;
+static QueueHandle_t s_downlink_q;
 
-static void on_mqtt_advice(const sg_cloud_advice_t *advice, void *ctx)
+static void on_mqtt_downlink(const sg_mqtt_downlink_t *downlink, void *ctx)
 {
     (void)ctx;
-    if (!advice || !s_advice_q) return;
-    xQueueOverwrite(s_advice_q, advice);
+    if (!downlink || !s_downlink_q) return;
+    xQueueOverwrite(s_downlink_q, downlink);
 }
 
-static void task_advice(void *arg)
+static void task_downlink(void *arg)
 {
     (void)arg;
-    sg_cloud_advice_t advice;
+    sg_mqtt_downlink_t downlink;
     while (1) {
-        if (xQueueReceive(s_advice_q, &advice, portMAX_DELAY) != pdTRUE) {
+        if (xQueueReceive(s_downlink_q, &downlink, portMAX_DELAY) != pdTRUE) {
             continue;
         }
+        if (downlink.type == SG_MQTT_DOWNLINK_CONTROL) {
+            esp_err_t err = sg_camera_coprocessor_control(
+                downlink.payload.control.action);
+            if (err != ESP_OK) ESP_LOGW(SG_TAG_MQTT, "screening control failed: %s",
+                                         esp_err_to_name(err));
+            continue;
+        }
+        const sg_cloud_advice_t advice = downlink.payload.advice;
         int64_t now = sg_time_unix_seconds();
         if (now == 0 || advice.ts > now + 30
             || now - advice.ts > SG_ADVICE_MAX_AGE_SEC) {
@@ -131,6 +139,7 @@ static void task_fusion(void *arg)
     uint32_t n_processed = 0;
     bool has_published = false;
     sg_level_t last_published_level = SG_LEVEL_INSUFFICIENT;
+    sg_screening_stage_t last_published_stage = SG_STAGE_IDLE;
     int64_t last_publish_us = 0;
     TickType_t last = xTaskGetTickCount();
 
@@ -149,8 +158,10 @@ static void task_fusion(void *arg)
 
         int64_t now_us = esp_timer_get_time();
         int64_t unix_ts = sg_time_unix_seconds();
+        sg_screening_stage_t screening_stage = sg_camera_coprocessor_stage();
         bool publish_due = !has_published
             || out.level != last_published_level
+            || screening_stage != last_published_stage
             || now_us - last_publish_us
                 >= (int64_t)SG_MQTT_PUBLISH_PERIOD_MS * 1000LL;
         if (s_device_config_loaded && publish_due && unix_ts > 0
@@ -160,12 +171,14 @@ static void task_fusion(void *arg)
             int up_len = snapshot_err == ESP_OK
                 ? sg_cloud_build_uplink(
                     uplink, sizeof(uplink), &config_snapshot, &in, &out,
+                    screening_stage,
                     unix_ts, (uint32_t)out.seq)
                 : -1;
             if (up_len > 0
                 && sg_mqtt_publish_uplink(uplink, (size_t)up_len) == ESP_OK) {
                 has_published = true;
                 last_published_level = out.level;
+                last_published_stage = screening_stage;
                 last_publish_us = now_us;
                 ESP_LOGI(SG_TAG_MQTT, "uplink queued seq=%ld level=%s",
                          (long)out.seq, sg_fusion_level_name(out.level));
@@ -282,9 +295,9 @@ void app_main(void)
     }
 #endif
 
-    s_advice_q = xQueueCreate(1, sizeof(sg_cloud_advice_t));
-    ESP_ERROR_CHECK(s_advice_q ? ESP_OK : ESP_ERR_NO_MEM);
-    xTaskCreatePinnedToCore(task_advice, "advice",
+    s_downlink_q = xQueueCreate(1, sizeof(sg_mqtt_downlink_t));
+    ESP_ERROR_CHECK(s_downlink_q ? ESP_OK : ESP_ERR_NO_MEM);
+    xTaskCreatePinnedToCore(task_downlink, "downlink",
                             SG_TASK_ADVICE_STACK, NULL,
                             SG_TASK_ADVICE_PRIO, NULL,
                             SG_TASK_ADVICE_CORE);
@@ -314,7 +327,7 @@ void app_main(void)
     if (s_device_config_loaded
         && sg_device_config_mqtt_ready(&s_device_config)) {
         esp_err_t mqtt_err = sg_mqtt_start(
-            &s_device_config, on_mqtt_advice, NULL);
+            &s_device_config, on_mqtt_downlink, NULL);
         if (mqtt_err != ESP_OK) {
             ESP_LOGW(SG_TAG_MQTT, "mqtt start failed err=%s",
                      esp_err_to_name(mqtt_err));
