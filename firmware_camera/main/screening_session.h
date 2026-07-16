@@ -25,6 +25,8 @@ typedef struct {
     sg_screening_stage_t stage;
     int64_t stage_started_us;
     uint8_t sample_count;
+    uint8_t face_sample_window;
+    uint8_t face_window_count;
     sg_eye_measurement_t eye_samples[SG_SCREENING_STABLE_SAMPLES];
     sg_tongue_measurement_t tongue_samples[SG_SCREENING_STABLE_SAMPLES];
     sg_eye_measurement_t center_eye;

@@ -9,6 +9,8 @@
 #define SG_FACE_DEADLINE_US 12000000LL
 #define SG_EYE_DURATION_US 2000000LL
 #define SG_TONGUE_DURATION_US 3000000LL
+#define SG_FACE_SAMPLE_WINDOW 5U
+#define SG_FACE_SAMPLE_MASK 0x1FU
 
 static int64_t stage_duration(sg_screening_stage_t stage)
 {
@@ -78,6 +80,8 @@ static void enter_stage(
     session->stage = stage;
     session->stage_started_us = now_us;
     session->sample_count = 0;
+    session->face_sample_window = 0;
+    session->face_window_count = 0;
     memset(session->eye_samples, 0, sizeof(session->eye_samples));
     memset(session->tongue_samples, 0, sizeof(session->tongue_samples));
 }
@@ -96,27 +100,37 @@ void sg_screening_session_cancel(sg_screening_session_t *session)
     session->stage = SG_STAGE_IDLE;
 }
 
+static uint8_t count_face_samples(uint8_t window)
+{
+    uint8_t count = 0;
+    while (window != 0) {
+        count += window & 1U;
+        window >>= 1U;
+    }
+    return count;
+}
+
 static void add_sample(
     sg_screening_session_t *session, const sg_screening_sample_t *sample)
 {
+    if (session->stage == SG_STAGE_FACE) {
+        session->face_sample_window = (uint8_t)(
+            ((session->face_sample_window << 1U)
+             | (sample->face_ready ? 1U : 0U)) & SG_FACE_SAMPLE_MASK);
+        if (session->face_window_count < SG_FACE_SAMPLE_WINDOW) {
+            ++session->face_window_count;
+        }
+        session->sample_count = count_face_samples(session->face_sample_window);
+        return;
+    }
     if (session->sample_count >= SG_SCREENING_STABLE_SAMPLES) return;
-    if (session->stage == SG_STAGE_FACE && sample->face_ready) {
-        ++session->sample_count;
-    } else if ((session->stage == SG_STAGE_EYE_CENTER
+    if ((session->stage == SG_STAGE_EYE_CENTER
                 || session->stage == SG_STAGE_EYE_LEFT
                 || session->stage == SG_STAGE_EYE_RIGHT)
                && sample->eye_valid) {
         session->eye_samples[session->sample_count++] = sample->eye;
     } else if (session->stage == SG_STAGE_TONGUE && sample->tongue_valid) {
         session->tongue_samples[session->sample_count++] = sample->tongue;
-    }
-}
-
-static void reset_face_samples_on_invalid(
-    sg_screening_session_t *session, const sg_screening_sample_t *sample)
-{
-    if (session->stage == SG_STAGE_FACE && !sample->face_ready) {
-        session->sample_count = 0;
     }
 }
 
@@ -187,7 +201,6 @@ void sg_screening_session_update(
         return;
     }
     if (elapsed >= SG_STAGE_SETTLE_US) {
-        reset_face_samples_on_invalid(session, sample);
         add_sample(session, sample);
     }
     if (elapsed >= duration

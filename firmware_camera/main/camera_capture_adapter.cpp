@@ -24,6 +24,9 @@ static constexpr uint16_t CAMERA_WIDTH = 320;
 static constexpr uint16_t CAMERA_HEIGHT = 240;
 static constexpr size_t RGB888_BUFFER_SIZE = CAMERA_WIDTH * CAMERA_HEIGHT * 3;
 static constexpr uint32_t SG_FACE_REJECT_LOG_INTERVAL = 10;
+static constexpr float SG_FACE_PROPOSAL_SCORE_THRESHOLD = 0.40f;
+static constexpr float SG_FACE_LANDMARK_SCORE_THRESHOLD = 0.45f;
+static constexpr uint8_t SG_FACE_BBOX_HOLD_FRAMES = 2;
 
 static HumanFaceDetect *s_model;
 static uint8_t *s_rgb888;
@@ -31,6 +34,8 @@ static sg_face_baseline_t s_face_baseline;
 static sg_screening_session_t s_screening;
 static uint32_t s_face_reject_count;
 static const char *s_face_reject_reason;
+static sg_camera_face_bbox_t s_last_face_bbox;
+static uint8_t s_bbox_miss_count;
 
 static void note_face_rejection(const char *reason)
 {
@@ -167,6 +172,8 @@ extern "C" esp_err_t sg_camera_capture_init(void)
         ESP_LOGE(TAG, "human face model allocation failed");
         return ESP_ERR_NO_MEM;
     }
+    s_model->set_score_thr(SG_FACE_PROPOSAL_SCORE_THRESHOLD, 0);
+    s_model->set_score_thr(SG_FACE_LANDMARK_SCORE_THRESHOLD, 1);
     s_rgb888 = static_cast<uint8_t *>(heap_caps_malloc(
         RGB888_BUFFER_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     if (s_rgb888 == nullptr) {
@@ -231,7 +238,18 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
     auto &results = s_model->run(img);
     const selected_face_t selected =
         pick_largest_face(results, fb->width, fb->height);
-    out->face_bbox = selected.bbox;
+    if (selected.bbox.valid) {
+        s_last_face_bbox = selected.bbox;
+        s_bbox_miss_count = 0;
+        out->face_bbox = selected.bbox;
+    } else if (s_last_face_bbox.valid
+               && s_bbox_miss_count < SG_FACE_BBOX_HOLD_FRAMES) {
+        ++s_bbox_miss_count;
+        out->face_bbox = s_last_face_bbox;
+    } else {
+        memset(&s_last_face_bbox, 0, sizeof(s_last_face_bbox));
+        s_bbox_miss_count = 0;
+    }
 
     sg_face_frame_metrics_t frame_metrics = {};
     sg_face_frame_metrics_t stable_metrics = {};

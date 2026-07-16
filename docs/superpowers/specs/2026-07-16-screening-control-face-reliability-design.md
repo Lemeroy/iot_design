@@ -40,12 +40,16 @@ F remains based on ESP-WHO five-point landmarks and a volatile personal neutral
 baseline. A frame is eligible only when it has one selected face, valid five
 points, acceptable geometry quality, and a sufficiently large frontal face.
 
-The stage uses consecutive eligible samples rather than merely elapsed wall
-time. Short invalid runs reset the consecutive counter but do not immediately
-fail the session. The stage has a bounded overall deadline so an absent face
-cannot leave screening running indefinitely. Stable eligible samples feed the
-existing median/baseline path; invalid or stale input clears F instead of
-emitting `100`.
+The detector uses balanced proposal/landmark thresholds of `0.40` and `0.45`.
+The stage requires at least three eligible samples in the latest five sampled
+frames rather than merely elapsed wall time. The stage has a bounded overall
+deadline so an absent face cannot leave screening running indefinitely. Stable
+eligible samples feed the existing median/baseline path; invalid or stale input
+clears F instead of emitting `100`.
+
+The preview may retain the last bbox for at most two missed frames to avoid
+visual flicker. A retained bbox is display-only and never makes landmarks,
+baseline input, or F valid.
 
 The F result must continue to change with measured relative mouth geometry.
 No score is produced from a bounding box alone, and no fallback constant is
@@ -76,7 +80,7 @@ Host tests cover:
 
 - control writes bypass the ordinary event queue and latest action wins;
 - start/cancel confirmation retries are bounded;
-- F requires consecutive eligible samples;
+- F requires three eligible samples in a five-frame window;
 - intermittent invalid frames do not create a score;
 - no face reaches error at the overall deadline;
 - stale F is cleared and never defaults to `100`;
@@ -86,4 +90,3 @@ Target verification builds both firmware projects, flashes COM4 then COM3, and
 checks: MQTT control reception, camera `FACE` acknowledgement, visible stage
 progress, changing F from real landmarks, failure with the lens obscured, and
 continued CSI/MQTT operation.
-

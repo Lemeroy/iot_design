@@ -345,7 +345,7 @@ TEST_CASE("screening session times out without valid samples", "[screening_sessi
     TEST_ASSERT_EQUAL(SG_STAGE_ERROR, sg_screening_session_stage(&session));
 }
 
-TEST_CASE("face stage requires consecutive valid samples", "[screening_session]")
+TEST_CASE("face stage accepts three valid samples in five frames", "[screening_session]")
 {
     sg_screening_session_t session = {};
     sg_screening_session_start(&session, 1000000);
@@ -353,13 +353,10 @@ TEST_CASE("face stage requires consecutive valid samples", "[screening_session]"
     sg_screening_sample_t invalid = {};
 
     sg_screening_session_update(&session, &face, 1600000);
-    sg_screening_session_update(&session, &face, 1900000);
-    sg_screening_session_update(&session, &invalid, 2200000);
-    sg_screening_session_update(&session, &face, 2500000);
+    sg_screening_session_update(&session, &invalid, 1900000);
+    sg_screening_session_update(&session, &face, 2200000);
+    sg_screening_session_update(&session, &invalid, 2500000);
     sg_screening_session_update(&session, &face, 4000000);
-    TEST_ASSERT_EQUAL(SG_STAGE_FACE, sg_screening_session_stage(&session));
-
-    sg_screening_session_update(&session, &face, 4300000);
     TEST_ASSERT_EQUAL(SG_STAGE_EYE_CENTER, sg_screening_session_stage(&session));
 }
 

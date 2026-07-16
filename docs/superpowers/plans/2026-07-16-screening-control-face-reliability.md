@@ -4,7 +4,7 @@
 
 **Goal:** Reliably start/cancel camera screening under I2C polling and produce a stable, validity-aware F score from real ESP-WHO landmarks.
 
-**Architecture:** Camera control writes bypass the ordinary I2C event queue and enter a latest-value latch. The N16R8 confirms control by polling the stage with bounded retries. The F stage counts consecutive eligible landmark samples within an overall deadline and never substitutes a constant score.
+**Architecture:** Camera control writes bypass the ordinary I2C event queue and enter a latest-value latch. The N16R8 confirms control by polling the stage with bounded retries. The F stage accepts three eligible landmark samples in a five-frame window within an overall deadline and never substitutes a constant score.
 
 **Tech Stack:** ESP-IDF 5.5.3, FreeRTOS, ESP-WHO/ESP-DL, ESP32-S3 N16R8, I2C target/controller, C/C++, pytest structural tests, Unity target tests.
 
@@ -109,11 +109,11 @@ Commit message: `fix(edge): confirm camera screening controls`
 
 **Interfaces:**
 - Consumes: `sg_screening_sample_t.face_ready` from valid ESP-WHO five-point geometry and ready personal baseline.
-- Produces: transition from `FACE` only after consecutive eligible samples; bounded `ERROR` with no numeric F otherwise.
+- Produces: transition from `FACE` only after three eligible samples in the latest five sampled frames; bounded `ERROR` with no numeric F otherwise.
 
 - [ ] **Step 1: Add failing host and Unity tests**
 
-Cover consecutive-valid completion, invalid-frame counter reset, temporary invalid recovery, deadline failure, and no score from bbox-only input.
+Cover five-frame-window completion, temporary invalid recovery, deadline failure, and no score from bbox-only input.
 
 - [ ] **Step 2: Verify RED**
 
@@ -123,7 +123,7 @@ Expected: FAIL because the current sample counter does not enforce consecutivene
 
 - [ ] **Step 3: Implement eligible-sample state**
 
-Reset only the F consecutive counter on an invalid F frame, retain the overall stage start time, use a bounded F deadline, and retain median/baseline scoring. Add rate-limited reason counters for no face, invalid landmarks/geometry, and baseline pending without logging coordinates.
+Use a five-bit F validity window with a three-sample threshold, retain the overall stage start time, use a bounded F deadline, and retain median/baseline scoring. Configure detector thresholds at `0.40/0.45`, retain bbox display for at most two misses without validating F, and add rate-limited local rejection reasons without logging coordinates.
 
 - [ ] **Step 4: Verify tests and both builds**
 
@@ -168,4 +168,3 @@ Update only observed outcomes, then run full pytest, `git diff --check`, both bu
 - [ ] **Step 5: Commit and push**
 
 Commit message: `test(demo): verify reliable guided screening`
-

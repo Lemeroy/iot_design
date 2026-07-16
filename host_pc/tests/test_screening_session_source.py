@@ -6,13 +6,13 @@ SESSION = ROOT / "firmware_camera" / "main" / "screening_session.c"
 ADAPTER = ROOT / "firmware_camera" / "main" / "camera_capture_adapter.cpp"
 
 
-def test_face_stage_requires_consecutive_ready_samples() -> None:
+def test_face_stage_accepts_three_valid_samples_in_a_five_frame_window() -> None:
     source = SESSION.read_text(encoding="utf-8")
 
-    assert "reset_face_samples_on_invalid" in source
-    assert "session->stage == SG_STAGE_FACE" in source
-    assert "!sample->face_ready" in source
-    assert "session->sample_count = 0" in source
+    assert "SG_FACE_SAMPLE_WINDOW" in source
+    assert "face_sample_window" in source
+    assert "face_window_count" in source
+    assert "count_face_samples" in source
 
 
 def test_face_stage_keeps_a_bounded_overall_deadline() -> None:
@@ -32,3 +32,13 @@ def test_face_adapter_reports_bounded_local_rejection_reasons() -> None:
     assert "baseline" in source
     assert "SG_FACE_REJECT_LOG_INTERVAL" in source
 
+
+def test_detector_uses_balanced_thresholds_and_preview_bbox_hysteresis() -> None:
+    source = ADAPTER.read_text(encoding="utf-8")
+
+    assert "SG_FACE_PROPOSAL_SCORE_THRESHOLD = 0.40f" in source
+    assert "SG_FACE_LANDMARK_SCORE_THRESHOLD = 0.45f" in source
+    assert "set_score_thr(SG_FACE_PROPOSAL_SCORE_THRESHOLD, 0)" in source
+    assert "set_score_thr(SG_FACE_LANDMARK_SCORE_THRESHOLD, 1)" in source
+    assert "SG_FACE_BBOX_HOLD_FRAMES = 2" in source
+    assert "s_bbox_miss_count" in source
