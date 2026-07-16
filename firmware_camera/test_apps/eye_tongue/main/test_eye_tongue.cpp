@@ -356,7 +356,7 @@ TEST_CASE("face stage accepts two valid samples in five frames", "[screening_ses
     sg_screening_session_update(&session, &invalid, 1900000);
     sg_screening_session_update(&session, &invalid, 2200000);
     sg_screening_session_update(&session, &invalid, 2500000);
-    sg_screening_session_update(&session, &face, 4000000);
+    sg_screening_session_update(&session, &face, 2800000);
     TEST_ASSERT_EQUAL(SG_STAGE_EYE_CENTER, sg_screening_session_stage(&session));
 }
 

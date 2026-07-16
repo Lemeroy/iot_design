@@ -206,7 +206,13 @@ void sg_screening_session_update(
     }
     const uint8_t required_samples = session->stage == SG_STAGE_FACE
         ? SG_SCREENING_FACE_REQUIRED_SAMPLES : SG_SCREENING_STABLE_SAMPLES;
-    if (elapsed >= duration && session->sample_count >= required_samples) {
+    const bool face_ready_to_advance = session->stage == SG_STAGE_FACE
+        && elapsed >= SG_STAGE_SETTLE_US
+        && session->sample_count >= required_samples;
+    const bool timed_stage_ready = session->stage != SG_STAGE_FACE
+        && elapsed >= duration
+        && session->sample_count >= required_samples;
+    if (face_ready_to_advance || timed_stage_ready) {
         (void)complete_stage(session, now_us);
     }
 }

@@ -15,6 +15,8 @@ def test_face_stage_accepts_two_valid_samples_in_a_five_frame_window() -> None:
     assert "face_sample_window" in source
     assert "face_window_count" in source
     assert "count_face_samples" in source
+    assert "face_ready_to_advance" in source
+    assert "elapsed >= SG_STAGE_SETTLE_US" in source
 
 
 def test_face_stage_keeps_a_bounded_overall_deadline() -> None:
