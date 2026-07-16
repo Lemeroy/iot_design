@@ -32,6 +32,7 @@ typedef struct {
     sg_camera_stage_response_t latest_stage;
     sg_screening_control_t pending_control;
     bool control_pending;
+    volatile uint32_t dropped_events;
     uint8_t selected_reg;
 } sg_camera_target_context_t;
 
@@ -49,6 +50,17 @@ static bool camera_target_on_receive(
     sg_camera_target_context_t *context = user_data;
     if (event_data->length == 0) return false;
 
+    if (event_data->length >= 2
+        && event_data->buffer[0] == SG_CAMERA_CONTROL_REGISTER
+        && event_data->buffer[1] <= SG_SCREENING_START) {
+        portENTER_CRITICAL_ISR(&context->response_lock);
+        context->pending_control =
+            (sg_screening_control_t)event_data->buffer[1];
+        context->control_pending = true;
+        portEXIT_CRITICAL_ISR(&context->response_lock);
+        return false;
+    }
+
     sg_camera_target_event_t event = {
         .type = SG_CAMERA_TARGET_EVENT_RECEIVE,
         .reg = event_data->buffer[0],
@@ -56,7 +68,9 @@ static bool camera_target_on_receive(
         .has_value = event_data->length >= 2,
     };
     BaseType_t task_woken = pdFALSE;
-    xQueueSendFromISR(context->events, &event, &task_woken);
+    if (xQueueSendFromISR(context->events, &event, &task_woken) != pdPASS) {
+        context->dropped_events++;
+    }
     return task_woken == pdTRUE;
 }
 
@@ -83,10 +97,16 @@ static void camera_target_task(void *arg)
     sg_camera_target_event_t event;
     bool receive_logged = false;
     bool request_logged = false;
+    uint32_t last_dropped_events = 0;
 
     while (true) {
         if (xQueueReceive(context->events, &event, portMAX_DELAY) != pdTRUE) {
             continue;
+        }
+        if (context->dropped_events != last_dropped_events) {
+            last_dropped_events = context->dropped_events;
+            ESP_LOGW(TAG, "I2C event queue overflow count=%lu",
+                     (unsigned long)last_dropped_events);
         }
         if (event.type == SG_CAMERA_TARGET_EVENT_RECEIVE) {
             if (event.reg == SG_CAMERA_CONTROL_REGISTER && event.has_value
