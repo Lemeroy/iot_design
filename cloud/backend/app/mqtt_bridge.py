@@ -79,6 +79,18 @@ class MqttBridge:
     def connected(self) -> bool:
         return self._connected.is_set() and self._client.is_connected()
 
+    def publish_screening_control(self, device_id: str, action: str) -> bool:
+        if action not in {"start", "cancel"} or not self.connected():
+            return False
+        topic = TOPIC_DOWNLINK_FMT.format(device_id=device_id)
+        payload = json.dumps(
+            {"type": "screening_control", "action": action},
+            ensure_ascii=True,
+            separators=(",", ":"),
+        )
+        info = self._client.publish(topic, payload, qos=1, retain=False)
+        return getattr(info, "rc", mqtt.MQTT_ERR_SUCCESS) == mqtt.MQTT_ERR_SUCCESS
+
     def start(self) -> None:
         log.info("mqtt bridge connecting %s:%d as %s", self.host, self.port, self.user or "-")
         self._client.connect_async(self.host, self.port, keepalive=30)

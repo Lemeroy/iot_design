@@ -8,7 +8,7 @@ from collections import OrderedDict, deque
 from collections.abc import Callable
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebSocketDisconnect, status
 
 from .demo_auth import DemoAuth
 from .schemas import (
@@ -16,6 +16,8 @@ from .schemas import (
     DemoAdviceResp,
     DemoDeviceResp,
     DemoSessionResp,
+    DemoScreeningReq,
+    DemoScreeningResp,
     DownlinkPayload,
     UplinkPayload,
 )
@@ -78,6 +80,11 @@ def _session_claims(request: Request) -> dict[str, Any]:
     if claims is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="authentication required")
     return claims
+
+
+def _claims_from_token(token: str | None) -> dict[str, Any] | None:
+    auth = _auth()
+    return auth.verify_session(token) if auth is not None and token else None
 
 
 def _set_session(response: Response, auth: DemoAuth, device_id: str | None) -> None:
@@ -173,6 +180,21 @@ async def disconnect(request: Request, response: Response) -> DemoSessionResp:
     return DemoSessionResp(authenticated=True)
 
 
+@router.post("/screening", response_model=DemoScreeningResp)
+async def screening(request: Request, req: DemoScreeningReq) -> DemoScreeningResp:
+    claims = _session_claims(request)
+    device_id = claims.get("device_id")
+    if not isinstance(device_id, str):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="device not connected")
+    cache = _cache_for_device(device_id)
+    if cache is None or not _is_online(cache):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="device is offline")
+    bridge = _bridge()
+    if bridge is None or not bridge.publish_screening_control(device_id, req.action):
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="control unavailable")
+    return DemoScreeningResp(accepted=True, action=req.action)
+
+
 @router.get("/device", response_model=DemoDeviceResp)
 async def device(request: Request) -> DemoDeviceResp:
     claims = _session_claims(request)
@@ -207,4 +229,47 @@ async def device(request: Request) -> DemoDeviceResp:
         reasons=uplink.reasons,
         veto_by=uplink.veto_by,
         advice=demo_advice,
+        screening_stage=uplink.screening_stage,
     )
+
+
+@router.websocket("/ws")
+async def device_ws(websocket: WebSocket) -> None:
+    claims = _claims_from_token(websocket.cookies.get(DEMO_SESSION_COOKIE))
+    device_id = claims.get("device_id") if claims else None
+    if not isinstance(device_id, str):
+        await websocket.close(code=4401)
+        return
+    await websocket.accept()
+    last_marker: tuple[Any, Any] | None = None
+    try:
+        while True:
+            if _claims_from_token(websocket.cookies.get(DEMO_SESSION_COOKIE)) is None:
+                await websocket.close(code=4401)
+                return
+            cache = _cache_for_device(device_id)
+            marker = (
+                cache.get("generation") if cache else None,
+                cache.get("received_at") if cache else None,
+            )
+            if marker != last_marker:
+                uplink = cache.get("uplink") if cache else None
+                advice = cache.get("advice") if cache else None
+                payload = DemoDeviceResp(
+                    device_id=device_id,
+                    online=bool(cache and _is_online(cache)),
+                    received_at=cache.get("received_at") if cache else None,
+                    scores=uplink.scores if isinstance(uplink, UplinkPayload) else None,
+                    level=uplink.level if isinstance(uplink, UplinkPayload) else None,
+                    reasons=uplink.reasons if isinstance(uplink, UplinkPayload) else [],
+                    veto_by=uplink.veto_by if isinstance(uplink, UplinkPayload) else [],
+                    advice=DemoAdviceResp(
+                        advice_text=advice.advice_text, source=advice.source, ts=advice.ts
+                    ) if isinstance(advice, DownlinkPayload) else None,
+                    screening_stage=uplink.screening_stage if isinstance(uplink, UplinkPayload) else 0,
+                )
+                await websocket.send_json(payload.model_dump(mode="json"))
+                last_marker = marker
+            await asyncio.sleep(0.25)
+    except WebSocketDisconnect:
+        return

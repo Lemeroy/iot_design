@@ -40,6 +40,7 @@ class UplinkPayload(StrictModel):
     profile: Profile
     device_id: str
     ts: int
+    screening_stage: int = Field(default=0, ge=0, le=7)
 
 
 class DownlinkPayload(StrictModel):
@@ -89,6 +90,15 @@ class DemoConnectReq(StrictModel):
     device_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,32}$")
 
 
+class DemoScreeningReq(StrictModel):
+    action: Literal["start", "cancel"]
+
+
+class DemoScreeningResp(StrictModel):
+    accepted: bool
+    action: Literal["start", "cancel"]
+
+
 class DemoAdviceResp(StrictModel):
     advice_text: str
     source: str
@@ -104,3 +114,4 @@ class DemoDeviceResp(StrictModel):
     reasons: List[str] = Field(default_factory=list)
     veto_by: List[str] = Field(default_factory=list)
     advice: Optional[DemoAdviceResp] = None
+    screening_stage: int = Field(default=0, ge=0, le=7)

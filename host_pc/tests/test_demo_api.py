@@ -49,10 +49,15 @@ def demo_app(monkeypatch):
     class TestBridge:
         def __init__(self):
             self.latest = {}
+            self.controls = []
 
         def cache_snapshot(self, device_id):
             cache = self.latest.get(device_id)
             return dict(cache) if isinstance(cache, dict) else None
+
+        def publish_screening_control(self, device_id, action):
+            self.controls.append((device_id, action))
+            return True
 
     bridge = TestBridge()
     monkeypatch.setattr(demo_api, "_login_limiter", demo_api._LoginLimiter())
@@ -159,10 +164,33 @@ def test_demo_api_requires_a_signed_session(demo_app):
                 ("post", "/demo/api/connect"),
                 ("post", "/demo/api/disconnect"),
                 ("get", "/demo/api/device"),
+                ("post", "/demo/api/screening"),
             ):
                 body = {"device_id": "sg-0001"} if path.endswith("/connect") else {}
+                if path.endswith("/screening"):
+                    body = {"action": "start"}
                 response = await client.request(method, path, json=body)
                 assert response.status_code == 401
+
+    _run(scenario)
+
+
+def test_demo_screening_control_uses_bound_online_device(demo_app):
+    app, bridge, password = demo_app
+    bridge.latest["sg-0001"] = {"uplink": _payload(), "received_at": time.time()}
+
+    async def scenario():
+        async with await _client(app) as client:
+            await client.post("/demo/api/login", json={"username": "demo-user", "password": password})
+            assert (await client.post("/demo/api/screening", json={"action": "start"})).status_code == 409
+            await client.post("/demo/api/connect", json={"device_id": "sg-0001"})
+            started = await client.post("/demo/api/screening", json={"action": "start"})
+            cancelled = await client.post("/demo/api/screening", json={"action": "cancel"})
+            invalid = await client.post("/demo/api/screening", json={"action": "other"})
+            assert started.status_code == 200
+            assert cancelled.status_code == 200
+            assert invalid.status_code == 422
+            assert bridge.controls == [("sg-0001", "start"), ("sg-0001", "cancel")]
 
     _run(scenario)
 
@@ -384,6 +412,7 @@ def test_demo_device_returns_only_monitoring_data_and_latest_advice(demo_app):
                 "reasons",
                 "veto_by",
                 "advice",
+                "screening_stage",
             }
             assert data["online"] is True
             assert data["scores"] == {
