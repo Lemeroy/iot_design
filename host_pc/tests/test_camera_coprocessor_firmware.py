@@ -163,6 +163,23 @@ def test_camera_eye_kernel_is_local_and_fixed_storage():
         assert forbidden not in source.lower()
 
 
+def test_camera_tongue_kernel_is_auxiliary_local_and_fixed_storage():
+    header = read("tongue_deviation.h")
+    source = read("tongue_deviation.cpp")
+
+    for token in (
+        "sg_tongue_measure",
+        "signed_offset",
+        "face_roll_deg",
+        "auxiliary",
+    ):
+        assert token in header.lower() or token in source.lower()
+    for forbidden in (
+        "malloc", "new ", "fopen", "mqtt", "http", "socket", "jpeg_b64"
+    ):
+        assert forbidden not in source.lower()
+
+
 def test_camera_integrates_five_landmarks_and_dual_i2c_registers():
     adapter = read("camera_capture_adapter.cpp")
     capture_header = read("camera_capture_adapter.h")
