@@ -62,19 +62,23 @@ result computed locally from ESP-WHO five-point landmarks.
 
 ## Expected behavior
 
-- Camera I2C address is `0x52`; bbox register `0x01` remains for debugging and
-  numeric F register `0x02` is polled by N16R8 every 500 ms.
+- Camera I2C address is `0x52`; bbox register `0x01` remains for debugging.
+  N16R8 polls F `0x02`, E `0x03`, T `0x04`, and stage `0x11`. It controls a
+  session by writing `0x10,1` (start) or `0x10,0` (cancel).
 - Camera firmware runs local GC2145 capture plus ESP-WHO human face detection
   and retains the normalized bbox for USB preview.
 - ESP-WHO's two eyes, nose, and two mouth corners feed quality gating,
-  eye-line roll correction, asymmetry scoring, and a five-frame median. A
+  eye-line roll correction, asymmetry scoring, and a personal baseline. A
   valid frontal face produces `F score`, signed mouth angle, and quality on
   register `0x02`; rejected frames do not create a healthy score.
 - The five-point F result is an initial risk feature, not a diagnosis or a
   replacement for evaluated 68-point analysis. Its thresholds and accuracy
   remain pending measured calibration.
-- T and E remain unavailable. The five face landmarks must not be repurposed
-  to fabricate tongue or eye scores.
+- A guided session asks for frontal face, center gaze, left gaze, right gaze,
+  and tongue extension. E uses local pupil ROIs; T uses a local lower-face
+  color component. Invalid regions remain unavailable rather than healthy.
+- E is an ocular-movement risk prompt and does not test visual fields. T is
+  auxiliary only and never causes a single-item danger result.
 - NMO432 logs aggregate RMS, peak, and valid-block counts every five seconds.
   These are electrical diagnostics, not a speech-risk score.
 - S remains unavailable without an evaluated versioned model.
@@ -90,8 +94,10 @@ result computed locally from ESP-WHO five-point landmarks.
 5. Confirm MQTT and InfluxDB contain no JPEG, PCM, MFCC, or raw media.
 6. Hold a well-lit frontal face steady for five valid frames and verify COM3
    logs `camera F score=... angle=... quality=...`.
-7. Remove the face and confirm F returns to unavailable after the stale
-   interval; S/T/E remain unavailable rather than 0.
+7. Start a guided session from the authenticated VPS page and follow the F/E/T
+   prompts. Confirm COM3 reports stage changes and E/T only after completion.
+8. Obscure the camera during another session and confirm error/retry with
+   unavailable F/E/T rather than 0 or 100.
 
 This product provides risk prompts and medical-attention reminders, not a
 diagnosis. Arm weakness is not independently measured by the mirror.

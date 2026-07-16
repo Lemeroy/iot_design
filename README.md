@@ -186,7 +186,15 @@ cd host_pc
 
 ## Preliminary External Monitor
 
-The preliminary external monitor is read-only. A viewer connects by device ID only after a valid MQTT uplink in the last 30 seconds. Synchronization is limited to monitoring scores/status and latest LLM advice; it does not synchronize profile, Wi-Fi, MQTT, fusion, thresholds, veto rules, or remote commands.
+The authenticated preliminary monitor connects by device ID only after a valid
+MQTT uplink in the last 30 seconds. It synchronizes numeric scores, screening
+stage, status, and latest LLM advice. Its only device command is bounded
+`start`/`cancel` for a guided F/E/T session; it cannot change Wi-Fi, MQTT,
+fusion weights, thresholds, veto rules, firmware, or profile. State uses
+WebSocket updates with automatic five-second polling fallback.
+
+Invalid image regions remain unavailable. E is an ocular-movement risk prompt
+and does not test visual fields; T is auxiliary and never a single-item veto.
 
 HTTPS is the normal mode. Plain HTTP is allowed only for the preliminary demo with `SG_ALLOW_INSECURE_HTTP=1`. Raw audio, raw video, MFCC, landmarks, and ROI remain local and do not appear in demo API or deployment examples.
 

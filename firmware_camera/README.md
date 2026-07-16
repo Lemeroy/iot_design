@@ -4,8 +4,10 @@ This ESP-IDF v5.5.3 project targets the Hiwonder ESP32-S3-Cam board
 (`ESP32-S3-WROOM-1U-N8R8`) with the onboard GC2145 camera. It runs local
 `esp32-camera` YUV422 capture, local PSRAM RGB888 conversion, and ESP-WHO
 `human_face_detect`. It computes a quality-gated FAST Face (F) engineering
-score from ESP-WHO's five landmarks, stabilizes it over five valid frames,
-and exposes only numeric results to the N16R8 main controller over I2C.
+score from ESP-WHO's five landmarks and a volatile personal neutral baseline.
+During an explicitly started guided session it also computes local pupil-motion
+E and auxiliary tongue-deviation T scores, then exposes only numeric results to
+the N16R8 main controller over I2C.
 
 Raw images are not uploaded. The normal device output is face presence and
 normalized geometry only. An explicit USB debug session may send requested
@@ -54,6 +56,10 @@ The camera board is the I2C target on GPIO47/GPIO48:
 address:  0x52
 register 0x01: 4 bytes: center_x, center_y, width, height
 register 0x02: 4 bytes: status, F_score, signed_mouth_angle, quality
+register 0x03: 4 bytes: status, E_score, binocular_difference, quality
+register 0x04: 4 bytes: status, T_score, signed_offset_percent, quality
+register 0x10: write 2 bytes: register, start(1)/cancel(0)
+register 0x11: 4 bytes: stage, progress, 0, 0
 ```
 
 Register `0x01` values are normalized to `0..255`; all zeros mean no face.
@@ -61,10 +67,16 @@ For register `0x02`, status `1` means the remaining values are valid and
 status `0` means F is unavailable. Score and quality are `0..100`; angle is a
 signed degree value in `-90..90`. N16R8 uses register `0x02` for fusion.
 
+Stages are `idle`, `face`, `eye-center`, `eye-left`, `eye-right`, `tongue`,
+`done`, and `error`. E and T remain unavailable outside a guided session or
+when image quality gates fail. E does not claim visual-field testing. T is an
+auxiliary observation only and never acts as a single-item danger veto.
+
 The F feature requires a face at least 64 pixels wide, sufficient eye spacing,
 a near-frontal nose position, and eye-line roll within 25 degrees. It removes
 eye-line roll from the mouth angle, combines mouth angle with nose-to-mouth
-distance asymmetry, and publishes the median of five valid frames. These are
+distance asymmetry, and publishes a three-frame median relative to a five-sample
+neutral baseline. These are
 initial engineering thresholds pending measured sensitivity, specificity,
 and K-fold evaluation.
 
