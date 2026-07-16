@@ -6,6 +6,7 @@
 #include "unity_test_runner.h"
 
 #include "face_geometry.h"
+#include "face_baseline.h"
 #include "face_stabilizer.h"
 
 static sg_face_geometry_input_t frontal_face()
@@ -134,6 +135,89 @@ TEST_CASE("stabilizer reset requires five new samples", "[face_stabilizer]")
         TEST_ASSERT_FALSE(sg_face_stabilizer_push(&state, &sample, &stable));
     }
     TEST_ASSERT_TRUE(sg_face_stabilizer_push(&state, &sample, &stable));
+}
+
+static sg_face_frame_metrics_t baseline_sample(float angle, float asymmetry,
+                                                uint8_t quality = 85)
+{
+    return {
+        .score = 100,
+        .mouth_angle_deg = angle,
+        .corner_asymmetry = asymmetry,
+        .quality = quality,
+    };
+}
+
+static void establish_baseline(sg_face_baseline_t *state, int64_t start_us)
+{
+    const float angles[5] = {1.0f, 1.2f, 0.8f, 1.1f, 0.9f};
+    const float asymmetries[5] = {0.050f, 0.052f, 0.048f, 0.051f, 0.049f};
+    sg_face_frame_metrics_t out = {};
+    for (int i = 0; i < 5; ++i) {
+        const auto sample = baseline_sample(angles[i], asymmetries[i]);
+        TEST_ASSERT_FALSE(sg_face_baseline_update(
+            state, &sample, start_us + i * 500000LL, &out));
+    }
+    TEST_ASSERT_TRUE(sg_face_baseline_ready(state));
+}
+
+TEST_CASE("personal baseline calibrates from five stable samples", "[face_baseline]")
+{
+    sg_face_baseline_t state = {};
+    establish_baseline(&state, 1000000LL);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 1.0f, state.baseline_angle_deg);
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.050f, state.baseline_asymmetry);
+}
+
+TEST_CASE("personal baseline rejects low quality and unstable windows", "[face_baseline]")
+{
+    sg_face_baseline_t state = {};
+    sg_face_frame_metrics_t out = {};
+    for (int i = 0; i < 5; ++i) {
+        const auto low_quality = baseline_sample(1.0f, 0.05f, 69);
+        TEST_ASSERT_FALSE(sg_face_baseline_update(
+            &state, &low_quality, 1000000LL + i * 500000LL, &out));
+    }
+    TEST_ASSERT_FALSE(sg_face_baseline_ready(&state));
+
+    sg_face_baseline_reset(&state);
+    const float unstable[5] = {0.0f, 0.0f, 0.0f, 0.0f, 4.0f};
+    for (int i = 0; i < 5; ++i) {
+        const auto sample = baseline_sample(unstable[i], 0.05f);
+        TEST_ASSERT_FALSE(sg_face_baseline_update(
+            &state, &sample, 5000000LL + i * 500000LL, &out));
+    }
+    TEST_ASSERT_FALSE(sg_face_baseline_ready(&state));
+}
+
+TEST_CASE("relative score responds after three frames", "[face_baseline]")
+{
+    sg_face_baseline_t state = {};
+    establish_baseline(&state, 1000000LL);
+    sg_face_frame_metrics_t out = {};
+
+    const auto neutral = baseline_sample(1.0f, 0.05f);
+    TEST_ASSERT_FALSE(sg_face_baseline_update(&state, &neutral, 4000000LL, &out));
+    TEST_ASSERT_FALSE(sg_face_baseline_update(&state, &neutral, 4500000LL, &out));
+    TEST_ASSERT_TRUE(sg_face_baseline_update(&state, &neutral, 5000000LL, &out));
+    TEST_ASSERT_GREATER_OR_EQUAL_UINT8(95, out.score);
+
+    const auto changed = baseline_sample(9.0f, 0.20f);
+    TEST_ASSERT_TRUE(sg_face_baseline_update(&state, &changed, 5500000LL, &out));
+    TEST_ASSERT_TRUE(sg_face_baseline_update(&state, &changed, 6000000LL, &out));
+    TEST_ASSERT_TRUE(sg_face_baseline_update(&state, &changed, 6500000LL, &out));
+    TEST_ASSERT_LESS_OR_EQUAL_UINT8(5, out.score);
+}
+
+TEST_CASE("personal baseline survives brief gap and resets at ten seconds", "[face_baseline]")
+{
+    sg_face_baseline_t state = {};
+    establish_baseline(&state, 1000000LL);
+    const int64_t last_valid = state.last_valid_us;
+    sg_face_baseline_note_invalid(&state, last_valid + 9000000LL);
+    TEST_ASSERT_TRUE(sg_face_baseline_ready(&state));
+    sg_face_baseline_note_invalid(&state, last_valid + 10000000LL);
+    TEST_ASSERT_FALSE(sg_face_baseline_ready(&state));
 }
 
 extern "C" void app_main(void)

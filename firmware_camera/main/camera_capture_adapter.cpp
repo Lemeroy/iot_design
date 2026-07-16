@@ -1,7 +1,7 @@
 #include "camera_capture_adapter.h"
 #include "camera_usb_preview.h"
+#include "face_baseline.h"
 #include "face_geometry.h"
-#include "face_stabilizer.h"
 
 #include <algorithm>
 #include <cmath>
@@ -23,7 +23,7 @@ static constexpr size_t RGB888_BUFFER_SIZE = CAMERA_WIDTH * CAMERA_HEIGHT * 3;
 
 static HumanFaceDetect *s_model;
 static uint8_t *s_rgb888;
-static sg_face_stabilizer_t s_face_stabilizer;
+static sg_face_baseline_t s_face_baseline;
 
 static void bgr888_to_rgb888_in_place(uint8_t *pixels, size_t pixel_count)
 {
@@ -194,18 +194,22 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
 
     sg_face_frame_metrics_t frame_metrics = {};
     sg_face_frame_metrics_t stable_metrics = {};
+    const int64_t now_us = esp_timer_get_time();
     const bool frame_valid = selected.landmarks_valid
         && sg_face_geometry_evaluate(&selected.geometry, &frame_metrics);
-    if (frame_valid
-        && sg_face_stabilizer_push(
-            &s_face_stabilizer, &frame_metrics, &stable_metrics)) {
+    const bool baseline_was_ready = sg_face_baseline_ready(&s_face_baseline);
+    if (frame_valid && sg_face_baseline_update(
+            &s_face_baseline, &frame_metrics, now_us, &stable_metrics)) {
         out->face_metrics.valid = true;
         out->face_metrics.score = stable_metrics.score;
         out->face_metrics.mouth_angle_deg = static_cast<int8_t>(std::clamp(
             (int)std::lround(stable_metrics.mouth_angle_deg), -90, 90));
         out->face_metrics.quality = stable_metrics.quality;
     } else if (!frame_valid) {
-        sg_face_stabilizer_reset(&s_face_stabilizer);
+        sg_face_baseline_note_invalid(&s_face_baseline, now_us);
+    }
+    if (!baseline_was_ready && sg_face_baseline_ready(&s_face_baseline)) {
+        ESP_LOGI(TAG, "face baseline ready");
     }
 
     const long long latency_ms =

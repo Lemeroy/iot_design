@@ -106,6 +106,23 @@ def test_camera_has_quality_gated_five_point_geometry_module():
         assert token in source
 
 
+def test_camera_has_volatile_personal_face_baseline():
+    header = read("face_baseline.h")
+    source = read("face_baseline.c")
+
+    for token in (
+        "SG_FACE_BASELINE_CALIBRATION_SAMPLES",
+        "SG_FACE_BASELINE_OUTPUT_SAMPLES",
+        "SG_FACE_BASELINE_RESET_US",
+        "sg_face_baseline_update",
+        "sg_face_baseline_note_invalid",
+        "sg_face_baseline_ready",
+    ):
+        assert token in header or token in source
+    for forbidden in ("nvs", "mqtt", "fopen", "malloc"):
+        assert forbidden not in source.lower()
+
+
 def test_camera_integrates_five_landmarks_and_dual_i2c_registers():
     adapter = read("camera_capture_adapter.cpp")
     capture_header = read("camera_capture_adapter.h")
@@ -120,8 +137,10 @@ def test_camera_integrates_five_landmarks_and_dual_i2c_registers():
     assert ".right_eye = {(int16_t)result.keypoint[6], (int16_t)result.keypoint[7]}" in adapter
     assert ".right_mouth = {(int16_t)result.keypoint[8], (int16_t)result.keypoint[9]}" in adapter
     assert "sg_face_geometry_evaluate" in adapter
-    assert "sg_face_stabilizer_push" in adapter
-    assert "sg_face_stabilizer_reset" in adapter
+    assert "sg_face_baseline_update" in adapter
+    assert "sg_face_baseline_note_invalid" in adapter
+    assert "sg_face_baseline_ready" in adapter
+    assert "sg_face_stabilizer_push" not in adapter
     assert "sg_camera_face_metrics_t face_metrics" in capture_header
     assert "SG_CAMERA_FACE_REGISTER" in target
     assert "SG_CAMERA_FACE_METRICS_REGISTER" in target
@@ -130,7 +149,7 @@ def test_camera_integrates_five_landmarks_and_dual_i2c_registers():
     assert "sg_camera_face_metrics_encode" in app
     assert "&metrics_response" in app
     assert '"face_geometry.cpp"' in cmake
-    assert '"face_stabilizer.c"' in cmake
+    assert '"face_baseline.c"' in cmake
     for forbidden in ("tongue_score", "eye_score"):
         assert forbidden not in adapter
 
