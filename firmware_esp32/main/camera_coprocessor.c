@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -16,6 +17,7 @@
 
 #define SG_CAMERA_I2C_HZ 100000U
 #define SG_CAMERA_READ_TIMEOUT_MS 100
+#define SG_CAMERA_REGISTER_SETTLE_MS 5
 #define SG_CAMERA_STALE_US 2000000LL
 
 static i2c_master_bus_handle_t s_bus;
@@ -43,9 +45,14 @@ esp_err_t sg_camera_coprocessor_poll(sg_camera_observation_t *out)
 
     const uint8_t reg = SG_CAMERA_FACE_REGISTER;
     uint8_t raw[sizeof(sg_camera_face_response_t)] = {0};
-    esp_err_t err = i2c_master_transmit_receive(
-        s_device, &reg, sizeof(reg), raw, sizeof(raw),
-        SG_CAMERA_READ_TIMEOUT_MS);
+    esp_err_t err = i2c_master_transmit(
+        s_device, &reg, sizeof(reg), SG_CAMERA_READ_TIMEOUT_MS);
+    if (err != ESP_OK) {
+        return err;
+    }
+    vTaskDelay(pdMS_TO_TICKS(SG_CAMERA_REGISTER_SETTLE_MS));
+    err = i2c_master_receive(
+        s_device, raw, sizeof(raw), SG_CAMERA_READ_TIMEOUT_MS);
     if (err != ESP_OK) {
         return err;
     }
@@ -83,8 +90,11 @@ static void camera_poll_task(void *arg)
             publish_unavailable(now_us);
             poll_failures++;
             if (poll_failures == 1 || err != last_poll_error || poll_failures % 20 == 0) {
-                ESP_LOGW(SG_TAG_MAIN, "camera poll failed: %s count=%u",
-                         esp_err_to_name(err), poll_failures);
+                ESP_LOGW(SG_TAG_MAIN,
+                         "camera poll failed: %s count=%u SDA=%d SCL=%d",
+                         esp_err_to_name(err), poll_failures,
+                         gpio_get_level(SG_PIN_CAMERA_I2C_SDA),
+                         gpio_get_level(SG_PIN_CAMERA_I2C_SCL));
             }
             last_poll_error = err;
             if (online) {

@@ -16,6 +16,9 @@ def test_camera_firmware_exposes_i2c_scores_not_network_media():
     adapter = read("camera_capture_adapter.cpp")
     defaults = (CAMERA / "sdkconfig.defaults").read_text(encoding="utf-8")
 
+    assert '#include "driver/i2c_slave.h"' in target
+    assert '#include "driver/i2c.h"' not in target
+    assert ".i2c_port = I2C_NUM_0" in target
     assert "i2c_new_slave_device" in target
     assert "i2c_slave_register_event_callbacks" in target
     assert ".on_receive" in target
@@ -39,13 +42,16 @@ def test_camera_firmware_exposes_i2c_scores_not_network_media():
         assert forbidden not in app.lower()
 
 
-def test_camera_i2c_response_is_queued_only_when_master_requests_it():
+def test_camera_i2c_response_is_served_after_register_selection():
     target = read("camera_score_target.c")
 
     assert ".i2c_port = I2C_NUM_0" in target
+    assert ".slave_addr = SG_CAMERA_I2C_ADDRESS" in target
+    assert "SG_CAMERA_TARGET_EVENT_RECEIVE" in target
     assert "SG_CAMERA_TARGET_EVENT_REQUEST" in target
     assert "xQueueSendFromISR" in target
     assert "xQueueReceive" in target
+    assert "i2c_slave_write" in target
     assert "i2c_slave_transmit" not in target
     assert "I2C target ready" in target
 
@@ -56,6 +62,8 @@ def test_main_firmware_logs_first_camera_poll_failure_for_bringup():
     )
 
     assert "camera poll failed" in main_camera
+    assert "SDA=%d SCL=%d" in main_camera
+    assert "gpio_get_level" in main_camera
 
 
 def test_camera_address_matches_shared_protocol():

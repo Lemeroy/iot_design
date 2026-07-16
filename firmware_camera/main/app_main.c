@@ -2,6 +2,7 @@
 #include "camera_score_target.h"
 #include "camera_usb_preview.h"
 
+#include "driver/gpio.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -17,6 +18,8 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(sg_camera_score_target_init());
     ESP_ERROR_CHECK(sg_camera_usb_preview_init());
+    ESP_LOGI(TAG, "I2C idle levels SDA47=%d SCL48=%d",
+             gpio_get_level(GPIO_NUM_47), gpio_get_level(GPIO_NUM_48));
 
     while (1) {
         (void)sg_camera_capture_observe(&observation);

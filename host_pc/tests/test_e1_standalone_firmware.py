@@ -28,7 +28,10 @@ def test_camera_coprocessor_is_polled_locally_with_validity():
     assert '#include "camera_coprocessor.h"' in app
     assert "sg_camera_coprocessor_init" in app
     assert "i2c_new_master_bus" in source
-    assert "i2c_master_transmit_receive" in source
+    assert "i2c_master_transmit(" in source
+    assert "i2c_master_receive(" in source
+    assert "i2c_master_transmit_receive" not in source
+    assert "SG_CAMERA_REGISTER_SETTLE_MS" in source
     assert "SG_CAMERA_FACE_REGISTER" in source
     assert "sg_camera_face_bbox_parse" in source
     assert "sg_score_bus_apply_camera" in source
