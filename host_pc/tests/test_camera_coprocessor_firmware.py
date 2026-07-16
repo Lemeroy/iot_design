@@ -88,6 +88,24 @@ def test_camera_protocol_exposes_numeric_face_metrics_register():
     assert "sg_camera_face_metrics_encode" in source
 
 
+def test_camera_has_quality_gated_five_point_geometry_module():
+    header = read("face_geometry.h")
+    source = read("face_geometry.cpp")
+
+    assert "sg_face_geometry_evaluate" in header
+    for token in (
+        "kMinFaceWidth",
+        "kMinEyeDistance",
+        "kMaxEyeRollDeg",
+        "kAngleHealthyDeg",
+        "kAngleZeroDeg",
+        "kAsymmetryHealthy",
+        "kAsymmetryZero",
+        "corner_asymmetry",
+    ):
+        assert token in source
+
+
 def test_camera_orientation_matches_esp_who_s3_default():
     adapter = read("camera_capture_adapter.cpp")
 
