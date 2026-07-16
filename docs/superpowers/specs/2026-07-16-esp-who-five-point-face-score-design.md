@@ -21,8 +21,8 @@ available for debugging.
 ## Architecture
 
 The GC2145 camera board remains the owner of all image processing. For the
-largest detected face, it reads ESP-WHO's five landmarks in this order as
-provided by the detector result: two eyes, nose tip, and two mouth corners.
+largest detected face, it reads ESP-DL's MNP landmarks in their actual tensor
+order: left eye, left mouth corner, nose tip, right eye, right mouth corner.
 A focused geometry module validates the landmarks, computes face asymmetry,
 and feeds a five-sample temporal median. The camera I2C target exposes the
 stable numeric result to the N16R8 controller.

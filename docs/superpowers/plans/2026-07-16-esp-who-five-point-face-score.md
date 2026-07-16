@@ -199,7 +199,11 @@ Run focused pytest. Expected: failures for missing metrics integration.
 
 - [ ] **Step 3: Integrate largest-face landmarks**
 
-Extend the selected-face helper to retain bbox plus keypoints. Map indexes `0..4` to left eye, right eye, nose, left mouth, right mouth according to ESP-WHO MNP output. Evaluate and stabilize before returning the frame buffer. A no-face or failed gate resets the stabilizer and sets metrics invalid.
+Extend the selected-face helper to retain bbox plus keypoints. Map indexes
+`0..4` to left eye, left mouth, nose, right eye, right mouth according to the
+ESP-DL MNP alignment template. Evaluate and stabilize before returning the
+frame buffer. A no-face or failed gate resets the stabilizer and sets metrics
+invalid.
 
 - [ ] **Step 4: Serve both I2C registers**
 

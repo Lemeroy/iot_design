@@ -81,9 +81,9 @@ static selected_face_t pick_largest_face(
             out.geometry = {
                 .box = {(int16_t)x0, (int16_t)y0, (int16_t)x1, (int16_t)y1},
                 .left_eye = {(int16_t)result.keypoint[0], (int16_t)result.keypoint[1]},
-                .right_eye = {(int16_t)result.keypoint[2], (int16_t)result.keypoint[3]},
+                .right_eye = {(int16_t)result.keypoint[6], (int16_t)result.keypoint[7]},
                 .nose = {(int16_t)result.keypoint[4], (int16_t)result.keypoint[5]},
-                .left_mouth = {(int16_t)result.keypoint[6], (int16_t)result.keypoint[7]},
+                .left_mouth = {(int16_t)result.keypoint[2], (int16_t)result.keypoint[3]},
                 .right_mouth = {(int16_t)result.keypoint[8], (int16_t)result.keypoint[9]},
             };
             out.landmarks_valid = true;

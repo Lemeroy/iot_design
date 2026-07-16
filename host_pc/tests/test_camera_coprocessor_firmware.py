@@ -114,6 +114,11 @@ def test_camera_integrates_five_landmarks_and_dual_i2c_registers():
     cmake = read("CMakeLists.txt")
 
     assert "keypoint.size() == 10" in adapter
+    assert ".left_eye = {(int16_t)result.keypoint[0], (int16_t)result.keypoint[1]}" in adapter
+    assert ".left_mouth = {(int16_t)result.keypoint[2], (int16_t)result.keypoint[3]}" in adapter
+    assert ".nose = {(int16_t)result.keypoint[4], (int16_t)result.keypoint[5]}" in adapter
+    assert ".right_eye = {(int16_t)result.keypoint[6], (int16_t)result.keypoint[7]}" in adapter
+    assert ".right_mouth = {(int16_t)result.keypoint[8], (int16_t)result.keypoint[9]}" in adapter
     assert "sg_face_geometry_evaluate" in adapter
     assert "sg_face_stabilizer_push" in adapter
     assert "sg_face_stabilizer_reset" in adapter
