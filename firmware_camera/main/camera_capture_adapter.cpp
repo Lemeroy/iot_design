@@ -23,11 +23,33 @@ static const char *TAG = "sg_camera_capture";
 static constexpr uint16_t CAMERA_WIDTH = 320;
 static constexpr uint16_t CAMERA_HEIGHT = 240;
 static constexpr size_t RGB888_BUFFER_SIZE = CAMERA_WIDTH * CAMERA_HEIGHT * 3;
+static constexpr uint32_t SG_FACE_REJECT_LOG_INTERVAL = 10;
 
 static HumanFaceDetect *s_model;
 static uint8_t *s_rgb888;
 static sg_face_baseline_t s_face_baseline;
 static sg_screening_session_t s_screening;
+static uint32_t s_face_reject_count;
+static const char *s_face_reject_reason;
+
+static void note_face_rejection(const char *reason)
+{
+    if (reason == nullptr) {
+        s_face_reject_count = 0;
+        s_face_reject_reason = nullptr;
+        return;
+    }
+    if (s_face_reject_reason != reason) {
+        s_face_reject_reason = reason;
+        s_face_reject_count = 0;
+    }
+    ++s_face_reject_count;
+    if (s_face_reject_count == 1
+        || s_face_reject_count % SG_FACE_REJECT_LOG_INTERVAL == 0) {
+        ESP_LOGI(TAG, "face sample rejected reason=%s count=%lu",
+                 reason, (unsigned long)s_face_reject_count);
+    }
+}
 
 static void bgr888_to_rgb888_in_place(uint8_t *pixels, size_t pixel_count)
 {
@@ -235,6 +257,16 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
     screening_sample.face_ready = frame_valid
         && sg_face_baseline_ready(&s_face_baseline);
     const sg_screening_stage_t stage = sg_screening_session_stage(&s_screening);
+    if (stage == SG_STAGE_FACE) {
+        const char *reason = nullptr;
+        if (!selected.bbox.valid) reason = "no_face";
+        else if (!selected.landmarks_valid) reason = "landmarks";
+        else if (!frame_valid) reason = "geometry";
+        else if (!sg_face_baseline_ready(&s_face_baseline)) reason = "baseline";
+        note_face_rejection(reason);
+    } else {
+        note_face_rejection(nullptr);
+    }
     if (selected.landmarks_valid
         && (stage == SG_STAGE_EYE_CENTER || stage == SG_STAGE_EYE_LEFT
             || stage == SG_STAGE_EYE_RIGHT)) {

@@ -166,8 +166,8 @@ esp_err_t sg_camera_coprocessor_control(sg_screening_control_t control)
 
     for (unsigned attempt = 0; attempt < SG_CAMERA_CONTROL_CONFIRM_RETRIES;
          ++attempt) {
-        last_error = i2c_master_transmit(
-            s_device, command, sizeof(command), SG_CAMERA_READ_TIMEOUT_MS);
+        last_error = i2c_master_transmit(s_device, command, sizeof(command),
+                                         SG_CAMERA_READ_TIMEOUT_MS);
         if (last_error != ESP_OK) continue;
 
         vTaskDelay(pdMS_TO_TICKS(SG_CAMERA_CONTROL_CONFIRM_DELAY_MS));

@@ -6,6 +6,7 @@
 #define SG_STAGE_SETTLE_US 500000LL
 #define SG_STAGE_TIMEOUT_GRACE_US 5000000LL
 #define SG_FACE_DURATION_US 3000000LL
+#define SG_FACE_DEADLINE_US 12000000LL
 #define SG_EYE_DURATION_US 2000000LL
 #define SG_TONGUE_DURATION_US 3000000LL
 
@@ -111,6 +112,14 @@ static void add_sample(
     }
 }
 
+static void reset_face_samples_on_invalid(
+    sg_screening_session_t *session, const sg_screening_sample_t *sample)
+{
+    if (session->stage == SG_STAGE_FACE && !sample->face_ready) {
+        session->sample_count = 0;
+    }
+}
+
 static bool finish_eye_sequence(sg_screening_session_t *session)
 {
     sg_eye_sequence_result_t result = {0};
@@ -171,11 +180,16 @@ void sg_screening_session_update(
     const int64_t duration = stage_duration(session->stage);
     if (duration == 0) return;
     const int64_t elapsed = now_us - session->stage_started_us;
-    if (elapsed > duration + SG_STAGE_TIMEOUT_GRACE_US) {
+    const int64_t deadline = session->stage == SG_STAGE_FACE
+        ? SG_FACE_DEADLINE_US : duration + SG_STAGE_TIMEOUT_GRACE_US;
+    if (elapsed > deadline) {
         enter_stage(session, SG_STAGE_ERROR, now_us);
         return;
     }
-    if (elapsed >= SG_STAGE_SETTLE_US) add_sample(session, sample);
+    if (elapsed >= SG_STAGE_SETTLE_US) {
+        reset_face_samples_on_invalid(session, sample);
+        add_sample(session, sample);
+    }
     if (elapsed >= duration
         && session->sample_count >= SG_SCREENING_STABLE_SAMPLES) {
         (void)complete_stage(session, now_us);
