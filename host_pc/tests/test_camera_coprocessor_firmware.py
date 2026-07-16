@@ -88,6 +88,29 @@ def test_camera_protocol_exposes_numeric_face_metrics_register():
     assert "sg_camera_face_metrics_encode" in source
 
 
+def test_camera_protocol_exposes_guided_eye_tongue_registers():
+    header = (ROOT / "firmware_common" / "camera_scores_protocol.h").read_text(
+        encoding="utf-8"
+    )
+    source = (ROOT / "firmware_common" / "camera_scores_protocol.c").read_text(
+        encoding="utf-8"
+    )
+
+    for token in (
+        "SG_CAMERA_EYE_REGISTER 0x03U",
+        "SG_CAMERA_TONGUE_REGISTER 0x04U",
+        "SG_CAMERA_CONTROL_REGISTER 0x10U",
+        "SG_CAMERA_STAGE_REGISTER 0x11U",
+        "sg_camera_modal_response_t",
+        "sg_camera_stage_response_t",
+        "sg_camera_modal_parse",
+        "sg_camera_modal_encode",
+        "sg_camera_stage_parse",
+        "sg_camera_stage_encode",
+    ):
+        assert token in header or token in source
+
+
 def test_camera_has_quality_gated_five_point_geometry_module():
     header = read("face_geometry.h")
     source = read("face_geometry.cpp")

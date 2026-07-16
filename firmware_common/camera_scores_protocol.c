@@ -85,3 +85,81 @@ void sg_camera_face_metrics_encode(
     out->mouth_angle_deg = metrics->mouth_angle_deg;
     out->quality = metrics->quality;
 }
+
+sg_camera_protocol_result_t sg_camera_modal_parse(
+    const uint8_t *raw, size_t length, sg_camera_modal_metrics_t *out)
+{
+    if (raw == NULL || out == NULL
+        || length != sizeof(sg_camera_modal_response_t)) {
+        return SG_CAMERA_PROTOCOL_BAD_VALUE;
+    }
+    if (raw[0] > 1U) {
+        return SG_CAMERA_PROTOCOL_BAD_VALUE;
+    }
+
+    memset(out, 0, sizeof(*out));
+    if (raw[0] == 0U) {
+        return SG_CAMERA_PROTOCOL_OK;
+    }
+    const int8_t signed_value = (int8_t)raw[2];
+    if (raw[1] > 100U || raw[3] > 100U
+        || signed_value < -100 || signed_value > 100) {
+        return SG_CAMERA_PROTOCOL_BAD_VALUE;
+    }
+    out->valid = true;
+    out->score = raw[1];
+    out->signed_value = signed_value;
+    out->quality = raw[3];
+    return SG_CAMERA_PROTOCOL_OK;
+}
+
+void sg_camera_modal_encode(
+    const sg_camera_modal_metrics_t *metrics,
+    sg_camera_modal_response_t *out)
+{
+    if (out == NULL) {
+        return;
+    }
+    memset(out, 0, sizeof(*out));
+    if (metrics == NULL || !metrics->valid || metrics->score > 100U
+        || metrics->quality > 100U || metrics->signed_value < -100
+        || metrics->signed_value > 100) {
+        return;
+    }
+    uint8_t *raw = (uint8_t *)out;
+    raw[0] = 1U;
+    raw[1] = metrics->score;
+    raw[2] = (uint8_t)metrics->signed_value;
+    raw[3] = metrics->quality;
+}
+
+sg_camera_protocol_result_t sg_camera_stage_parse(
+    const uint8_t *raw, size_t length, sg_camera_stage_status_t *out)
+{
+    if (raw == NULL || out == NULL
+        || length != sizeof(sg_camera_stage_response_t)
+        || raw[0] > SG_STAGE_ERROR || raw[1] > 100U
+        || raw[2] != 0U || raw[3] != 0U) {
+        return SG_CAMERA_PROTOCOL_BAD_VALUE;
+    }
+    out->stage = (sg_screening_stage_t)raw[0];
+    out->progress = raw[1];
+    return SG_CAMERA_PROTOCOL_OK;
+}
+
+void sg_camera_stage_encode(
+    const sg_camera_stage_status_t *status,
+    sg_camera_stage_response_t *out)
+{
+    if (out == NULL) {
+        return;
+    }
+    memset(out, 0, sizeof(*out));
+    if (status == NULL || status->stage > SG_STAGE_ERROR
+        || status->progress > 100U) {
+        return;
+    }
+    uint8_t *raw = (uint8_t *)out;
+    raw[0] = (uint8_t)status->stage;
+    raw[1] = status->progress;
+}
