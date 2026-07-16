@@ -146,6 +146,23 @@ def test_camera_has_volatile_personal_face_baseline():
         assert forbidden not in source.lower()
 
 
+def test_camera_eye_kernel_is_local_and_fixed_storage():
+    header = read("eye_tracking.h")
+    source = read("eye_tracking.cpp")
+
+    for token in (
+        "sg_eye_measure",
+        "sg_eye_score_sequence",
+        "inter_eye_distance",
+        "eye_line_angle_deg",
+    ):
+        assert token in header or token in source
+    for forbidden in (
+        "malloc", "new ", "fopen", "mqtt", "http", "socket", "jpeg_b64"
+    ):
+        assert forbidden not in source.lower()
+
+
 def test_camera_integrates_five_landmarks_and_dual_i2c_registers():
     adapter = read("camera_capture_adapter.cpp")
     capture_header = read("camera_capture_adapter.h")
