@@ -20,6 +20,8 @@
 #define SG_CAMERA_READ_TIMEOUT_MS 100
 #define SG_CAMERA_REGISTER_SETTLE_MS 5
 #define SG_CAMERA_STALE_US 2000000LL
+#define SG_CAMERA_CONTROL_CONFIRM_RETRIES 8U
+#define SG_CAMERA_CONTROL_CONFIRM_DELAY_MS 250U
 
 static i2c_master_bus_handle_t s_bus;
 static i2c_master_dev_handle_t s_device;
@@ -158,8 +160,38 @@ esp_err_t sg_camera_coprocessor_control(sg_screening_control_t control)
         return ESP_ERR_INVALID_ARG;
     }
     const uint8_t command[2] = {SG_CAMERA_CONTROL_REGISTER, (uint8_t)control};
-    return i2c_master_transmit(s_device, command, sizeof(command),
-                               SG_CAMERA_READ_TIMEOUT_MS);
+    const sg_screening_stage_t expected = control == SG_SCREENING_START
+        ? SG_STAGE_FACE : SG_STAGE_IDLE;
+    esp_err_t last_error = ESP_ERR_TIMEOUT;
+
+    for (unsigned attempt = 0; attempt < SG_CAMERA_CONTROL_CONFIRM_RETRIES;
+         ++attempt) {
+        last_error = i2c_master_transmit(
+            s_device, command, sizeof(command), SG_CAMERA_READ_TIMEOUT_MS);
+        if (last_error != ESP_OK) continue;
+
+        vTaskDelay(pdMS_TO_TICKS(SG_CAMERA_CONTROL_CONFIRM_DELAY_MS));
+        uint8_t raw[sizeof(sg_camera_stage_response_t)] = {0};
+        last_error = read_register(SG_CAMERA_STAGE_REGISTER, raw);
+        sg_camera_stage_status_t status = {0};
+        if (last_error == ESP_OK
+            && sg_camera_stage_parse(raw, sizeof(raw), &status)
+                == SG_CAMERA_PROTOCOL_OK) {
+            s_stage = status.stage;
+            if (status.stage == expected) {
+                ESP_LOGI(SG_TAG_MAIN,
+                         "screening control confirmed action=%u stage=%u attempt=%u",
+                         (unsigned)control, (unsigned)status.stage, attempt + 1);
+                return ESP_OK;
+            }
+        }
+    }
+
+    ESP_LOGW(SG_TAG_MAIN,
+             "screening control unconfirmed action=%u expected_stage=%u err=%s",
+             (unsigned)control, (unsigned)expected,
+             esp_err_to_name(last_error));
+    return ESP_ERR_TIMEOUT;
 }
 
 sg_screening_stage_t sg_camera_coprocessor_stage(void)
