@@ -41,9 +41,9 @@ baseline. A frame is eligible only when it has one selected face, valid five
 points, acceptable geometry quality, and a sufficiently large frontal face.
 
 The detector uses balanced proposal/landmark thresholds of `0.40` and `0.45`.
-The stage requires at least three eligible samples in the latest five sampled
-frames rather than merely elapsed wall time. The stage has a bounded overall
-deadline so an absent face cannot leave screening running indefinitely. Stable
+The stage requires at least two eligible samples in the latest five sampled
+frames rather than merely elapsed wall time. Its overall deadline is 20 seconds
+so an absent face cannot leave screening running indefinitely. Stable
 eligible samples feed the existing median/baseline path; invalid or stale input
 clears F instead of emitting `100`.
 
@@ -80,7 +80,7 @@ Host tests cover:
 
 - control writes bypass the ordinary event queue and latest action wins;
 - start/cancel confirmation retries are bounded;
-- F requires three eligible samples in a five-frame window;
+- F requires two eligible samples in a five-frame window;
 - intermittent invalid frames do not create a score;
 - no face reaches error at the overall deadline;
 - stale F is cleared and never defaults to `100`;

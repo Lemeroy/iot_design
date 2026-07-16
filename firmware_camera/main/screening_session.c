@@ -6,11 +6,12 @@
 #define SG_STAGE_SETTLE_US 500000LL
 #define SG_STAGE_TIMEOUT_GRACE_US 5000000LL
 #define SG_FACE_DURATION_US 3000000LL
-#define SG_FACE_DEADLINE_US 12000000LL
+#define SG_FACE_DEADLINE_US 20000000LL
 #define SG_EYE_DURATION_US 2000000LL
 #define SG_TONGUE_DURATION_US 3000000LL
 #define SG_FACE_SAMPLE_WINDOW 5U
 #define SG_FACE_SAMPLE_MASK 0x1FU
+#define SG_SCREENING_FACE_REQUIRED_SAMPLES 2U
 
 static int64_t stage_duration(sg_screening_stage_t stage)
 {
@@ -203,8 +204,9 @@ void sg_screening_session_update(
     if (elapsed >= SG_STAGE_SETTLE_US) {
         add_sample(session, sample);
     }
-    if (elapsed >= duration
-        && session->sample_count >= SG_SCREENING_STABLE_SAMPLES) {
+    const uint8_t required_samples = session->stage == SG_STAGE_FACE
+        ? SG_SCREENING_FACE_REQUIRED_SAMPLES : SG_SCREENING_STABLE_SAMPLES;
+    if (elapsed >= duration && session->sample_count >= required_samples) {
         (void)complete_stage(session, now_us);
     }
 }

@@ -3,6 +3,7 @@
 #include <stdbool.h>
 
 #include "camera_scores_protocol.h"
+#include "camera_preview_protocol.h"
 #include "esp_camera.h"
 #include "esp_err.h"
 
@@ -13,7 +14,7 @@ extern "C" {
 esp_err_t sg_camera_usb_preview_init(void);
 bool sg_camera_usb_preview_requested(void);
 esp_err_t sg_camera_usb_preview_send(
-    camera_fb_t *frame, const sg_camera_face_bbox_t *bbox);
+    camera_fb_t *frame, const sg_camera_face_bbox_t *bbox, uint8_t flags);
 
 #ifdef __cplusplus
 }

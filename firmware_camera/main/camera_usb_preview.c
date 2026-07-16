@@ -103,7 +103,7 @@ static esp_err_t write_packet(
 }
 
 esp_err_t sg_camera_usb_preview_send(
-    camera_fb_t *frame, const sg_camera_face_bbox_t *bbox)
+    camera_fb_t *frame, const sg_camera_face_bbox_t *bbox, uint8_t flags)
 {
     if (frame == NULL) return ESP_ERR_INVALID_ARG;
 
@@ -113,10 +113,11 @@ esp_err_t sg_camera_usb_preview_send(
         frame, SG_PREVIEW_JPEG_QUALITY, &jpeg, &jpeg_length);
     if (!converted || jpeg == NULL || jpeg_length > SG_CAMERA_PREVIEW_MAX_JPEG) {
         free(jpeg);
-        return write_packet(NULL, 0, SG_CAMERA_PREVIEW_FLAG_ERROR, bbox);
+        return write_packet(
+            NULL, 0, flags | SG_CAMERA_PREVIEW_FLAG_ERROR, bbox);
     }
 
-    esp_err_t err = write_packet(jpeg, jpeg_length, 0, bbox);
+    esp_err_t err = write_packet(jpeg, jpeg_length, flags, bbox);
     free(jpeg);
     return err;
 }

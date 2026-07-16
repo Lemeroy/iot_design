@@ -150,9 +150,15 @@ class CameraPreviewWindow(QMainWindow):
         now = time.monotonic()
         fps = 0.0 if self._last_frame_at is None else 1.0 / max(now - self._last_frame_at, 1e-3)
         self._last_frame_at = now
-        face = "face" if width and height else "no face"
+        states = (
+            f"bbox={'yes' if frame.face_detected else 'no'}  "
+            f"landmarks={'yes' if frame.landmarks_valid else 'no'}  "
+            f"geometry={'yes' if frame.geometry_valid else 'no'}  "
+            f"baseline={'ready' if frame.baseline_ready else 'pending'}  "
+            f"F={'valid' if frame.f_valid else 'pending'}"
+        )
         self.telemetry_label.setText(
-            f"seq {frame.sequence}  {len(frame.jpeg) / 1024:.1f} KiB  {fps:.1f} FPS  {face}"
+            f"seq {frame.sequence}  {fps:.1f} FPS  {states}"
         )
 
     def closeEvent(self, event) -> None:

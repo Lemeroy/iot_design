@@ -222,7 +222,7 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
         ESP_LOGE(TAG, "YUV422 to RGB888 conversion failed (%ux%u format=%d)",
                  fb->width, fb->height, fb->format);
         if (sg_camera_usb_preview_requested()) {
-            (void)sg_camera_usb_preview_send(fb, &out->face_bbox);
+            (void)sg_camera_usb_preview_send(fb, &out->face_bbox, 0);
         }
         esp_camera_fb_return(fb);
         return ESP_FAIL;
@@ -354,7 +354,24 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
         (long long)((esp_timer_get_time() - start_us) / 1000);
 
     if (sg_camera_usb_preview_requested()) {
-        (void)sg_camera_usb_preview_send(fb, &out->face_bbox);
+        uint8_t preview_flags = 0;
+        if (selected.bbox.valid) {
+            preview_flags |= SG_CAMERA_PREVIEW_FLAG_FACE_DETECTED;
+        }
+        if (selected.landmarks_valid) {
+            preview_flags |= SG_CAMERA_PREVIEW_FLAG_LANDMARKS_VALID;
+        }
+        if (frame_valid) {
+            preview_flags |= SG_CAMERA_PREVIEW_FLAG_GEOMETRY_VALID;
+        }
+        if (sg_face_baseline_ready(&s_face_baseline)) {
+            preview_flags |= SG_CAMERA_PREVIEW_FLAG_BASELINE_READY;
+        }
+        if (out->face_metrics.valid) {
+            preview_flags |= SG_CAMERA_PREVIEW_FLAG_F_VALID;
+        }
+        (void)sg_camera_usb_preview_send(
+            fb, &out->face_bbox, preview_flags);
     }
 
     esp_camera_fb_return(fb);

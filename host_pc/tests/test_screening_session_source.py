@@ -6,10 +6,12 @@ SESSION = ROOT / "firmware_camera" / "main" / "screening_session.c"
 ADAPTER = ROOT / "firmware_camera" / "main" / "camera_capture_adapter.cpp"
 
 
-def test_face_stage_accepts_three_valid_samples_in_a_five_frame_window() -> None:
+def test_face_stage_accepts_two_valid_samples_in_a_five_frame_window() -> None:
     source = SESSION.read_text(encoding="utf-8")
 
     assert "SG_FACE_SAMPLE_WINDOW" in source
+    assert "SG_SCREENING_FACE_REQUIRED_SAMPLES 2U" in source
+    assert "SG_FACE_DEADLINE_US 20000000LL" in source
     assert "face_sample_window" in source
     assert "face_window_count" in source
     assert "count_face_samples" in source

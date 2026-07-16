@@ -4,6 +4,11 @@ import zlib
 import pytest
 
 from stroke_host.camera_preview.protocol import (
+    FLAG_BASELINE_READY,
+    FLAG_FACE_DETECTED,
+    FLAG_F_VALID,
+    FLAG_GEOMETRY_VALID,
+    FLAG_LANDMARKS_VALID,
     MAX_JPEG_SIZE,
     PreviewProtocolError,
     PreviewStreamParser,
@@ -72,3 +77,22 @@ def test_crc_covers_header_after_magic_and_jpeg_payload():
     expected_crc = struct.unpack_from("<I", packet, header_size + jpeg_size)[0]
 
     assert expected_crc == zlib.crc32(packet[4 : header_size + jpeg_size])
+
+
+def test_parser_exposes_local_face_pipeline_flags():
+    flags = (
+        FLAG_FACE_DETECTED
+        | FLAG_LANDMARKS_VALID
+        | FLAG_GEOMETRY_VALID
+        | FLAG_BASELINE_READY
+        | FLAG_F_VALID
+    )
+    frame = PreviewStreamParser().feed(
+        encode_test_packet(JPEG, sequence=12, flags=flags)
+    )[0]
+
+    assert frame.face_detected
+    assert frame.landmarks_valid
+    assert frame.geometry_valid
+    assert frame.baseline_ready
+    assert frame.f_valid

@@ -11,6 +11,11 @@ HEADER = struct.Struct("<4sBBHII4B")
 CRC = struct.Struct("<I")
 MAX_JPEG_SIZE = 128 * 1024
 FLAG_ERROR = 0x01
+FLAG_FACE_DETECTED = 0x02
+FLAG_LANDMARKS_VALID = 0x04
+FLAG_GEOMETRY_VALID = 0x08
+FLAG_BASELINE_READY = 0x10
+FLAG_F_VALID = 0x20
 
 
 class PreviewProtocolError(ValueError):
@@ -27,6 +32,26 @@ class PreviewFrame:
     @property
     def error(self) -> bool:
         return bool(self.flags & FLAG_ERROR)
+
+    @property
+    def face_detected(self) -> bool:
+        return bool(self.flags & FLAG_FACE_DETECTED)
+
+    @property
+    def landmarks_valid(self) -> bool:
+        return bool(self.flags & FLAG_LANDMARKS_VALID)
+
+    @property
+    def geometry_valid(self) -> bool:
+        return bool(self.flags & FLAG_GEOMETRY_VALID)
+
+    @property
+    def baseline_ready(self) -> bool:
+        return bool(self.flags & FLAG_BASELINE_READY)
+
+    @property
+    def f_valid(self) -> bool:
+        return bool(self.flags & FLAG_F_VALID)
 
 
 def _valid_jpeg(payload: bytes) -> bool:
