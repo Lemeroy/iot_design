@@ -22,6 +22,13 @@ static constexpr size_t RGB888_BUFFER_SIZE = CAMERA_WIDTH * CAMERA_HEIGHT * 3;
 static HumanFaceDetect *s_model;
 static uint8_t *s_rgb888;
 
+static void bgr888_to_rgb888_in_place(uint8_t *pixels, size_t pixel_count)
+{
+    for (size_t i = 0; i < pixel_count; ++i) {
+        std::swap(pixels[i * 3], pixels[i * 3 + 2]);
+    }
+}
+
 static uint8_t scale_to_u8(int value, int max_value)
 {
     if (max_value <= 0) {
@@ -148,6 +155,8 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
         esp_camera_fb_return(fb);
         return ESP_FAIL;
     }
+    bgr888_to_rgb888_in_place(s_rgb888, CAMERA_WIDTH * CAMERA_HEIGHT);
+
     dl::image::img_t img = {
         .data = s_rgb888,
         .width = (uint16_t)fb->width,

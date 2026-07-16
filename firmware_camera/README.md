@@ -36,6 +36,9 @@ GC2145 does not provide native JPEG output through `esp32-camera`. The
 firmware captures QVGA YUV422 and converts it locally to a reusable RGB888
 PSRAM buffer for ESP-WHO. An explicit USB preview request encodes the original
 YUV422 frame to JPEG locally; it does not change the normal I2C-only output.
+The `esp32-camera` converter emits BGR byte order for YUV422 input, so the
+adapter swaps the red and blue channels before ESP-WHO preprocessing. Removing
+that normalization prevents reliable face detection on the real board.
 The camera uses one frame buffer with `CAMERA_GRAB_WHEN_EMPTY`; real-board
 testing showed that the two-buffer latest-frame mode spliced DMA regions from
 different frames. The resulting frame rate and inference latency are pending

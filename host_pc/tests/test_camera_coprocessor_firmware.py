@@ -29,6 +29,7 @@ def test_camera_firmware_exposes_i2c_scores_not_network_media():
     assert "HumanFaceDetect" in adapter
     assert "PIXFORMAT_YUV422" in adapter
     assert "fmt2rgb888" in adapter
+    assert "bgr888_to_rgb888_in_place" in adapter
     assert "MALLOC_CAP_SPIRAM" in adapter
     assert "DL_IMAGE_PIX_TYPE_RGB888" in adapter
     assert "config.pixel_format = PIXFORMAT_JPEG" not in adapter
