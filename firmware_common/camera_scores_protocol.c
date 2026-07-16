@@ -36,3 +36,52 @@ void sg_camera_face_response_encode(
     out->width = bbox->width;
     out->height = bbox->height;
 }
+
+sg_camera_protocol_result_t sg_camera_face_metrics_parse(
+    const uint8_t *raw, size_t length, sg_camera_face_metrics_t *out)
+{
+    if (raw == NULL || out == NULL
+        || length != sizeof(sg_camera_face_metrics_response_t)) {
+        return SG_CAMERA_PROTOCOL_BAD_VALUE;
+    }
+
+    const sg_camera_face_metrics_response_t *wire =
+        (const sg_camera_face_metrics_response_t *)raw;
+    if (wire->status > 1U) {
+        return SG_CAMERA_PROTOCOL_BAD_VALUE;
+    }
+
+    memset(out, 0, sizeof(*out));
+    if (wire->status == 0U) {
+        return SG_CAMERA_PROTOCOL_OK;
+    }
+    if (wire->score > 100U || wire->quality > 100U
+        || wire->mouth_angle_deg < -90 || wire->mouth_angle_deg > 90) {
+        return SG_CAMERA_PROTOCOL_BAD_VALUE;
+    }
+
+    out->valid = true;
+    out->score = wire->score;
+    out->mouth_angle_deg = wire->mouth_angle_deg;
+    out->quality = wire->quality;
+    return SG_CAMERA_PROTOCOL_OK;
+}
+
+void sg_camera_face_metrics_encode(
+    const sg_camera_face_metrics_t *metrics,
+    sg_camera_face_metrics_response_t *out)
+{
+    if (out == NULL) {
+        return;
+    }
+    memset(out, 0, sizeof(*out));
+    if (metrics == NULL || !metrics->valid || metrics->score > 100U
+        || metrics->quality > 100U || metrics->mouth_angle_deg < -90
+        || metrics->mouth_angle_deg > 90) {
+        return;
+    }
+    out->status = 1U;
+    out->score = metrics->score;
+    out->mouth_angle_deg = metrics->mouth_angle_deg;
+    out->quality = metrics->quality;
+}

@@ -73,6 +73,21 @@ def test_camera_address_matches_shared_protocol():
     assert "CONFIG_STROKEGUARD_CAMERA_I2C_ADDRESS=0x52" in defaults
 
 
+def test_camera_protocol_exposes_numeric_face_metrics_register():
+    header = (ROOT / "firmware_common" / "camera_scores_protocol.h").read_text(
+        encoding="utf-8"
+    )
+    source = (ROOT / "firmware_common" / "camera_scores_protocol.c").read_text(
+        encoding="utf-8"
+    )
+
+    assert "SG_CAMERA_FACE_METRICS_REGISTER 0x02U" in header
+    assert "sg_camera_face_metrics_response_t" in header
+    assert "sizeof(sg_camera_face_metrics_response_t) == 4" in header
+    assert "sg_camera_face_metrics_parse" in source
+    assert "sg_camera_face_metrics_encode" in source
+
+
 def test_camera_orientation_matches_esp_who_s3_default():
     adapter = read("camera_capture_adapter.cpp")
 
