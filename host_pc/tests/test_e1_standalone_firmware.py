@@ -32,8 +32,12 @@ def test_camera_coprocessor_is_polled_locally_with_validity():
     assert "i2c_master_receive(" in source
     assert "i2c_master_transmit_receive" not in source
     assert "SG_CAMERA_REGISTER_SETTLE_MS" in source
-    assert "SG_CAMERA_FACE_REGISTER" in source
-    assert "sg_camera_face_bbox_parse" in source
+    assert "SG_CAMERA_FACE_METRICS_REGISTER" in source
+    assert "sg_camera_face_metrics_parse" in source
+    assert "sg_camera_face_bbox_parse" not in source
+    assert "fabsf" in source
+    assert "observation.score" in source
+    assert "observation.mouth_angle_deg" in source
     assert "sg_score_bus_apply_camera" in source
     assert "sg_score_bus_apply_camera" in bus
     assert '"camera_coprocessor.c"' in cmake

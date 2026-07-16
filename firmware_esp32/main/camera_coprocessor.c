@@ -1,5 +1,6 @@
 #include "camera_coprocessor.h"
 
+#include <math.h>
 #include <string.h>
 
 #include "driver/gpio.h"
@@ -43,8 +44,8 @@ esp_err_t sg_camera_coprocessor_poll(sg_camera_observation_t *out)
         return ESP_ERR_INVALID_STATE;
     }
 
-    const uint8_t reg = SG_CAMERA_FACE_REGISTER;
-    uint8_t raw[sizeof(sg_camera_face_response_t)] = {0};
+    const uint8_t reg = SG_CAMERA_FACE_METRICS_REGISTER;
+    uint8_t raw[sizeof(sg_camera_face_metrics_response_t)] = {0};
     esp_err_t err = i2c_master_transmit(
         s_device, &reg, sizeof(reg), SG_CAMERA_READ_TIMEOUT_MS);
     if (err != ESP_OK) {
@@ -56,17 +57,16 @@ esp_err_t sg_camera_coprocessor_poll(sg_camera_observation_t *out)
     if (err != ESP_OK) {
         return err;
     }
-    sg_camera_face_bbox_t bbox = {0};
-    if (sg_camera_face_bbox_parse(raw, sizeof(raw), &bbox)
+    sg_camera_face_metrics_t metrics = {0};
+    if (sg_camera_face_metrics_parse(raw, sizeof(raw), &metrics)
         != SG_CAMERA_PROTOCOL_OK) {
         return ESP_ERR_INVALID_RESPONSE;
     }
 
-    out->face_present = bbox.valid;
-    out->center_x = bbox.center_x;
-    out->center_y = bbox.center_y;
-    out->width = bbox.width;
-    out->height = bbox.height;
+    out->valid = metrics.valid;
+    out->score = metrics.score;
+    out->mouth_angle_deg = metrics.mouth_angle_deg;
+    out->quality = metrics.quality;
     out->received_us = esp_timer_get_time();
     return ESP_OK;
 }
@@ -111,10 +111,10 @@ static void camera_poll_task(void *arg)
 
         if (!online) {
             ESP_LOGI(SG_TAG_MAIN, "camera coprocessor online addr=0x%02x reg=0x%02x",
-                     SG_CAMERA_I2C_ADDRESS, SG_CAMERA_FACE_REGISTER);
+                     SG_CAMERA_I2C_ADDRESS, SG_CAMERA_FACE_METRICS_REGISTER);
             online = true;
         }
-        if (observation.face_present) {
+        if (observation.valid) {
             face_seen_us = now_us;
             have_fresh_face = true;
         } else if (have_fresh_face && now_us - face_seen_us > SG_CAMERA_STALE_US) {
@@ -126,11 +126,17 @@ static void camera_poll_task(void *arg)
             continue;
         }
 
-        ESP_LOGI(SG_TAG_MAIN, "camera face bbox cx=%u cy=%u w=%u h=%u",
-                 observation.center_x, observation.center_y,
-                 observation.width, observation.height);
+        if (!observation.valid) {
+            continue;
+        }
+
+        ESP_LOGI(SG_TAG_MAIN, "camera F score=%u angle=%d quality=%u",
+                 observation.score, observation.mouth_angle_deg,
+                 observation.quality);
         err = sg_score_bus_apply_camera(
-            false, 0, 0.0f, false, 0, false, 0, now_us);
+            true, observation.score,
+            fabsf((float)observation.mouth_angle_deg),
+            false, 0, false, 0, now_us);
         if (err != ESP_OK) {
             publish_unavailable(now_us);
             ESP_LOGW(SG_TAG_MAIN, "camera observation rejected: %s",

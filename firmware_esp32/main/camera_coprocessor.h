@@ -6,11 +6,10 @@
 #include "esp_err.h"
 
 typedef struct {
-    bool face_present;
-    uint8_t center_x;
-    uint8_t center_y;
-    uint8_t width;
-    uint8_t height;
+    bool valid;
+    uint8_t score;
+    int8_t mouth_angle_deg;
+    uint8_t quality;
     int64_t received_us;
 } sg_camera_observation_t;
 
