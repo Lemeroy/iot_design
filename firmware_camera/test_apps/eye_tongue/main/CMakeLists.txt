@@ -3,6 +3,7 @@ idf_component_register(
         "test_eye_tongue.cpp"
         "../../../main/eye_tracking.cpp"
         "../../../main/tongue_deviation.cpp"
-    INCLUDE_DIRS "../../../main"
+        "../../../main/screening_session.c"
+    INCLUDE_DIRS "../../../main" "../../../../firmware_common"
     REQUIRES unity freertos
 )

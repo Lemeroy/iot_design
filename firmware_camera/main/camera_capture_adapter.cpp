@@ -2,6 +2,9 @@
 #include "camera_usb_preview.h"
 #include "face_baseline.h"
 #include "face_geometry.h"
+#include "eye_tracking.h"
+#include "screening_session.h"
+#include "tongue_deviation.h"
 
 #include <algorithm>
 #include <cmath>
@@ -24,6 +27,7 @@ static constexpr size_t RGB888_BUFFER_SIZE = CAMERA_WIDTH * CAMERA_HEIGHT * 3;
 static HumanFaceDetect *s_model;
 static uint8_t *s_rgb888;
 static sg_face_baseline_t s_face_baseline;
+static sg_screening_session_t s_screening;
 
 static void bgr888_to_rgb888_in_place(uint8_t *pixels, size_t pixel_count)
 {
@@ -153,6 +157,21 @@ extern "C" esp_err_t sg_camera_capture_init(void)
     return ESP_OK;
 }
 
+extern "C" esp_err_t sg_camera_capture_control(sg_screening_control_t control)
+{
+    if (control == SG_SCREENING_START) {
+        sg_screening_session_start(&s_screening, esp_timer_get_time());
+        ESP_LOGI(TAG, "screening started");
+        return ESP_OK;
+    }
+    if (control == SG_SCREENING_CANCEL) {
+        sg_screening_session_cancel(&s_screening);
+        ESP_LOGI(TAG, "screening cancelled");
+        return ESP_OK;
+    }
+    return ESP_ERR_INVALID_ARG;
+}
+
 extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *out)
 {
     if (out == nullptr) {
@@ -211,6 +230,75 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
     if (!baseline_was_ready && sg_face_baseline_ready(&s_face_baseline)) {
         ESP_LOGI(TAG, "face baseline ready");
     }
+
+    sg_screening_sample_t screening_sample = {};
+    screening_sample.face_ready = frame_valid
+        && sg_face_baseline_ready(&s_face_baseline);
+    const sg_screening_stage_t stage = sg_screening_session_stage(&s_screening);
+    if (selected.landmarks_valid
+        && (stage == SG_STAGE_EYE_CENTER || stage == SG_STAGE_EYE_LEFT
+            || stage == SG_STAGE_EYE_RIGHT)) {
+        const int eye_dx = selected.geometry.right_eye.x - selected.geometry.left_eye.x;
+        const int eye_dy = selected.geometry.right_eye.y - selected.geometry.left_eye.y;
+        const int eye_distance = (int)std::lround(std::hypot(eye_dx, eye_dy));
+        const sg_eye_input_t eye_input = {
+            .rgb888 = s_rgb888,
+            .width = (uint16_t)fb->width,
+            .height = (uint16_t)fb->height,
+            .stride_bytes = (uint16_t)(fb->width * 3),
+            .left_eye = {selected.geometry.left_eye.x, selected.geometry.left_eye.y},
+            .right_eye = {selected.geometry.right_eye.x, selected.geometry.right_eye.y},
+            .inter_eye_distance = (uint16_t)std::max(0, eye_distance),
+            .eye_line_angle_deg = std::atan2((float)eye_dy, (float)eye_dx)
+                                * 180.0f / 3.14159265358979323846f,
+        };
+        screening_sample.eye_valid = sg_eye_measure(
+            &eye_input, &screening_sample.eye);
+    } else if (selected.landmarks_valid && stage == SG_STAGE_TONGUE) {
+        const int face_width = selected.geometry.box.x1 - selected.geometry.box.x0 + 1;
+        const int mouth_y = (selected.geometry.left_mouth.y
+                           + selected.geometry.right_mouth.y) / 2;
+        const int roi_x = selected.geometry.box.x0 + face_width / 5;
+        const int roi_y = std::max(
+            (int)selected.geometry.box.y0, mouth_y - face_width / 20);
+        const int roi_right = selected.geometry.box.x1 - face_width / 5;
+        const int roi_bottom = selected.geometry.box.y1;
+        const int eye_dx = selected.geometry.right_eye.x - selected.geometry.left_eye.x;
+        const int eye_dy = selected.geometry.right_eye.y - selected.geometry.left_eye.y;
+        const sg_tongue_input_t tongue_input = {
+            .rgb888 = s_rgb888,
+            .width = (uint16_t)fb->width,
+            .height = (uint16_t)fb->height,
+            .stride_bytes = (uint16_t)(fb->width * 3),
+            .roi = {
+                (uint16_t)std::max(0, roi_x),
+                (uint16_t)std::max(0, roi_y),
+                (uint16_t)std::max(0, roi_right - roi_x + 1),
+                (uint16_t)std::max(0, roi_bottom - roi_y + 1),
+            },
+            .axis_origin = {selected.geometry.nose.x, selected.geometry.nose.y},
+            .face_width = (uint16_t)std::max(0, face_width),
+            .face_roll_deg = std::atan2((float)eye_dy, (float)eye_dx)
+                           * 180.0f / 3.14159265358979323846f,
+        };
+        screening_sample.tongue_valid = sg_tongue_measure(
+            &tongue_input, &screening_sample.tongue);
+    }
+    const sg_screening_stage_t previous_stage = stage;
+    sg_screening_session_update(&s_screening, &screening_sample, now_us);
+    const sg_screening_stage_t current_stage =
+        sg_screening_session_stage(&s_screening);
+    if (current_stage != previous_stage) {
+        ESP_LOGI(TAG, "screening stage %u -> %u",
+                 (unsigned)previous_stage, (unsigned)current_stage);
+    }
+    (void)sg_screening_session_eye_result(
+        &s_screening, &out->eye_metrics);
+    (void)sg_screening_session_tongue_result(
+        &s_screening, &out->tongue_metrics);
+    out->screening.stage = current_stage;
+    out->screening.progress = sg_screening_session_progress(
+        &s_screening, now_us);
 
     const long long latency_ms =
         (long long)((esp_timer_get_time() - start_us) / 1000);

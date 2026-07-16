@@ -22,14 +22,25 @@ void app_main(void)
              gpio_get_level(GPIO_NUM_47), gpio_get_level(GPIO_NUM_48));
 
     while (1) {
+        sg_screening_control_t control;
+        if (sg_camera_score_target_take_control(&control)) {
+            ESP_ERROR_CHECK_WITHOUT_ABORT(sg_camera_capture_control(control));
+        }
         (void)sg_camera_capture_observe(&observation);
         sg_camera_face_response_t bbox_response;
         sg_camera_face_metrics_response_t metrics_response;
+        sg_camera_modal_response_t eye_response;
+        sg_camera_modal_response_t tongue_response;
+        sg_camera_stage_response_t stage_response;
         sg_camera_face_response_encode(&observation.face_bbox, &bbox_response);
         sg_camera_face_metrics_encode(
             &observation.face_metrics, &metrics_response);
+        sg_camera_modal_encode(&observation.eye_metrics, &eye_response);
+        sg_camera_modal_encode(&observation.tongue_metrics, &tongue_response);
+        sg_camera_stage_encode(&observation.screening, &stage_response);
         esp_err_t err = sg_camera_score_target_serve(
-            &bbox_response, &metrics_response);
+            &bbox_response, &metrics_response, &eye_response,
+            &tongue_response, &stage_response);
         if (err != ESP_OK && err != ESP_ERR_TIMEOUT) {
             ESP_LOGW(TAG, "I2C score serve failed: %s", esp_err_to_name(err));
         }

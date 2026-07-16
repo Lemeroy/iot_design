@@ -10,9 +10,13 @@ extern "C" {
 typedef struct {
     sg_camera_face_bbox_t face_bbox;
     sg_camera_face_metrics_t face_metrics;
+    sg_camera_modal_metrics_t eye_metrics;
+    sg_camera_modal_metrics_t tongue_metrics;
+    sg_camera_stage_status_t screening;
 } sg_camera_source_observation_t;
 
 esp_err_t sg_camera_capture_init(void);
+esp_err_t sg_camera_capture_control(sg_screening_control_t control);
 esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *out);
 
 #ifdef __cplusplus

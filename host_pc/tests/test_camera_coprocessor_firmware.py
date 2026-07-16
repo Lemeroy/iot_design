@@ -180,6 +180,30 @@ def test_camera_tongue_kernel_is_auxiliary_local_and_fixed_storage():
         assert forbidden not in source.lower()
 
 
+def test_camera_guided_session_is_wired_to_i2c_and_capture():
+    session_h = read("screening_session.h")
+    session_c = read("screening_session.c")
+    adapter = read("camera_capture_adapter.cpp")
+    target = read("camera_score_target.c")
+    app = read("app_main.c")
+
+    for token in (
+        "sg_screening_session_start",
+        "sg_screening_session_cancel",
+        "sg_screening_session_update",
+        "SG_STAGE_EYE_CENTER",
+        "SG_STAGE_TONGUE",
+    ):
+        assert token in session_h or token in session_c
+    assert "sg_eye_measure" in adapter
+    assert "sg_tongue_measure" in adapter
+    assert "SG_CAMERA_CONTROL_REGISTER" in target
+    assert "SG_CAMERA_EYE_REGISTER" in target
+    assert "SG_CAMERA_TONGUE_REGISTER" in target
+    assert "SG_CAMERA_STAGE_REGISTER" in target
+    assert "sg_camera_score_target_take_control" in app
+
+
 def test_camera_integrates_five_landmarks_and_dual_i2c_registers():
     adapter = read("camera_capture_adapter.cpp")
     capture_header = read("camera_capture_adapter.h")

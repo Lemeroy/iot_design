@@ -9,6 +9,7 @@
 
 #include "eye_tracking.h"
 #include "tongue_deviation.h"
+#include "screening_session.h"
 
 static constexpr int WIDTH = 80;
 static constexpr int HEIGHT = 40;
@@ -235,6 +236,113 @@ TEST_CASE("tongue kernel rejects low saturation region", "[tongue_deviation]")
     const auto input = tongue_input();
     sg_tongue_measurement_t out = {};
     TEST_ASSERT_FALSE(sg_tongue_measure(&input, &out));
+}
+
+static sg_screening_sample_t face_sample()
+{
+    sg_screening_sample_t sample = {};
+    sample.face_ready = true;
+    return sample;
+}
+
+static sg_screening_sample_t eye_sample(int left, int right)
+{
+    sg_screening_sample_t sample = {};
+    sample.face_ready = true;
+    sample.eye_valid = true;
+    sample.eye = measured(left, right);
+    return sample;
+}
+
+static sg_screening_sample_t valid_tongue_sample(int offset)
+{
+    sg_screening_sample_t sample = {};
+    sample.face_ready = true;
+    sample.tongue_valid = true;
+    sample.tongue = {
+        .signed_offset = (int8_t)offset,
+        .score = (uint8_t)(100 - std::min(std::abs(offset), 80)),
+        .quality = 80,
+    };
+    return sample;
+}
+
+static void feed_three(sg_screening_session_t *session,
+                       const sg_screening_sample_t &sample, int64_t base_us)
+{
+    sg_screening_session_update(session, &sample, base_us + 600000);
+    sg_screening_session_update(session, &sample, base_us + 900000);
+    sg_screening_session_update(session, &sample, base_us + 1200000);
+}
+
+TEST_CASE("screening session follows guided stage order", "[screening_session]")
+{
+    sg_screening_session_t session = {};
+    sg_screening_session_start(&session, 1000000);
+    TEST_ASSERT_EQUAL(SG_STAGE_FACE, sg_screening_session_stage(&session));
+
+    auto face = face_sample();
+    sg_screening_session_update(&session, &face, 1600000);
+    sg_screening_session_update(&session, &face, 1900000);
+    sg_screening_session_update(&session, &face, 2200000);
+    sg_screening_session_update(&session, &face, 4000000);
+    TEST_ASSERT_EQUAL(SG_STAGE_EYE_CENTER, sg_screening_session_stage(&session));
+
+    auto center = eye_sample(0, 1);
+    feed_three(&session, center, 4000000);
+    sg_screening_session_update(&session, &center, 6000000);
+    TEST_ASSERT_EQUAL(SG_STAGE_EYE_LEFT, sg_screening_session_stage(&session));
+
+    auto left = eye_sample(-42, -40);
+    feed_three(&session, left, 6000000);
+    sg_screening_session_update(&session, &left, 8000000);
+    TEST_ASSERT_EQUAL(SG_STAGE_EYE_RIGHT, sg_screening_session_stage(&session));
+
+    auto right = eye_sample(43, 45);
+    feed_three(&session, right, 8000000);
+    sg_screening_session_update(&session, &right, 10000000);
+    TEST_ASSERT_EQUAL(SG_STAGE_TONGUE, sg_screening_session_stage(&session));
+    sg_camera_modal_metrics_t eye_result = {};
+    TEST_ASSERT_TRUE(sg_screening_session_eye_result(&session, &eye_result));
+    TEST_ASSERT_TRUE(eye_result.valid);
+
+    auto tongue = valid_tongue_sample(4);
+    feed_three(&session, tongue, 10000000);
+    sg_screening_session_update(&session, &tongue, 13000000);
+    TEST_ASSERT_EQUAL(SG_STAGE_DONE, sg_screening_session_stage(&session));
+    sg_camera_modal_metrics_t tongue_result = {};
+    TEST_ASSERT_TRUE(sg_screening_session_tongue_result(&session, &tongue_result));
+    TEST_ASSERT_TRUE(tongue_result.valid);
+}
+
+TEST_CASE("screening session cancel and restart invalidate results", "[screening_session]")
+{
+    sg_screening_session_t session = {};
+    sg_screening_session_start(&session, 1000000);
+    sg_screening_session_cancel(&session);
+    TEST_ASSERT_EQUAL(SG_STAGE_IDLE, sg_screening_session_stage(&session));
+    sg_camera_modal_metrics_t result = {.valid = true};
+    TEST_ASSERT_FALSE(sg_screening_session_eye_result(&session, &result));
+    TEST_ASSERT_FALSE(result.valid);
+
+    sg_screening_session_start(&session, 2000000);
+    auto face = face_sample();
+    sg_screening_session_update(&session, &face, 2600000);
+    sg_screening_session_update(&session, &face, 2900000);
+    sg_screening_session_update(&session, &face, 3200000);
+    sg_screening_session_update(&session, &face, 5000000);
+    TEST_ASSERT_EQUAL(SG_STAGE_EYE_CENTER, sg_screening_session_stage(&session));
+    sg_screening_session_start(&session, 6000000);
+    TEST_ASSERT_EQUAL(SG_STAGE_FACE, sg_screening_session_stage(&session));
+}
+
+TEST_CASE("screening session times out without valid samples", "[screening_session]")
+{
+    sg_screening_session_t session = {};
+    sg_screening_session_start(&session, 1000000);
+    sg_screening_sample_t invalid = {};
+    sg_screening_session_update(&session, &invalid, 9000001);
+    TEST_ASSERT_EQUAL(SG_STAGE_ERROR, sg_screening_session_stage(&session));
 }
 
 extern "C" void app_main(void)

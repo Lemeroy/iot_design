@@ -17,6 +17,8 @@ typedef enum {
 typedef struct {
     sg_camera_target_event_type_t type;
     uint8_t reg;
+    uint8_t value;
+    bool has_value;
 } sg_camera_target_event_t;
 
 typedef struct {
@@ -25,6 +27,11 @@ typedef struct {
     portMUX_TYPE response_lock;
     sg_camera_face_response_t latest_bbox;
     sg_camera_face_metrics_response_t latest_metrics;
+    sg_camera_modal_response_t latest_eye;
+    sg_camera_modal_response_t latest_tongue;
+    sg_camera_stage_response_t latest_stage;
+    sg_screening_control_t pending_control;
+    bool control_pending;
     uint8_t selected_reg;
 } sg_camera_target_context_t;
 
@@ -45,6 +52,8 @@ static bool camera_target_on_receive(
     sg_camera_target_event_t event = {
         .type = SG_CAMERA_TARGET_EVENT_RECEIVE,
         .reg = event_data->buffer[0],
+        .value = event_data->length >= 2 ? event_data->buffer[1] : 0,
+        .has_value = event_data->length >= 2,
     };
     BaseType_t task_woken = pdFALSE;
     xQueueSendFromISR(context->events, &event, &task_woken);
@@ -80,6 +89,14 @@ static void camera_target_task(void *arg)
             continue;
         }
         if (event.type == SG_CAMERA_TARGET_EVENT_RECEIVE) {
+            if (event.reg == SG_CAMERA_CONTROL_REGISTER && event.has_value
+                && event.value <= SG_SCREENING_START) {
+                portENTER_CRITICAL(&context->response_lock);
+                context->pending_control = (sg_screening_control_t)event.value;
+                context->control_pending = true;
+                portEXIT_CRITICAL(&context->response_lock);
+                continue;
+            }
             context->selected_reg = event.reg;
             if (!receive_logged) {
                 ESP_LOGI(TAG, "first register received: 0x%02x", event.reg);
@@ -96,6 +113,18 @@ static void camera_target_task(void *arg)
         } else if (context->selected_reg == SG_CAMERA_FACE_METRICS_REGISTER) {
             portENTER_CRITICAL(&context->response_lock);
             memcpy(response, &context->latest_metrics, sizeof(response));
+            portEXIT_CRITICAL(&context->response_lock);
+        } else if (context->selected_reg == SG_CAMERA_EYE_REGISTER) {
+            portENTER_CRITICAL(&context->response_lock);
+            memcpy(response, &context->latest_eye, sizeof(response));
+            portEXIT_CRITICAL(&context->response_lock);
+        } else if (context->selected_reg == SG_CAMERA_TONGUE_REGISTER) {
+            portENTER_CRITICAL(&context->response_lock);
+            memcpy(response, &context->latest_tongue, sizeof(response));
+            portEXIT_CRITICAL(&context->response_lock);
+        } else if (context->selected_reg == SG_CAMERA_STAGE_REGISTER) {
+            portENTER_CRITICAL(&context->response_lock);
+            memcpy(response, &context->latest_stage, sizeof(response));
             portEXIT_CRITICAL(&context->response_lock);
         }
 
@@ -150,11 +179,29 @@ esp_err_t sg_camera_score_target_init(void)
     return ESP_OK;
 }
 
+bool sg_camera_score_target_take_control(sg_screening_control_t *control)
+{
+    if (control == NULL || s_context.target == NULL) return false;
+    bool available = false;
+    portENTER_CRITICAL(&s_context.response_lock);
+    if (s_context.control_pending) {
+        *control = s_context.pending_control;
+        s_context.control_pending = false;
+        available = true;
+    }
+    portEXIT_CRITICAL(&s_context.response_lock);
+    return available;
+}
+
 esp_err_t sg_camera_score_target_serve(
     const sg_camera_face_response_t *bbox_response,
-    const sg_camera_face_metrics_response_t *metrics_response)
+    const sg_camera_face_metrics_response_t *metrics_response,
+    const sg_camera_modal_response_t *eye_response,
+    const sg_camera_modal_response_t *tongue_response,
+    const sg_camera_stage_response_t *stage_response)
 {
-    if (bbox_response == NULL || metrics_response == NULL) {
+    if (bbox_response == NULL || metrics_response == NULL || eye_response == NULL
+        || tongue_response == NULL || stage_response == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
     if (s_context.target == NULL) return ESP_ERR_INVALID_STATE;
@@ -162,6 +209,9 @@ esp_err_t sg_camera_score_target_serve(
     portENTER_CRITICAL(&s_context.response_lock);
     s_context.latest_bbox = *bbox_response;
     s_context.latest_metrics = *metrics_response;
+    s_context.latest_eye = *eye_response;
+    s_context.latest_tongue = *tongue_response;
+    s_context.latest_stage = *stage_response;
     portEXIT_CRITICAL(&s_context.response_lock);
     return ESP_OK;
 }
