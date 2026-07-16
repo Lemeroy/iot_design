@@ -106,6 +106,30 @@ def test_camera_has_quality_gated_five_point_geometry_module():
         assert token in source
 
 
+def test_camera_integrates_five_landmarks_and_dual_i2c_registers():
+    adapter = read("camera_capture_adapter.cpp")
+    capture_header = read("camera_capture_adapter.h")
+    target = read("camera_score_target.c")
+    app = read("app_main.c")
+    cmake = read("CMakeLists.txt")
+
+    assert "keypoint.size() == 10" in adapter
+    assert "sg_face_geometry_evaluate" in adapter
+    assert "sg_face_stabilizer_push" in adapter
+    assert "sg_face_stabilizer_reset" in adapter
+    assert "sg_camera_face_metrics_t face_metrics" in capture_header
+    assert "SG_CAMERA_FACE_REGISTER" in target
+    assert "SG_CAMERA_FACE_METRICS_REGISTER" in target
+    assert "latest_bbox" in target
+    assert "latest_metrics" in target
+    assert "sg_camera_face_metrics_encode" in app
+    assert "&metrics_response" in app
+    assert '"face_geometry.cpp"' in cmake
+    assert '"face_stabilizer.c"' in cmake
+    for forbidden in ("tongue_score", "eye_score"):
+        assert forbidden not in adapter
+
+
 def test_camera_orientation_matches_esp_who_s3_default():
     adapter = read("camera_capture_adapter.cpp")
 

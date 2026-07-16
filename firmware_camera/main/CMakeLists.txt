@@ -4,6 +4,8 @@ idf_component_register(
         "camera_score_target.c"
         "camera_usb_preview.c"
         "camera_capture_adapter.cpp"
+        "face_geometry.cpp"
+        "face_stabilizer.c"
         "../../firmware_common/camera_scores_protocol.c"
         "../../firmware_common/camera_preview_protocol.c"
     INCLUDE_DIRS "." "../../firmware_common"

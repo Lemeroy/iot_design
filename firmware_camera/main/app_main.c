@@ -23,9 +23,13 @@ void app_main(void)
 
     while (1) {
         (void)sg_camera_capture_observe(&observation);
-        sg_camera_face_response_t response;
-        sg_camera_face_response_encode(&observation.face_bbox, &response);
-        esp_err_t err = sg_camera_score_target_serve(&response);
+        sg_camera_face_response_t bbox_response;
+        sg_camera_face_metrics_response_t metrics_response;
+        sg_camera_face_response_encode(&observation.face_bbox, &bbox_response);
+        sg_camera_face_metrics_encode(
+            &observation.face_metrics, &metrics_response);
+        esp_err_t err = sg_camera_score_target_serve(
+            &bbox_response, &metrics_response);
         if (err != ESP_OK && err != ESP_ERR_TIMEOUT) {
             ESP_LOGW(TAG, "I2C score serve failed: %s", esp_err_to_name(err));
         }

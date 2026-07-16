@@ -23,7 +23,8 @@ typedef struct {
     i2c_slave_dev_handle_t target;
     QueueHandle_t events;
     portMUX_TYPE response_lock;
-    sg_camera_face_response_t latest_response;
+    sg_camera_face_response_t latest_bbox;
+    sg_camera_face_metrics_response_t latest_metrics;
     uint8_t selected_reg;
 } sg_camera_target_context_t;
 
@@ -87,16 +88,20 @@ static void camera_target_task(void *arg)
             continue;
         }
 
-        sg_camera_face_response_t response = {0};
+        uint8_t response[sizeof(sg_camera_face_response_t)] = {0};
         if (context->selected_reg == SG_CAMERA_FACE_REGISTER) {
             portENTER_CRITICAL(&context->response_lock);
-            response = context->latest_response;
+            memcpy(response, &context->latest_bbox, sizeof(response));
+            portEXIT_CRITICAL(&context->response_lock);
+        } else if (context->selected_reg == SG_CAMERA_FACE_METRICS_REGISTER) {
+            portENTER_CRITICAL(&context->response_lock);
+            memcpy(response, &context->latest_metrics, sizeof(response));
             portEXIT_CRITICAL(&context->response_lock);
         }
 
         uint32_t written = 0;
         esp_err_t err = i2c_slave_write(
-            context->target, (const uint8_t *)&response, sizeof(response),
+            context->target, response, sizeof(response),
             &written, 1000);
         if (!request_logged || err != ESP_OK || written != sizeof(response)) {
             ESP_LOGI(TAG, "read request reg=0x%02x err=%s bytes=%lu",
@@ -146,13 +151,17 @@ esp_err_t sg_camera_score_target_init(void)
 }
 
 esp_err_t sg_camera_score_target_serve(
-    const sg_camera_face_response_t *response)
+    const sg_camera_face_response_t *bbox_response,
+    const sg_camera_face_metrics_response_t *metrics_response)
 {
-    if (response == NULL) return ESP_ERR_INVALID_ARG;
+    if (bbox_response == NULL || metrics_response == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
     if (s_context.target == NULL) return ESP_ERR_INVALID_STATE;
 
     portENTER_CRITICAL(&s_context.response_lock);
-    s_context.latest_response = *response;
+    s_context.latest_bbox = *bbox_response;
+    s_context.latest_metrics = *metrics_response;
     portEXIT_CRITICAL(&s_context.response_lock);
     return ESP_OK;
 }

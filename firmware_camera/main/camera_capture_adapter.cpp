@@ -1,5 +1,7 @@
 #include "camera_capture_adapter.h"
 #include "camera_usb_preview.h"
+#include "face_geometry.h"
+#include "face_stabilizer.h"
 
 #include <algorithm>
 #include <cmath>
@@ -21,6 +23,7 @@ static constexpr size_t RGB888_BUFFER_SIZE = CAMERA_WIDTH * CAMERA_HEIGHT * 3;
 
 static HumanFaceDetect *s_model;
 static uint8_t *s_rgb888;
+static sg_face_stabilizer_t s_face_stabilizer;
 
 static void bgr888_to_rgb888_in_place(uint8_t *pixels, size_t pixel_count)
 {
@@ -38,15 +41,24 @@ static uint8_t scale_to_u8(int value, int max_value)
     return (uint8_t)std::clamp(scaled, 0, 255);
 }
 
-static sg_camera_face_bbox_t pick_largest_face(
+typedef struct {
+    sg_camera_face_bbox_t bbox;
+    sg_face_geometry_input_t geometry;
+    bool landmarks_valid;
+} selected_face_t;
+
+static selected_face_t pick_largest_face(
     const std::list<dl::detect::result_t> &results,
     uint16_t frame_width,
     uint16_t frame_height)
 {
-    sg_camera_face_bbox_t out = {};
+    selected_face_t out = {};
     int best_area = 0;
 
     for (const auto &result : results) {
+        if (result.box.size() < 4) {
+            continue;
+        }
         const int x0 = std::clamp((int)std::lround(result.box[0]), 0, (int)frame_width - 1);
         const int y0 = std::clamp((int)std::lround(result.box[1]), 0, (int)frame_height - 1);
         const int x1 = std::clamp((int)std::lround(result.box[2]), 0, (int)frame_width - 1);
@@ -59,11 +71,23 @@ static sg_camera_face_bbox_t pick_largest_face(
         }
 
         best_area = area;
-        out.valid = true;
-        out.center_x = scale_to_u8(x0 + w / 2, frame_width);
-        out.center_y = scale_to_u8(y0 + h / 2, frame_height);
-        out.width = scale_to_u8(w, frame_width);
-        out.height = scale_to_u8(h, frame_height);
+        out = {};
+        out.bbox.valid = true;
+        out.bbox.center_x = scale_to_u8(x0 + w / 2, frame_width);
+        out.bbox.center_y = scale_to_u8(y0 + h / 2, frame_height);
+        out.bbox.width = scale_to_u8(w, frame_width);
+        out.bbox.height = scale_to_u8(h, frame_height);
+        if (result.keypoint.size() == 10) {
+            out.geometry = {
+                .box = {(int16_t)x0, (int16_t)y0, (int16_t)x1, (int16_t)y1},
+                .left_eye = {(int16_t)result.keypoint[0], (int16_t)result.keypoint[1]},
+                .right_eye = {(int16_t)result.keypoint[2], (int16_t)result.keypoint[3]},
+                .nose = {(int16_t)result.keypoint[4], (int16_t)result.keypoint[5]},
+                .left_mouth = {(int16_t)result.keypoint[6], (int16_t)result.keypoint[7]},
+                .right_mouth = {(int16_t)result.keypoint[8], (int16_t)result.keypoint[9]},
+            };
+            out.landmarks_valid = true;
+        }
     }
 
     return out;
@@ -164,7 +188,25 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
         .pix_type = dl::image::DL_IMAGE_PIX_TYPE_RGB888,
     };
     auto &results = s_model->run(img);
-    out->face_bbox = pick_largest_face(results, fb->width, fb->height);
+    const selected_face_t selected =
+        pick_largest_face(results, fb->width, fb->height);
+    out->face_bbox = selected.bbox;
+
+    sg_face_frame_metrics_t frame_metrics = {};
+    sg_face_frame_metrics_t stable_metrics = {};
+    const bool frame_valid = selected.landmarks_valid
+        && sg_face_geometry_evaluate(&selected.geometry, &frame_metrics);
+    if (frame_valid
+        && sg_face_stabilizer_push(
+            &s_face_stabilizer, &frame_metrics, &stable_metrics)) {
+        out->face_metrics.valid = true;
+        out->face_metrics.score = stable_metrics.score;
+        out->face_metrics.mouth_angle_deg = static_cast<int8_t>(std::clamp(
+            (int)std::lround(stable_metrics.mouth_angle_deg), -90, 90));
+        out->face_metrics.quality = stable_metrics.quality;
+    } else if (!frame_valid) {
+        sg_face_stabilizer_reset(&s_face_stabilizer);
+    }
 
     const long long latency_ms =
         (long long)((esp_timer_get_time() - start_us) / 1000);
@@ -179,6 +221,11 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
                  out->face_bbox.center_x, out->face_bbox.center_y,
                  out->face_bbox.width, out->face_bbox.height,
                  latency_ms);
+    }
+    if (out->face_metrics.valid) {
+        ESP_LOGI(TAG, "face F=%u angle=%d quality=%u latency=%lldms",
+                 out->face_metrics.score, out->face_metrics.mouth_angle_deg,
+                 out->face_metrics.quality, latency_ms);
     }
     return ESP_OK;
 }
