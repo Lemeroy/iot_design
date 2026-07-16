@@ -6,6 +6,7 @@
 #include "unity_test_runner.h"
 
 #include "face_geometry.h"
+#include "face_stabilizer.h"
 
 static sg_face_geometry_input_t frontal_face()
 {
@@ -84,6 +85,55 @@ TEST_CASE("quality gate rejects mouth above eyes", "[face_geometry]")
     input.right_mouth.y = 70;
     sg_face_frame_metrics_t out = {};
     TEST_ASSERT_FALSE(sg_face_geometry_evaluate(&input, &out));
+}
+
+TEST_CASE("stabilizer publishes median after five samples", "[face_stabilizer]")
+{
+    sg_face_stabilizer_t state = {};
+    const uint8_t scores[5] = {90, 92, 10, 91, 93};
+    const float angles[5] = {1.0f, 2.0f, 30.0f, 0.0f, -1.0f};
+    const uint8_t qualities[5] = {80, 82, 20, 81, 83};
+    sg_face_frame_metrics_t stable = {};
+
+    for (int i = 0; i < 4; ++i) {
+        const sg_face_frame_metrics_t sample = {
+            .score = scores[i],
+            .mouth_angle_deg = angles[i],
+            .corner_asymmetry = 0.0f,
+            .quality = qualities[i],
+        };
+        TEST_ASSERT_FALSE(sg_face_stabilizer_push(&state, &sample, &stable));
+    }
+    const sg_face_frame_metrics_t fifth = {
+        .score = scores[4],
+        .mouth_angle_deg = angles[4],
+        .corner_asymmetry = 0.0f,
+        .quality = qualities[4],
+    };
+    TEST_ASSERT_TRUE(sg_face_stabilizer_push(&state, &fifth, &stable));
+    TEST_ASSERT_EQUAL_UINT8(91, stable.score);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 1.0f, stable.mouth_angle_deg);
+    TEST_ASSERT_EQUAL_UINT8(81, stable.quality);
+}
+
+TEST_CASE("stabilizer reset requires five new samples", "[face_stabilizer]")
+{
+    sg_face_stabilizer_t state = {};
+    const sg_face_frame_metrics_t sample = {
+        .score = 88,
+        .mouth_angle_deg = 3.0f,
+        .corner_asymmetry = 0.1f,
+        .quality = 75,
+    };
+    sg_face_frame_metrics_t stable = {};
+    for (int i = 0; i < 5; ++i) {
+        (void)sg_face_stabilizer_push(&state, &sample, &stable);
+    }
+    sg_face_stabilizer_reset(&state);
+    for (int i = 0; i < 4; ++i) {
+        TEST_ASSERT_FALSE(sg_face_stabilizer_push(&state, &sample, &stable));
+    }
+    TEST_ASSERT_TRUE(sg_face_stabilizer_push(&state, &sample, &stable));
 }
 
 extern "C" void app_main(void)
