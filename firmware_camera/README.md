@@ -3,14 +3,16 @@
 This ESP-IDF v5.5.3 project targets the Hiwonder ESP32-S3-Cam board
 (`ESP32-S3-WROOM-1U-N8R8`) with the onboard GC2145 camera. It runs local
 `esp32-camera` YUV422 capture, local PSRAM RGB888 conversion, and ESP-WHO
-`human_face_detect`, then exposes only a
-4-byte face bounding box to the N16R8 main controller over I2C.
+`human_face_detect`. It computes a quality-gated FAST Face (F) engineering
+score from ESP-WHO's five landmarks, stabilizes it over five valid frames,
+and exposes only numeric results to the N16R8 main controller over I2C.
 
 Raw images are not uploaded. The normal device output is face presence and
 normalized geometry only. An explicit USB debug session may send requested
 JPEG frames directly to the attached PC; frames are not saved or uploaded.
-The face box is not a FAST facial asymmetry score and must not be treated as a
-medical F result.
+The USB face box remains a detection diagnostic. The five-point F score is a
+risk feature, not a diagnosis, and is not equivalent to evaluated 68-point
+facial analysis.
 
 ## Wiring
 
@@ -50,12 +52,21 @@ The camera board is the I2C target on GPIO47/GPIO48:
 
 ```text
 address:  0x52
-register: 0x01
-reply:    4 bytes: center_x, center_y, width, height
+register 0x01: 4 bytes: center_x, center_y, width, height
+register 0x02: 4 bytes: status, F_score, signed_mouth_angle, quality
 ```
 
-Each value is normalized to `0..255` against the current frame. All zeros mean
-no face detected. The N16R8 writes register `0x01` and reads four bytes.
+Register `0x01` values are normalized to `0..255`; all zeros mean no face.
+For register `0x02`, status `1` means the remaining values are valid and
+status `0` means F is unavailable. Score and quality are `0..100`; angle is a
+signed degree value in `-90..90`. N16R8 uses register `0x02` for fusion.
+
+The F feature requires a face at least 64 pixels wide, sufficient eye spacing,
+a near-frontal nose position, and eye-line roll within 25 degrees. It removes
+eye-line roll from the mouth angle, combines mouth angle with nose-to-mouth
+distance asymmetry, and publishes the median of five valid frames. These are
+initial engineering thresholds pending measured sensitivity, specificity,
+and K-fold evaluation.
 
 ## Build And Flash
 
@@ -83,4 +94,4 @@ host_pc\.venv\Scripts\python.exe host_pc\tools\camera_usb_preview.py --port COM4
 The debug protocol uses `921600 8N1`. The PC requests one JPEG at a time, so
 preview work stops when the window disconnects. Images remain on the directly
 connected PC, are not saved, and are not uploaded to MQTT, VPS, or the large
-model. I2C face-box polling at `0x52`/`0x01` continues during preview.
+model. I2C numeric F polling at `0x52`/`0x02` continues during preview.

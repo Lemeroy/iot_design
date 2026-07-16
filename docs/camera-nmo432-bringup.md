@@ -57,18 +57,24 @@ host_pc\.venv\Scripts\python.exe host_pc\tools\camera_usb_preview.py --port COM4
 The camera preview uses `921600 8N1`. It requests one JPEG at a time and does
 not record or upload frames. The N16R8 connection is separate: I2C remains active
 on GPIO8/GPIO9 while the PC preview window is connected. The displayed box is
-face-presence geometry only, not an F score.
+face-presence geometry only. The production F score is a separate numeric
+result computed locally from ESP-WHO five-point landmarks.
 
 ## Expected behavior
 
-- Camera I2C address is `0x52`, face register is `0x01`, and N16R8 polls every
-  500 ms.
+- Camera I2C address is `0x52`; bbox register `0x01` remains for debugging and
+  numeric F register `0x02` is polled by N16R8 every 500 ms.
 - Camera firmware runs local GC2145 capture plus ESP-WHO human face detection
-  and returns four normalized bytes: `center_x`, `center_y`, `width`, `height`.
-  All zeros mean no face detected.
-- The current face box proves camera/model operation only. It is not a FAST
-  facial asymmetry score, so F/T/E remain unavailable until evaluated
-  asymmetry, tongue, and eye algorithms are added.
+  and retains the normalized bbox for USB preview.
+- ESP-WHO's two eyes, nose, and two mouth corners feed quality gating,
+  eye-line roll correction, asymmetry scoring, and a five-frame median. A
+  valid frontal face produces `F score`, signed mouth angle, and quality on
+  register `0x02`; rejected frames do not create a healthy score.
+- The five-point F result is an initial risk feature, not a diagnosis or a
+  replacement for evaluated 68-point analysis. Its thresholds and accuracy
+  remain pending measured calibration.
+- T and E remain unavailable. The five face landmarks must not be repurposed
+  to fabricate tongue or eye scores.
 - NMO432 logs aggregate RMS, peak, and valid-block counts every five seconds.
   These are electrical diagnostics, not a speech-risk score.
 - S remains unavailable without an evaluated versioned model.
@@ -82,7 +88,10 @@ face-presence geometry only, not an F score.
 3. Reconnect I2C; camera communication must recover without reboot.
 4. Speak near NMO432 and verify RMS/peak change; silence must not create S.
 5. Confirm MQTT and InfluxDB contain no JPEG, PCM, MFCC, or raw media.
-6. Confirm unavailable F/S/T/E are displayed as unavailable rather than 0.
+6. Hold a well-lit frontal face steady for five valid frames and verify COM3
+   logs `camera F score=... angle=... quality=...`.
+7. Remove the face and confirm F returns to unavailable after the stale
+   interval; S/T/E remain unavailable rather than 0.
 
 This product provides risk prompts and medical-attention reminders, not a
 diagnosis. Arm weakness is not independently measured by the mirror.
