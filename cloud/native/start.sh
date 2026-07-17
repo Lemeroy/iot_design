@@ -80,6 +80,9 @@ start_backend() {
     export SG_DEMO_PASSWORD="${SG_DEMO_PASSWORD:-}"
     export SG_DEMO_SESSION_SECRET="${SG_DEMO_SESSION_SECRET:-}"
     export SG_ALLOW_INSECURE_HTTP="${SG_ALLOW_INSECURE_HTTP:-}"
+    export PUSHPLUS_ENABLED="${PUSHPLUS_ENABLED:-0}"
+    export PUSHPLUS_TOKEN="${PUSHPLUS_TOKEN:-}"
+    export PUSHPLUS_DEVICE_NAME="${PUSHPLUS_DEVICE_NAME:-}"
     cd "$cloud_root/backend"
     nohup "$python_bin" -m uvicorn app.main:app --host 0.0.0.0 --port 8000 \
         >"$logs_dir/backend.log" 2>&1 &
