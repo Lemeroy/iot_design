@@ -237,6 +237,25 @@ TEST_CASE("evaluated low speech remains veto eligible",
     TEST_ASSERT_EQUAL(SG_LEVEL_DANGER, out.level);
 }
 
+TEST_CASE("continuous low eye does not independently upgrade warning",
+          "[eye][fusion]")
+{
+    sg_scores_in_t in = {
+        .face = 100,
+        .face_theta_deg = 0.0f,
+        .speech = 100,
+        .speech_p_clear = 1.0f,
+        .speech_veto_eligible = false,
+        .tongue = 100,
+        .eye = 10,
+        .csi = 100,
+    };
+    sg_fusion_out_t out;
+    sg_fusion_compute(&in, -1, &out);
+    TEST_ASSERT_GREATER_OR_EQUAL(70, out.final);
+    TEST_ASSERT_EQUAL(SG_LEVEL_NORMAL, out.level);
+}
+
 TEST_CASE("stale speech clears veto provenance", "[speech][score_bus]")
 {
     sg_scores_in_t snapshot;

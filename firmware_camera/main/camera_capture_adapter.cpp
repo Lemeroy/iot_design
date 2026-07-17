@@ -3,6 +3,7 @@
 #include "face_baseline.h"
 #include "face_geometry.h"
 #include "eye_tracking.h"
+#include "eye_continuous.h"
 #include "screening_session.h"
 #include "tongue_deviation.h"
 
@@ -39,6 +40,10 @@ static uint8_t s_bbox_miss_count;
 static sg_screening_stage_t s_eye_log_stage = SG_STAGE_IDLE;
 static uint32_t s_eye_log_count;
 static uint32_t s_tongue_log_count;
+static sg_eye_continuous_context_t s_eye_continuous;
+static sg_eye_continuous_result_t s_eye_continuous_result;
+static sg_camera_modal_metrics_t s_guided_eye_result;
+static int64_t s_guided_eye_result_us = -1;
 
 static void note_face_rejection(const char *reason)
 {
@@ -186,6 +191,7 @@ extern "C" esp_err_t sg_camera_capture_init(void)
         return ESP_ERR_NO_MEM;
     }
     ESP_LOGI(TAG, "GC2145 YUV422 + RGB888 human_face_detect ready");
+    sg_eye_continuous_init(&s_eye_continuous);
     return ESP_OK;
 }
 
@@ -193,6 +199,8 @@ extern "C" esp_err_t sg_camera_capture_control(sg_screening_control_t control)
 {
     if (control == SG_SCREENING_START) {
         sg_screening_session_start(&s_screening, esp_timer_get_time());
+        std::memset(&s_guided_eye_result, 0, sizeof(s_guided_eye_result));
+        s_guided_eye_result_us = -1;
         ESP_LOGI(TAG, "screening started");
         return ESP_OK;
     }
@@ -299,9 +307,9 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
     } else {
         note_face_rejection(nullptr);
     }
-    if (selected.landmarks_valid
-        && (stage == SG_STAGE_EYE_CENTER || stage == SG_STAGE_EYE_LEFT
-            || stage == SG_STAGE_EYE_RIGHT)) {
+    sg_eye_measurement_t frame_eye = {};
+    bool frame_eye_valid = false;
+    if (selected.landmarks_valid) {
         const int eye_dx = selected.geometry.right_eye.x - selected.geometry.left_eye.x;
         const int eye_dy = selected.geometry.right_eye.y - selected.geometry.left_eye.y;
         const int eye_distance = (int)std::lround(std::hypot(eye_dx, eye_dy));
@@ -316,8 +324,21 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
             .eye_line_angle_deg = std::atan2((float)eye_dy, (float)eye_dx)
                                 * 180.0f / 3.14159265358979323846f,
         };
-        screening_sample.eye_valid = sg_eye_measure(
-            &eye_input, &screening_sample.eye);
+        frame_eye_valid = sg_eye_measure(&eye_input, &frame_eye);
+        (void)sg_eye_continuous_update(
+            &s_eye_continuous, frame_eye_valid, &frame_eye,
+            &s_eye_continuous_result);
+        if (stage == SG_STAGE_EYE_CENTER || stage == SG_STAGE_EYE_LEFT
+            || stage == SG_STAGE_EYE_RIGHT) {
+            screening_sample.eye_valid = frame_eye_valid;
+            screening_sample.eye = frame_eye;
+        }
+    } else {
+        (void)sg_eye_continuous_update(
+            &s_eye_continuous, false, nullptr, &s_eye_continuous_result);
+    }
+    if (stage == SG_STAGE_EYE_CENTER || stage == SG_STAGE_EYE_LEFT
+        || stage == SG_STAGE_EYE_RIGHT) {
         ++s_eye_log_count;
         if (s_eye_log_count == 1 || s_eye_log_count % 5U == 0) {
             if (screening_sample.eye_valid) {
@@ -382,8 +403,15 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
         ESP_LOGI(TAG, "screening stage %u -> %u",
                  (unsigned)previous_stage, (unsigned)current_stage);
     }
-    (void)sg_screening_session_eye_result(
-        &s_screening, &out->eye_metrics);
+    sg_camera_modal_metrics_t guided_eye = {};
+    if (sg_screening_session_eye_result(&s_screening, &guided_eye)
+        && guided_eye.valid && !s_guided_eye_result.valid) {
+        s_guided_eye_result = guided_eye;
+        s_guided_eye_result_us = now_us;
+    }
+    (void)sg_eye_select_result(
+        &s_eye_continuous_result, &s_guided_eye_result,
+        s_guided_eye_result_us, now_us, &out->eye_metrics);
     (void)sg_screening_session_tongue_result(
         &s_screening, &out->tongue_metrics);
     out->screening.stage = current_stage;

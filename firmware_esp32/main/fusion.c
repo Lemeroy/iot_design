@@ -20,7 +20,6 @@
 #define FINAL_WARNING_MAX    70
 
 #define SPEECH_P_DANGER_MAX   0.4f
-#define EYE_WARNING_MAX       30
 #define CSI_WARNING_MAX       30
 
 #define MIN_AVAIL_WEIGHT_SUM  0.50f
@@ -167,11 +166,6 @@ void sg_fusion_compute(const sg_scores_in_t *in,
     }
 
     /* 单项提级到 warning */
-    if (lv == SG_LEVEL_NORMAL && a_eye && eye < EYE_WARNING_MAX) {
-        lv = SG_LEVEL_WARNING;
-        add_reason(out, "upgrade to warning: E=%d < %d",
-                   eye, EYE_WARNING_MAX);
-    }
     if (lv == SG_LEVEL_NORMAL && a_csi && csi < CSI_WARNING_MAX) {
         lv = SG_LEVEL_WARNING;
         add_reason(out, "upgrade to warning: B=%d < %d",

@@ -7,6 +7,7 @@ idf_component_register(
         "face_geometry.cpp"
         "face_baseline.c"
         "eye_tracking.cpp"
+        "eye_continuous.cpp"
         "tongue_deviation.cpp"
         "screening_session.c"
         "../../firmware_common/camera_scores_protocol.c"

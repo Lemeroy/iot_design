@@ -7,7 +7,7 @@
  *   缺失模态: 剩余权重按比例归一
  *   可用权重和 < 0.5 -> insufficient
  *   单项否决 (danger): F<=30 或 face_theta>=20°; S<=35 且 p_clear<0.4
- *   单项 warning (提级): E<30 或 B<30
+ *   单项 warning (提级): B<30；连续 E 仅参与加权，不单项提级
  *   总分级: >=70 normal, [40,70) warning, <40 danger
  */
 #pragma once

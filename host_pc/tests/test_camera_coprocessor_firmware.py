@@ -187,6 +187,24 @@ def test_camera_tongue_kernel_is_auxiliary_local_and_fixed_storage():
     assert "kMinRedGreenDelta = 20" in source
 
 
+def test_camera_continuously_tracks_eye_with_guided_override():
+    header = read("eye_continuous.h")
+    source = read("eye_continuous.cpp")
+    adapter = read("camera_capture_adapter.cpp")
+
+    for token in (
+        "SG_EYE_CONTINUOUS_CAPACITY 12U",
+        "SG_EYE_CONTINUOUS_MIN_SAMPLES 6U",
+        "SG_EYE_CONTINUOUS_MAX_DROPOUT 2U",
+        "SG_EYE_GUIDED_OVERRIDE_US 30000000LL",
+        "sg_eye_continuous_update",
+        "sg_eye_select_result",
+    ):
+        assert token in header or token in source
+    assert "sg_eye_continuous_update" in adapter
+    assert "sg_eye_select_result" in adapter
+
+
 def test_camera_guided_session_is_wired_to_i2c_and_capture():
     session_h = read("screening_session.h")
     session_c = read("screening_session.c")

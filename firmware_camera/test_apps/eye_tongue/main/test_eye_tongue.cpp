@@ -8,6 +8,7 @@
 #include "unity_test_runner.h"
 
 #include "eye_tracking.h"
+#include "eye_continuous.h"
 #include "tongue_deviation.h"
 #include "screening_session.h"
 
@@ -158,6 +159,84 @@ TEST_CASE("eye sequence reports measured one-eye dropout as discordant", "[eye_t
     TEST_ASSERT_GREATER_THAN_UINT8(30, out.score);
     TEST_ASSERT_LESS_THAN_UINT8(80, out.score);
     TEST_ASSERT_GREATER_OR_EQUAL_INT8(15, out.binocular_difference);
+}
+
+TEST_CASE("continuous eye scores coordinated samples", "[eye_continuous]")
+{
+    sg_eye_continuous_context_t context = {};
+    sg_eye_continuous_result_t result = {};
+    sg_eye_continuous_init(&context);
+    for (int i = 0; i < 12; ++i) {
+        const auto sample = measured(i * 3, i * 3 + 1, 90);
+        sg_eye_continuous_update(&context, true, &sample, &result);
+    }
+    TEST_ASSERT_TRUE(result.valid);
+    TEST_ASSERT_GREATER_OR_EQUAL_UINT8(85, result.score);
+    TEST_ASSERT_LESS_OR_EQUAL_INT8(3, result.binocular_difference);
+}
+
+TEST_CASE("continuous eye lowers discordant motion", "[eye_continuous]")
+{
+    sg_eye_continuous_context_t context = {};
+    sg_eye_continuous_result_t result = {};
+    sg_eye_continuous_init(&context);
+    for (int i = 0; i < 12; ++i) {
+        const auto sample = measured(i * 5, i * -5, 90);
+        sg_eye_continuous_update(&context, true, &sample, &result);
+    }
+    TEST_ASSERT_TRUE(result.valid);
+    TEST_ASSERT_LESS_THAN_UINT8(75, result.score);
+    TEST_ASSERT_GREATER_OR_EQUAL_INT8(5, result.binocular_difference);
+}
+
+TEST_CASE("continuous eye tolerates two dropped frames", "[eye_continuous]")
+{
+    sg_eye_continuous_context_t context = {};
+    sg_eye_continuous_result_t result = {};
+    sg_eye_continuous_init(&context);
+    for (int i = 0; i < 6; ++i) {
+        const auto sample = measured(i, i + 1);
+        sg_eye_continuous_update(&context, true, &sample, &result);
+    }
+    TEST_ASSERT_TRUE(result.valid);
+    TEST_ASSERT_TRUE(sg_eye_continuous_update(&context, false, nullptr, &result));
+    TEST_ASSERT_TRUE(sg_eye_continuous_update(&context, false, nullptr, &result));
+    TEST_ASSERT_TRUE(result.valid);
+}
+
+TEST_CASE("continuous eye expires on third dropped frame", "[eye_continuous]")
+{
+    sg_eye_continuous_context_t context = {};
+    sg_eye_continuous_result_t result = {};
+    sg_eye_continuous_init(&context);
+    for (int i = 0; i < 6; ++i) {
+        const auto sample = measured(i, i + 1);
+        sg_eye_continuous_update(&context, true, &sample, &result);
+    }
+    sg_eye_continuous_update(&context, false, nullptr, &result);
+    sg_eye_continuous_update(&context, false, nullptr, &result);
+    TEST_ASSERT_FALSE(sg_eye_continuous_update(&context, false, nullptr, &result));
+    TEST_ASSERT_FALSE(result.valid);
+}
+
+TEST_CASE("guided eye overrides continuous result for thirty seconds", "[eye_continuous]")
+{
+    const sg_eye_continuous_result_t continuous = {
+        .valid = true, .score = 82, .binocular_difference = 4, .quality = 88};
+    const sg_camera_modal_metrics_t guided = {
+        .valid = true, .score = 55, .signed_value = 20, .quality = 91};
+    sg_camera_modal_metrics_t out = {};
+    TEST_ASSERT_TRUE(sg_eye_select_result(
+        &continuous, &guided, 1000000, 31000000, &out));
+    TEST_ASSERT_EQUAL_UINT8(55, out.score);
+    TEST_ASSERT_TRUE(sg_eye_select_result(
+        &continuous, &guided, 1000000, 31000001, &out));
+    TEST_ASSERT_EQUAL_UINT8(82, out.score);
+
+    const sg_camera_modal_metrics_t failed = {};
+    TEST_ASSERT_TRUE(sg_eye_select_result(
+        &continuous, &failed, 31000001, 31000002, &out));
+    TEST_ASSERT_EQUAL_UINT8(82, out.score);
 }
 
 static void tongue_blob(int cx, int cy, int radius_x, int radius_y,
