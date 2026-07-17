@@ -205,13 +205,28 @@ TEST_CASE("personal baseline rejects low quality and unstable windows", "[face_b
     TEST_ASSERT_FALSE(sg_face_baseline_ready(&state));
 
     sg_face_baseline_reset(&state);
-    const float unstable[5] = {0.0f, 0.0f, 0.0f, 0.0f, 4.0f};
+    const float unstable[5] = {0.0f, 0.0f, 0.0f, 0.0f, 6.0f};
     for (int i = 0; i < 5; ++i) {
         const auto sample = baseline_sample(unstable[i], 0.05f);
         TEST_ASSERT_FALSE(sg_face_baseline_update(
             &state, &sample, 5000000LL + i * 500000LL, &out));
     }
     TEST_ASSERT_FALSE(sg_face_baseline_ready(&state));
+}
+
+TEST_CASE("personal baseline accepts measured QVGA landmark jitter", "[face_baseline]")
+{
+    sg_face_baseline_t state = {};
+    sg_face_frame_metrics_t out = {};
+    const float angles[5] = {0.0f, 1.4f, 2.7f, 3.6f, 4.8f};
+    const float asymmetries[5] = {0.02f, 0.04f, 0.05f, 0.07f, 0.09f};
+
+    for (int i = 0; i < 5; ++i) {
+        const auto sample = baseline_sample(angles[i], asymmetries[i], 60);
+        TEST_ASSERT_FALSE(sg_face_baseline_update(
+            &state, &sample, 1000000LL + i * 500000LL, &out));
+    }
+    TEST_ASSERT_TRUE(sg_face_baseline_ready(&state));
 }
 
 TEST_CASE("personal baseline accepts practical QVGA face quality", "[face_baseline]")

@@ -7,7 +7,7 @@
 #define SG_STAGE_TIMEOUT_GRACE_US 5000000LL
 #define SG_FACE_DURATION_US 3000000LL
 #define SG_FACE_DEADLINE_US 20000000LL
-#define SG_EYE_DURATION_US 2000000LL
+#define SG_EYE_DURATION_US 4000000LL
 #define SG_TONGUE_DURATION_US 3000000LL
 #define SG_FACE_SAMPLE_WINDOW 5U
 #define SG_FACE_SAMPLE_MASK 0x1FU
@@ -81,6 +81,7 @@ static void enter_stage(
     session->stage = stage;
     session->stage_started_us = now_us;
     session->sample_count = 0;
+    session->sample_next = 0;
     session->face_sample_window = 0;
     session->face_window_count = 0;
     memset(session->eye_samples, 0, sizeof(session->eye_samples));
@@ -124,14 +125,23 @@ static void add_sample(
         session->sample_count = count_face_samples(session->face_sample_window);
         return;
     }
-    if (session->sample_count >= SG_SCREENING_STABLE_SAMPLES) return;
     if ((session->stage == SG_STAGE_EYE_CENTER
                 || session->stage == SG_STAGE_EYE_LEFT
                 || session->stage == SG_STAGE_EYE_RIGHT)
                && sample->eye_valid) {
-        session->eye_samples[session->sample_count++] = sample->eye;
+        session->eye_samples[session->sample_next] = sample->eye;
+        session->sample_next = (uint8_t)(
+            (session->sample_next + 1U) % SG_SCREENING_STABLE_SAMPLES);
+        if (session->sample_count < SG_SCREENING_STABLE_SAMPLES) {
+            ++session->sample_count;
+        }
     } else if (session->stage == SG_STAGE_TONGUE && sample->tongue_valid) {
-        session->tongue_samples[session->sample_count++] = sample->tongue;
+        session->tongue_samples[session->sample_next] = sample->tongue;
+        session->sample_next = (uint8_t)(
+            (session->sample_next + 1U) % SG_SCREENING_STABLE_SAMPLES);
+        if (session->sample_count < SG_SCREENING_STABLE_SAMPLES) {
+            ++session->sample_count;
+        }
     }
 }
 

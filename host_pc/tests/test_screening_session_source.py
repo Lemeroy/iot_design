@@ -26,6 +26,16 @@ def test_face_stage_keeps_a_bounded_overall_deadline() -> None:
     assert "enter_stage(session, SG_STAGE_ERROR" in source
 
 
+def test_eye_stages_keep_recent_samples_long_enough_for_user_response() -> None:
+    source = SESSION.read_text(encoding="utf-8")
+    header = (SESSION.parent / "screening_session.h").read_text(encoding="utf-8")
+
+    assert "SG_EYE_DURATION_US 4000000LL" in source
+    assert "sample_next" in header
+    assert "session->sample_next" in source
+    assert "% SG_SCREENING_STABLE_SAMPLES" in source
+
+
 def test_face_adapter_reports_bounded_local_rejection_reasons() -> None:
     source = ADAPTER.read_text(encoding="utf-8")
 

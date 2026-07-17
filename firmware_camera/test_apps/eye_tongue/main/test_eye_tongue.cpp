@@ -290,25 +290,27 @@ TEST_CASE("screening session follows guided stage order", "[screening_session]")
 
     auto center = eye_sample(0, 1);
     feed_three(&session, center, 4000000);
-    sg_screening_session_update(&session, &center, 6000000);
+    sg_screening_session_update(&session, &center, 8000000);
     TEST_ASSERT_EQUAL(SG_STAGE_EYE_LEFT, sg_screening_session_stage(&session));
 
     auto left = eye_sample(-42, -40);
-    feed_three(&session, left, 6000000);
-    sg_screening_session_update(&session, &left, 8000000);
+    feed_three(&session, center, 8000000);
+    feed_three(&session, left, 10500000);
+    sg_screening_session_update(&session, &left, 12000000);
     TEST_ASSERT_EQUAL(SG_STAGE_EYE_RIGHT, sg_screening_session_stage(&session));
 
     auto right = eye_sample(43, 45);
-    feed_three(&session, right, 8000000);
-    sg_screening_session_update(&session, &right, 10000000);
+    feed_three(&session, center, 12000000);
+    feed_three(&session, right, 14500000);
+    sg_screening_session_update(&session, &right, 16000000);
     TEST_ASSERT_EQUAL(SG_STAGE_TONGUE, sg_screening_session_stage(&session));
     sg_camera_modal_metrics_t eye_result = {};
     TEST_ASSERT_TRUE(sg_screening_session_eye_result(&session, &eye_result));
     TEST_ASSERT_TRUE(eye_result.valid);
 
     auto tongue = valid_tongue_sample(4);
-    feed_three(&session, tongue, 10000000);
-    sg_screening_session_update(&session, &tongue, 13000000);
+    feed_three(&session, tongue, 16000000);
+    sg_screening_session_update(&session, &tongue, 19000000);
     TEST_ASSERT_EQUAL(SG_STAGE_DONE, sg_screening_session_stage(&session));
     sg_camera_modal_metrics_t tongue_result = {};
     TEST_ASSERT_TRUE(sg_screening_session_tongue_result(&session, &tongue_result));
