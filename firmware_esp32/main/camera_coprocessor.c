@@ -19,7 +19,7 @@
 #define SG_CAMERA_I2C_HZ 100000U
 #define SG_CAMERA_READ_TIMEOUT_MS 100
 #define SG_CAMERA_REGISTER_SETTLE_MS 5
-#define SG_CAMERA_STALE_US 2000000LL
+#define SG_CAMERA_FACE_HOLD_US 5000000LL
 #define SG_CAMERA_CONTROL_CONFIRM_RETRIES 8U
 #define SG_CAMERA_CONTROL_CONFIRM_DELAY_MS 250U
 
@@ -135,7 +135,8 @@ static void camera_poll_task(void *arg)
             have_fresh_face = true;
             last_face_score = observation.score;
             last_face_angle_deg = fabsf((float)observation.mouth_angle_deg);
-        } else if (have_fresh_face && now_us - face_seen_us > SG_CAMERA_STALE_US) {
+        } else if (have_fresh_face
+                   && now_us - face_seen_us > SG_CAMERA_FACE_HOLD_US) {
             have_fresh_face = false;
         }
 
