@@ -68,7 +68,11 @@
     });
   }
 
-  function scoreValue(value) { return Number.isFinite(value) ? String(value) : "未接入"; }
+  function scoreValue(value, online, stage) {
+    if (Number.isFinite(value)) return String(value);
+    if (!online) return "未接入";
+    return stage === 7 ? "本轮未完成" : "待采集";
+  }
 
   const stageContent = {
     0: ["设备待机", 0],
@@ -103,10 +107,13 @@
 
   function renderDevice(data) {
     const scores = data && data.scores ? data.scores : {};
-    Object.entries(scoreFields).forEach(([name, id]) => { document.querySelector(`#score-${id}`).textContent = scoreValue(scores[name]); });
-    fields.device.textContent = data.device_id || "--";
     const online = data.online === true;
-    renderScreening(data.screening_stage, online);
+    const stage = Number.isInteger(data.screening_stage) ? data.screening_stage : 0;
+    Object.entries(scoreFields).forEach(([name, id]) => {
+      document.querySelector(`#score-${id}`).textContent = scoreValue(scores[name], online, stage);
+    });
+    fields.device.textContent = data.device_id || "--";
+    renderScreening(stage, online);
     fields.online.textContent = online ? "在线" : "离线";
     fields.indicator.className = `indicator ${online ? "online" : "offline"}`;
     fields.receipt.textContent = formatTime(data.received_at);

@@ -90,6 +90,8 @@ static void camera_poll_task(void *arg)
     (void)arg;
     bool online = false;
     bool have_fresh_face = false;
+    uint8_t last_face_score = 0;
+    float last_face_angle_deg = 0.0f;
     int64_t face_seen_us = 0;
     unsigned poll_failures = 0;
     esp_err_t last_poll_error = ESP_OK;
@@ -131,6 +133,8 @@ static void camera_poll_task(void *arg)
         if (observation.valid) {
             face_seen_us = now_us;
             have_fresh_face = true;
+            last_face_score = observation.score;
+            last_face_angle_deg = fabsf((float)observation.mouth_angle_deg);
         } else if (have_fresh_face && now_us - face_seen_us > SG_CAMERA_STALE_US) {
             have_fresh_face = false;
         }
@@ -142,8 +146,7 @@ static void camera_poll_task(void *arg)
             observation.tongue.valid ? observation.tongue.score : -1,
             (unsigned)observation.screening.stage);
         err = sg_score_bus_apply_camera(
-            have_fresh_face && observation.valid, observation.score,
-            fabsf((float)observation.mouth_angle_deg),
+            have_fresh_face, last_face_score, last_face_angle_deg,
             observation.tongue.valid, observation.tongue.score,
             observation.eye.valid, observation.eye.score, now_us);
         if (err != ESP_OK) {

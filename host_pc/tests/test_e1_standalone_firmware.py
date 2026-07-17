@@ -40,6 +40,10 @@ def test_camera_coprocessor_is_polled_locally_with_validity():
     assert "observation.mouth_angle_deg" in source
     assert "sg_score_bus_apply_camera" in source
     assert "sg_score_bus_apply_camera" in bus
+    assert "last_face_score" in source
+    assert "last_face_angle_deg" in source
+    assert "have_fresh_face && observation.valid" not in source
+    assert "have_fresh_face, last_face_score" in source
     assert '"camera_coprocessor.c"' in cmake
     assert "camera_scores_protocol.c" in cmake
     assert "ESP_ERROR_CHECK(sg_camera_coprocessor_init" not in app

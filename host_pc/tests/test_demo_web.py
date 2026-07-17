@@ -73,6 +73,9 @@ def test_demo_web_supports_guided_screening_with_websocket_fallback():
     assert 'request("/demo/api/device")' in script
     assert "setInterval(pollDevice, 5000)" in script
     assert "screening_stage" in script
+    assert "function scoreValue(value, online, stage)" in script
+    assert '"待采集"' in script
+    assert '"本轮未完成"' in script
     for prompt in ("请正视镜面", "请看向左侧", "请看向右侧", "请张口伸舌", "筛查完成"):
         assert prompt in script
     for forbidden in ("simulate", "mockScore", "Math.random"):
