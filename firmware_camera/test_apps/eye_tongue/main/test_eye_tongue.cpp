@@ -251,6 +251,18 @@ TEST_CASE("tongue kernel rejects low saturation region", "[tongue_deviation]")
     TEST_ASSERT_FALSE(sg_tongue_measure(&input, &out));
 }
 
+TEST_CASE("tongue kernel accepts front-lit pale tongue at low quality", "[tongue_deviation]")
+{
+    fill_rgb(145);
+    tongue_blob(40, 25, 8, 9, 230, 200, 205);
+    const auto input = tongue_input();
+    sg_tongue_measurement_t out = {};
+
+    TEST_ASSERT_TRUE(sg_tongue_measure(&input, &out));
+    TEST_ASSERT_INT8_WITHIN(3, 0, out.signed_offset);
+    TEST_ASSERT_LESS_THAN_UINT8(25, out.quality);
+}
+
 static sg_screening_sample_t face_sample()
 {
     sg_screening_sample_t sample = {};

@@ -10,6 +10,9 @@ constexpr int kMaxRoiWidth = 160;
 constexpr int kMaxRoiHeight = 120;
 constexpr int kMaxPixels = kMaxRoiWidth * kMaxRoiHeight;
 constexpr float kPi = 3.14159265358979323846f;
+constexpr int kMinTongueSaturation = 25;
+constexpr int kMinRedGreenDelta = 20;
+constexpr int kMinRedBlueDelta = 15;
 
 uint8_t s_visited[(kMaxPixels + 7) / 8];
 uint16_t s_queue[kMaxPixels];
@@ -48,8 +51,9 @@ bool tongue_pixel(const sg_tongue_input_t &input, int local_x, int local_y,
     const int saturation = std::max({red, green, blue})
                          - std::min({red, green, blue});
     if (saturation_out != nullptr) *saturation_out = saturation;
-    return red >= 100 && saturation >= 40
-        && red >= green + 35 && red >= blue + 20;
+    return red >= 100 && saturation >= kMinTongueSaturation
+        && red >= green + kMinRedGreenDelta
+        && red >= blue + kMinRedBlueDelta;
 }
 
 Component collect_component(const sg_tongue_input_t &input, int start)
@@ -161,7 +165,9 @@ extern "C" bool sg_tongue_measure(
     const int bounded_percent = std::clamp(signed_percent, -100, 100);
     const int area_quality = std::clamp(best.area * 600 / roi_area, 0, 100);
     const int saturation_quality = std::clamp(
-        (best.saturation_sum / best.area - 40) * 100 / 100, 0, 100);
+        (best.saturation_sum / best.area - kMinTongueSaturation)
+            * 100 / 115,
+        0, 100);
     out->signed_offset = (int8_t)bounded_percent;
     out->score = score_offset(std::abs(bounded_percent));
     out->quality = (uint8_t)std::min(area_quality, saturation_quality);

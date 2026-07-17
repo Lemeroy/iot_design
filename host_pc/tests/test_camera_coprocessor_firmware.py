@@ -183,6 +183,8 @@ def test_camera_tongue_kernel_is_auxiliary_local_and_fixed_storage():
         "malloc", "new ", "fopen", "mqtt", "http", "socket", "jpeg_b64"
     ):
         assert forbidden not in source.lower()
+    assert "kMinTongueSaturation = 25" in source
+    assert "kMinRedGreenDelta = 20" in source
 
 
 def test_camera_guided_session_is_wired_to_i2c_and_capture():
