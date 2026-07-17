@@ -100,6 +100,25 @@ def test_nmo432_uses_real_16khz_i2s_capture_without_cloud_audio():
         assert forbidden not in cloud
 
 
+def test_preliminary_speech_engine_is_bounded_and_allocation_free():
+    header = read("speech_screening.h")
+    source = read("speech_screening.c")
+
+    for token in (
+        "sg_speech_context_t",
+        "sg_speech_screening_init",
+        "sg_speech_screening_start",
+        "sg_speech_screening_cancel",
+        "sg_speech_screening_process",
+        "sg_speech_screening_snapshot",
+        "SG_SPEECH_FRAME_SAMPLES 320",
+    ):
+        assert token in header or token in source
+    lowered = source.lower()
+    for forbidden in ("malloc(", "calloc(", "realloc("):
+        assert forbidden not in lowered
+
+
 def test_production_app_does_not_accept_pc_scores():
     app = read("app_main.c")
     cmake = read("CMakeLists.txt")

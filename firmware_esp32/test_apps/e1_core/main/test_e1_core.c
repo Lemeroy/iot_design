@@ -1,4 +1,6 @@
 #include <stddef.h>
+#include <math.h>
+#include <stdint.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -13,9 +15,135 @@
 #include "local_alert.h"
 #include "device_config.h"
 #include "sg_manager_api.h"
+#include "speech_screening.h"
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 static char captured_level[16];
 static char captured_text[SG_ADVICE_TEXT_MAX + 128];
+
+static void fill_silence(int16_t *samples)
+{
+    memset(samples, 0, SG_SPEECH_FRAME_SAMPLES * sizeof(*samples));
+}
+
+static void fill_clipped(int16_t *samples)
+{
+    for (size_t i = 0; i < SG_SPEECH_FRAME_SAMPLES; ++i) {
+        samples[i] = (i & 1U) ? INT16_MAX : INT16_MIN;
+    }
+}
+
+static void fill_speech_like(int16_t *samples, unsigned frame)
+{
+    for (size_t i = 0; i < SG_SPEECH_FRAME_SAMPLES; ++i) {
+        float t = (float)(frame * SG_SPEECH_FRAME_SAMPLES + i) / 16000.0f;
+        float envelope = 0.55f + 0.35f
+            * sinf(2.0f * (float)M_PI * 4.0f * t);
+        samples[i] = (int16_t)(envelope * (
+            900.0f * sinf(2.0f * (float)M_PI * 220.0f * t)
+            + 420.0f * sinf(2.0f * (float)M_PI * 1050.0f * t)));
+    }
+}
+
+static sg_speech_result_t run_speech_frames(unsigned frames, bool clipped)
+{
+    sg_speech_context_t context;
+    sg_speech_result_t result;
+    int16_t samples[SG_SPEECH_FRAME_SAMPLES];
+    sg_speech_screening_init(&context);
+    sg_speech_screening_start(&context);
+    for (unsigned frame = 0; frame < frames; ++frame) {
+        if (frame < SG_SPEECH_NOISE_FRAMES) fill_silence(samples);
+        else if (clipped) fill_clipped(samples);
+        else fill_speech_like(samples, frame - SG_SPEECH_NOISE_FRAMES);
+        sg_speech_screening_process(&context, samples,
+                                    SG_SPEECH_FRAME_SAMPLES);
+    }
+    sg_speech_screening_snapshot(&context, &result);
+    return result;
+}
+
+TEST_CASE("silence produces no preliminary speech score", "[speech]")
+{
+    sg_speech_context_t context;
+    sg_speech_result_t result;
+    int16_t samples[SG_SPEECH_FRAME_SAMPLES];
+    fill_silence(samples);
+    sg_speech_screening_init(&context);
+    sg_speech_screening_start(&context);
+    for (unsigned frame = 0; frame < SG_SPEECH_MAX_FRAMES; ++frame) {
+        sg_speech_screening_process(&context, samples,
+                                    SG_SPEECH_FRAME_SAMPLES);
+    }
+    sg_speech_screening_snapshot(&context, &result);
+    TEST_ASSERT_EQUAL(SG_SPEECH_RETRY, result.state);
+    TEST_ASSERT_FALSE(result.available);
+    TEST_ASSERT_EQUAL(SG_SPEECH_REASON_NO_VOICE, result.reason);
+}
+
+TEST_CASE("short utterance produces too_short", "[speech]")
+{
+    sg_speech_result_t result = run_speech_frames(25, false);
+    TEST_ASSERT_EQUAL(SG_SPEECH_LISTENING, result.state);
+    TEST_ASSERT_FALSE(result.available);
+    TEST_ASSERT_EQUAL(SG_SPEECH_REASON_NONE, result.reason);
+}
+
+TEST_CASE("clipped utterance produces clipped", "[speech]")
+{
+    sg_speech_result_t result = run_speech_frames(SG_SPEECH_MAX_FRAMES, true);
+    TEST_ASSERT_EQUAL(SG_SPEECH_RETRY, result.state);
+    TEST_ASSERT_FALSE(result.available);
+    TEST_ASSERT_EQUAL(SG_SPEECH_REASON_CLIPPED, result.reason);
+}
+
+TEST_CASE("speech-like utterance produces bounded score", "[speech]")
+{
+    sg_speech_result_t result = run_speech_frames(SG_SPEECH_MAX_FRAMES, false);
+    TEST_ASSERT_EQUAL(SG_SPEECH_COMPLETE, result.state);
+    TEST_ASSERT_TRUE(result.available);
+    TEST_ASSERT_UINT8_WITHIN(50, 50, result.score);
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, result.score / 100.0f, result.p_clear);
+}
+
+TEST_CASE("cancel clears partial speech result", "[speech]")
+{
+    sg_speech_context_t context;
+    sg_speech_result_t result;
+    int16_t samples[SG_SPEECH_FRAME_SAMPLES];
+    sg_speech_screening_init(&context);
+    sg_speech_screening_start(&context);
+    fill_speech_like(samples, 0);
+    sg_speech_screening_process(&context, samples, SG_SPEECH_FRAME_SAMPLES);
+    sg_speech_screening_cancel(&context);
+    sg_speech_screening_snapshot(&context, &result);
+    TEST_ASSERT_EQUAL(SG_SPEECH_IDLE, result.state);
+    TEST_ASSERT_FALSE(result.available);
+    TEST_ASSERT_EQUAL_UINT16(0, result.valid_frames);
+}
+
+TEST_CASE("completed result is stable until next start", "[speech]")
+{
+    sg_speech_context_t context;
+    sg_speech_result_t before;
+    sg_speech_result_t after;
+    int16_t samples[SG_SPEECH_FRAME_SAMPLES];
+    sg_speech_screening_init(&context);
+    sg_speech_screening_start(&context);
+    for (unsigned frame = 0; frame < SG_SPEECH_MAX_FRAMES; ++frame) {
+        fill_speech_like(samples, frame);
+        sg_speech_screening_process(&context, samples,
+                                    SG_SPEECH_FRAME_SAMPLES);
+    }
+    sg_speech_screening_snapshot(&context, &before);
+    fill_silence(samples);
+    sg_speech_screening_process(&context, samples, SG_SPEECH_FRAME_SAMPLES);
+    sg_speech_screening_snapshot(&context, &after);
+    TEST_ASSERT_EQUAL_MEMORY(&before, &after, sizeof(before));
+}
 
 esp_err_t sg_alert_io_init(void)
 {
