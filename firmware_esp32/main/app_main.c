@@ -66,6 +66,9 @@ static void task_downlink(void *arg)
             continue;
         }
         if (downlink.type == SG_MQTT_DOWNLINK_CONTROL) {
+#if CONFIG_STROKEGUARD_NMO432_ENABLE
+            sg_audio_nmo432_speech_cancel();
+#endif
             esp_err_t err = sg_camera_coprocessor_control(
                 downlink.payload.control.action);
             if (err != ESP_OK) ESP_LOGW(SG_TAG_MQTT, "screening control failed: %s",
@@ -140,6 +143,7 @@ static void task_fusion(void *arg)
     bool has_published = false;
     sg_level_t last_published_level = SG_LEVEL_INSUFFICIENT;
     sg_screening_stage_t last_published_stage = SG_STAGE_IDLE;
+    sg_screening_stage_t previous_screening_stage = SG_STAGE_IDLE;
     int64_t last_publish_us = 0;
     TickType_t last = xTaskGetTickCount();
 
@@ -159,6 +163,17 @@ static void task_fusion(void *arg)
         int64_t now_us = esp_timer_get_time();
         int64_t unix_ts = sg_time_unix_seconds();
         sg_screening_stage_t screening_stage = sg_camera_coprocessor_stage();
+#if CONFIG_STROKEGUARD_NMO432_ENABLE
+        if (screening_stage == SG_STAGE_DONE
+            && previous_screening_stage != SG_STAGE_DONE) {
+            esp_err_t speech_err = sg_audio_nmo432_speech_start();
+            if (speech_err != ESP_OK) {
+                ESP_LOGW(SG_TAG_MAIN, "speech start failed: %s",
+                         esp_err_to_name(speech_err));
+            }
+        }
+#endif
+        previous_screening_stage = screening_stage;
         bool publish_due = !has_published
             || out.level != last_published_level
             || screening_stage != last_published_stage

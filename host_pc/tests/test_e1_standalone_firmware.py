@@ -119,6 +119,24 @@ def test_preliminary_speech_engine_is_bounded_and_allocation_free():
         assert forbidden not in lowered
 
 
+def test_nmo432_task_owns_guided_speech_session_lifecycle():
+    audio = read("audio_nmo432.c")
+    audio_h = read("audio_nmo432.h")
+    app = read("app_main.c")
+    cmake = read("CMakeLists.txt")
+
+    assert "sg_speech_screening_process(&speech_context, block.samples" in audio
+    assert "xQueueOverwrite" in audio
+    assert "sg_audio_nmo432_speech_start" in audio_h
+    assert "sg_audio_nmo432_speech_cancel" in audio_h
+    assert "sg_audio_nmo432_speech_snapshot" in audio_h
+    assert "sg_audio_nmo432_speech_start" in app
+    assert "sg_audio_nmo432_speech_cancel" in app
+    assert "previous_screening_stage" in app
+    assert "screening_stage == SG_STAGE_DONE" in app
+    assert '"speech_screening.c"' in cmake
+
+
 def test_production_app_does_not_accept_pc_scores():
     app = read("app_main.c")
     cmake = read("CMakeLists.txt")
