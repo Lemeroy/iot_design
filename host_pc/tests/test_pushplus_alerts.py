@@ -202,6 +202,22 @@ def test_pushplus_network_failure_logs_neither_token_nor_body(caplog):
     assert "private advice body" not in caplog.text
 
 
+def test_pushplus_untrusted_response_code_cannot_echo_token_to_logs(caplog):
+    notifier = PushPlusNotifier(
+        enabled=True,
+        token="secret-token",
+        opener=lambda request, timeout: _Response(
+            b'{"code":"secret-token","msg":"untrusted"}'
+        ),
+    )
+
+    with caplog.at_level(logging.WARNING):
+        assert not notifier.send("sg-0001", _uplink(), "advice")
+
+    assert "secret-token" not in caplog.text
+    assert "code=invalid" in caplog.text
+
+
 def test_pushplus_code_900_disables_further_process_attempts():
     calls = []
 

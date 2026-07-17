@@ -102,7 +102,8 @@ class PushPlusNotifier:
                     self._limited = True
                 log.error("PushPlus disabled after provider code 900 for %s", device_id)
                 return False
-            log.warning("PushPlus rejected alert for %s code=%s", device_id, code)
+            safe_code = code if isinstance(code, int) and not isinstance(code, bool) else "invalid"
+            log.warning("PushPlus rejected alert for %s code=%s", device_id, safe_code)
             return False
         except Exception as error:
             log.warning(
