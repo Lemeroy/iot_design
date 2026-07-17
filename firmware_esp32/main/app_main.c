@@ -49,6 +49,7 @@ static volatile bool s_wifi_got_ip = false;
 static sg_device_config_t s_device_config;
 static bool s_device_config_loaded;
 static QueueHandle_t s_downlink_q;
+static volatile bool s_screening_requested;
 
 static void on_mqtt_downlink(const sg_mqtt_downlink_t *downlink, void *ctx)
 {
@@ -69,11 +70,16 @@ static void task_downlink(void *arg)
 #if CONFIG_STROKEGUARD_NMO432_ENABLE
             sg_audio_nmo432_speech_cancel();
             sg_score_bus_clear_speech();
+            s_screening_requested =
+                downlink.payload.control.action == SG_SCREENING_START;
 #endif
             esp_err_t err = sg_camera_coprocessor_control(
                 downlink.payload.control.action);
-            if (err != ESP_OK) ESP_LOGW(SG_TAG_MQTT, "screening control failed: %s",
-                                         esp_err_to_name(err));
+            if (err != ESP_OK) {
+                s_screening_requested = false;
+                ESP_LOGW(SG_TAG_MQTT, "screening control failed: %s",
+                         esp_err_to_name(err));
+            }
             continue;
         }
         const sg_cloud_advice_t advice = downlink.payload.advice;
@@ -170,10 +176,12 @@ static void task_fusion(void *arg)
         bool speech_score_updated = false;
 #if CONFIG_STROKEGUARD_NMO432_ENABLE
         if (camera_screening_stage == SG_STAGE_DONE
-            && previous_screening_stage != SG_STAGE_DONE) {
+            && previous_screening_stage != SG_STAGE_DONE
+            && s_screening_requested) {
             sg_score_bus_clear_speech();
             speech_result_published = false;
             esp_err_t speech_err = sg_audio_nmo432_speech_start();
+            s_screening_requested = false;
             if (speech_err != ESP_OK) {
                 ESP_LOGW(SG_TAG_MAIN, "speech start failed: %s",
                          esp_err_to_name(speech_err));

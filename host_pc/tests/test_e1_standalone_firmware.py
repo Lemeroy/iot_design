@@ -165,6 +165,15 @@ def test_speech_retry_reuses_existing_screening_error_stage():
     assert "screening_stage = SG_STAGE_ERROR" in app
 
 
+def test_stale_camera_done_cannot_autostart_speech_after_boot():
+    app = read("app_main.c")
+
+    assert "s_screening_requested" in app
+    assert "downlink.payload.control.action == SG_SCREENING_START" in app
+    assert "&& s_screening_requested" in app
+    assert "s_screening_requested = false" in app
+
+
 def test_production_app_does_not_accept_pc_scores():
     app = read("app_main.c")
     cmake = read("CMakeLists.txt")
