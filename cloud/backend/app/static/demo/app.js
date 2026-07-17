@@ -218,13 +218,17 @@
 
   document.querySelector("#login-form").addEventListener("submit", async (event) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     try {
       await request("/demo/api/login", { method: "POST", body: JSON.stringify({ username: form.get("username"), password: form.get("password") }) });
-      event.currentTarget.reset();
-      showView("connect");
-      report("登录成功，请连接设备");
-    } catch (_) { report("登录失败，请检查用户名和密码"); }
+    } catch (_) {
+      report("登录失败，请检查用户名和密码");
+      return;
+    }
+    formElement.reset();
+    showView("connect");
+    report("登录成功，请连接设备");
   });
 
   document.querySelector("#connect-form").addEventListener("submit", async (event) => {

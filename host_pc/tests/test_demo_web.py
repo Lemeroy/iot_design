@@ -162,6 +162,24 @@ def test_demo_web_view_transitions_focus_the_new_view_through_show_view():
     assert 'if (error.status === 409) { showView("connect");' in script
 
 
+def test_demo_login_keeps_form_reference_across_await_and_scopes_auth_error():
+    script = _read(STATIC / "app.js")
+    handler = re.search(
+        r'document\.querySelector\("#login-form"\)\.addEventListener'
+        r'\("submit", async \(event\) => \{(?P<body>.*?)\n  \}\);',
+        script,
+        re.DOTALL,
+    )
+
+    assert handler
+    body = handler.group("body")
+    assert "const formElement = event.currentTarget;" in body
+    assert "new FormData(formElement)" in body
+    assert "formElement.reset();" in body
+    assert "event.currentTarget.reset();" not in body
+    assert body.index("formElement.reset();") > body.index("catch (_)")
+
+
 def test_demo_web_logout_only_leaves_monitor_after_a_successful_or_unauthorized_response():
     page = _read(STATIC / "index.html")
     script = _read(STATIC / "app.js")
