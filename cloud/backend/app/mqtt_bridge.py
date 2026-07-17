@@ -12,7 +12,9 @@ import time
 import paho.mqtt.client as mqtt
 
 from .db_influx import InfluxWriter
+from .alert_policy import AlertCoordinator
 from .llm_advice import DoubaoAdvisor
+from .pushplus import PushPlusNotifier
 from .schemas import DownlinkPayload, UplinkPayload
 
 log = logging.getLogger(__name__)
@@ -28,10 +30,13 @@ class MqttBridge:
         loop: asyncio.AbstractEventLoop,
         advisor: DoubaoAdvisor,
         influx: InfluxWriter,
+        pushplus: PushPlusNotifier | None = None,
     ) -> None:
         self._loop = loop
         self._advisor = advisor
         self._influx = influx
+        self._pushplus = pushplus or PushPlusNotifier(enabled=False, token="")
+        self._alerts = AlertCoordinator()
 
         self.host = os.environ.get("MQTT_HOST", "emqx")
         self.port = int(os.environ.get("MQTT_PORT", "1883"))
@@ -63,7 +68,8 @@ class MqttBridge:
         generation = int(cache.get("generation", 0))
         cache["advice_barrier_generation"] = generation + 1
         for key in (
-            "advice", "last_advice_ts", "pending_uplink", "pending_generation"
+            "advice", "last_advice_ts", "pending_uplink", "pending_generation",
+            "force_advice_level", "force_advice_generation",
         ):
             cache.pop(key, None)
 
@@ -111,7 +117,19 @@ class MqttBridge:
             separators=(",", ":"),
         )
         info = self._client.publish(topic, payload, qos=1, retain=False)
-        return getattr(info, "rc", mqtt.MQTT_ERR_SUCCESS) == mqtt.MQTT_ERR_SUCCESS
+        accepted = getattr(info, "rc", mqtt.MQTT_ERR_SUCCESS) == mqtt.MQTT_ERR_SUCCESS
+        alerts = getattr(self, "_alerts", None)
+        if accepted and isinstance(alerts, AlertCoordinator):
+            if action == "start":
+                alerts.start(device_id)
+            else:
+                alerts.cancel(device_id)
+                with self._cache_lock:
+                    cache = self.latest.get(device_id)
+                    if isinstance(cache, dict):
+                        cache.pop("force_advice_level", None)
+                        cache.pop("force_advice_generation", None)
+        return accepted
 
     def start(self) -> None:
         log.info("mqtt bridge connecting %s:%d as %s", self.host, self.port, self.user or "-")
@@ -169,6 +187,15 @@ class MqttBridge:
             )
             if up.screening_stage == 1 and previous_stage != 1:
                 self._invalidate_advice_locked(cache)
+                alerts = getattr(self, "_alerts", None)
+                if isinstance(alerts, AlertCoordinator):
+                    alerts.start(device_id)
+            elif up.screening_stage == 7:
+                alerts = getattr(self, "_alerts", None)
+                if isinstance(alerts, AlertCoordinator):
+                    alerts.cancel(device_id)
+                cache.pop("force_advice_level", None)
+                cache.pop("force_advice_generation", None)
             generation = int(cache.get("generation", 0)) + 1
             cache["generation"] = generation
             cache["uplink"] = up
@@ -177,6 +204,13 @@ class MqttBridge:
                 up.level != "insufficient"
                 and up.screening_stage not in {1, 2, 3, 4, 5, 7}
             )
+            alerts = getattr(self, "_alerts", None)
+            alert_level = alerts.observe(device_id, up.level) if isinstance(
+                alerts, AlertCoordinator
+            ) else None
+            if alert_level is not None and advice_eligible:
+                cache["force_advice_level"] = alert_level
+                cache["force_advice_generation"] = generation
             if advice_eligible:
                 cache["pending_uplink"] = up
                 cache["pending_generation"] = generation
@@ -210,12 +244,19 @@ class MqttBridge:
                     up = cache.pop("pending_uplink", None)
                     generation = cache.pop("pending_generation", None)
                     last_advice_ts = cache.get("last_advice_ts")
+                    force_level = cache.get("force_advice_level")
+                    force_generation = cache.get("force_advice_generation")
 
                 if not isinstance(up, UplinkPayload) or not isinstance(generation, int):
                     return
 
                 now = int(time.time())
-                if self._advice_is_retained(last_advice_ts, now):
+                force_advice = (
+                    force_level == up.level
+                    and isinstance(force_generation, int)
+                    and generation >= force_generation
+                )
+                if self._advice_is_retained(last_advice_ts, now) and not force_advice:
                     continue
 
                 try:
@@ -243,6 +284,7 @@ class MqttBridge:
                     source=advice_source,
                 )
                 accepted = False
+                alert_uplink = None
                 topic = TOPIC_DOWNLINK_FMT.format(device_id=device_id)
                 with self._cache_lock:
                     cache = self.latest.get(device_id)
@@ -269,6 +311,19 @@ class MqttBridge:
                             cache["advice_generation"] = generation
                             cache["last_advice_ts"] = down.ts
                             accepted = True
+                            current_force_level = cache.get("force_advice_level")
+                            current_force_generation = cache.get("force_advice_generation")
+                            if (
+                                current_force_level == up.level
+                                and isinstance(current_force_generation, int)
+                                and generation >= current_force_generation
+                            ):
+                                cache.pop("force_advice_level", None)
+                                cache.pop("force_advice_generation", None)
+                                alerts = getattr(self, "_alerts", None)
+                                if isinstance(alerts, AlertCoordinator):
+                                    alerts.mark_dispatched(device_id, up.level)
+                                alert_uplink = up
 
                 if not accepted:
                     log.info(
@@ -278,6 +333,16 @@ class MqttBridge:
                     continue
 
                 log.info("downlink -> %s (%d ms, %d chars)", topic, latency, len(advice_text))
+
+                if alert_uplink is not None:
+                    pushplus = getattr(self, "_pushplus", None)
+                    if pushplus is not None:
+                        try:
+                            await asyncio.to_thread(
+                                pushplus.send, device_id, alert_uplink, advice_text
+                            )
+                        except Exception:
+                            log.exception("PushPlus worker failed for %s", device_id)
 
                 try:
                     self._influx.write_advice(device_id, up.level, advice_text, latency)

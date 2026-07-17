@@ -22,6 +22,7 @@ from .demo_auth import DemoAuth
 from .demo_web import DEMO_STATIC_DIRECTORY
 from .llm_advice import DoubaoAdvisor
 from .mqtt_bridge import MqttBridge
+from .pushplus import PushPlusNotifier
 from .schemas import (
     HealthResp,
     LatestResp,
@@ -50,7 +51,7 @@ async def lifespan(app: FastAPI):
     _advisor = DoubaoAdvisor()
     _influx = InfluxWriter()
     loop = asyncio.get_running_loop()
-    _bridge = MqttBridge(loop, _advisor, _influx)
+    _bridge = MqttBridge(loop, _advisor, _influx, PushPlusNotifier.from_env())
     _bridge.start()
     log.info("backend ready")
     try:

@@ -203,10 +203,10 @@ async def screening(request: Request, req: DemoScreeningReq) -> DemoScreeningRes
     bridge = _bridge()
     if bridge is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="control unavailable")
-    if req.action == "start":
-        bridge.invalidate_advice(device_id)
     if not bridge.publish_screening_control(device_id, req.action):
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="control unavailable")
+    if req.action == "start":
+        bridge.invalidate_advice(device_id)
     return DemoScreeningResp(accepted=True, action=req.action)
 
 
