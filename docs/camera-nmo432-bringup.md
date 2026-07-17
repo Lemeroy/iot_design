@@ -99,5 +99,14 @@ result computed locally from ESP-WHO five-point landmarks.
 8. Obscure the camera during another session and confirm error/retry with
    unavailable F/E/T rather than 0 or 100.
 
+## Verified NMO432 bring-up
+
+On 2026-07-17, the N16R8 on COM3 reported `valid=250/250` audio blocks with
+non-constant RMS and peak values (`rms=8.7..17.9`, `peak=25..41`) using GPIO17,
+GPIO18, GPIO16, and the left slot (`L/R` tied to GND). This confirms I2S bus
+activity and sample capture for the installed module. The observed amplitude
+is only a wiring/driver bring-up result; microphone gain, acoustic response,
+and S-model thresholds remain to be calibrated with recorded local test data.
+
 This product provides risk prompts and medical-attention reminders, not a
 diagnosis. Arm weakness is not independently measured by the mirror.
