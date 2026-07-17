@@ -25,13 +25,21 @@ def _payload(*, device_id: str = "sg-0001", ts: int = 1) -> UplinkPayload:
     )
 
 
-def _advice() -> DownlinkPayload:
+def _advice(ts: int | None = None) -> DownlinkPayload:
     return DownlinkPayload(
         level="warning",
         advice_text="Generated advice.",
         source="test-advisor",
-        ts=2,
+        ts=int(time.time()) if ts is None else ts,
     )
+
+
+def test_advice_visibility_includes_second_300_and_excludes_second_301():
+    import cloud.backend.app.demo_api as demo_api
+
+    cache = {"advice": _advice(ts=1000)}
+    assert demo_api._visible_advice(cache, now=1300) is cache["advice"]
+    assert demo_api._visible_advice(cache, now=1301) is None
 
 
 @pytest.fixture
@@ -50,6 +58,7 @@ def demo_app(monkeypatch):
         def __init__(self):
             self.latest = {}
             self.controls = []
+            self.invalidated = []
 
         def cache_snapshot(self, device_id):
             cache = self.latest.get(device_id)
@@ -58,6 +67,10 @@ def demo_app(monkeypatch):
         def publish_screening_control(self, device_id, action):
             self.controls.append((device_id, action))
             return True
+
+        def invalidate_advice(self, device_id):
+            self.invalidated.append(device_id)
+            self.latest.get(device_id, {}).pop("advice", None)
 
     bridge = TestBridge()
     monkeypatch.setattr(demo_api, "_login_limiter", demo_api._LoginLimiter())
@@ -177,7 +190,9 @@ def test_demo_api_requires_a_signed_session(demo_app):
 
 def test_demo_screening_control_uses_bound_online_device(demo_app):
     app, bridge, password = demo_app
-    bridge.latest["sg-0001"] = {"uplink": _payload(), "received_at": time.time()}
+    bridge.latest["sg-0001"] = {
+        "uplink": _payload(), "received_at": time.time(), "advice": _advice()
+    }
 
     async def scenario():
         async with await _client(app) as client:
@@ -191,6 +206,8 @@ def test_demo_screening_control_uses_bound_online_device(demo_app):
             assert cancelled.status_code == 200
             assert invalid.status_code == 422
             assert bridge.controls == [("sg-0001", "start"), ("sg-0001", "cancel")]
+            assert bridge.invalidated == ["sg-0001"]
+            assert "advice" not in bridge.latest["sg-0001"]
 
     _run(scenario)
 
@@ -342,7 +359,8 @@ def test_demo_api_reads_device_state_from_bridge_snapshot(demo_app):
 
 def test_legacy_latest_endpoint_reads_the_bridge_snapshot(demo_app):
     app, _, _ = demo_app
-    snapshot = {"uplink": _payload(ts=42), "advice": _advice()}
+    advice = _advice()
+    snapshot = {"uplink": _payload(ts=42), "advice": advice}
 
     class SnapshotOnlyBridge:
         @staticmethod
@@ -369,7 +387,7 @@ def test_legacy_latest_endpoint_reads_the_bridge_snapshot(demo_app):
                     "schema_version": 1,
                     "level": "warning",
                     "advice_text": "Generated advice.",
-                    "ts": 2,
+                    "ts": advice.ts,
                     "source": "test-advisor",
                 },
                 "latest_scores": {
@@ -388,10 +406,11 @@ def test_legacy_latest_endpoint_reads_the_bridge_snapshot(demo_app):
 
 def test_demo_device_returns_only_monitoring_data_and_latest_advice(demo_app):
     app, bridge, password = demo_app
+    advice = _advice()
     bridge.latest["sg-0001"] = {
         "uplink": _payload(ts=1),
         "received_at": time.time(),
-        "advice": _advice(),
+        "advice": advice,
         "unrelated": "must not be exposed",
     }
 
@@ -429,7 +448,7 @@ def test_demo_device_returns_only_monitoring_data_and_latest_advice(demo_app):
             assert data["advice"] == {
                 "advice_text": "Generated advice.",
                 "source": "test-advisor",
-                "ts": 2,
+                "ts": advice.ts,
             }
             serialized = response.text
             for forbidden in ("profile", "conditions", "meds", "schema_version", "unrelated"):

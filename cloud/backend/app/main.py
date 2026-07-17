@@ -17,7 +17,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
 from .db_influx import InfluxWriter
-from .demo_api import router as demo_api_router
+from .demo_api import _visible_advice, router as demo_api_router
 from .demo_auth import DemoAuth
 from .demo_web import DEMO_STATIC_DIRECTORY
 from .llm_advice import DoubaoAdvisor
@@ -86,7 +86,7 @@ async def latest(device_id: str) -> LatestResp:
     if not cache:
         return LatestResp(device_id=device_id)
     up = cache.get("uplink")
-    adv = cache.get("advice")
+    adv = _visible_advice(cache)
     return LatestResp(
         device_id=device_id,
         last_uplink_ts=up.ts if up else None,

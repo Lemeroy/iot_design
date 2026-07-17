@@ -127,7 +127,7 @@
     makeList(fields.reasons, data.reasons, "未接入");
     makeList(fields.vetoes, data.veto_by, "无");
     const advice = data.advice;
-    fields.advice.textContent = advice && advice.advice_text ? advice.advice_text : "尚未收到建议。";
+    fields.advice.textContent = advice && advice.advice_text ? advice.advice_text : "等待形成新的融合评分";
     fields.adviceSource.textContent = advice && advice.source ? advice.source : "--";
     fields.adviceTime.textContent = advice ? formatTime(advice.ts) : "--";
   }

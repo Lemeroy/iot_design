@@ -82,6 +82,14 @@ def test_demo_web_supports_guided_screening_with_websocket_fallback():
         assert forbidden not in script
 
 
+def test_demo_web_waits_for_a_new_fusion_before_showing_advice():
+    script = _read(STATIC / "app.js")
+
+    assert '"等待形成新的融合评分"' in script
+    assert 'fields.adviceSource.textContent = advice && advice.source ? advice.source : "--"' in script
+    assert 'fields.adviceTime.textContent = advice ? formatTime(advice.ts) : "--"' in script
+
+
 def test_demo_web_guides_preliminary_speech_after_camera_stages():
     script = _read(STATIC / "app.js")
 

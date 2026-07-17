@@ -58,6 +58,28 @@ class MqttBridge:
             cache = self.latest.get(device_id)
             return dict(cache) if isinstance(cache, dict) else None
 
+    @staticmethod
+    def _invalidate_advice_locked(cache: dict) -> None:
+        generation = int(cache.get("generation", 0))
+        cache["advice_barrier_generation"] = generation + 1
+        for key in (
+            "advice", "last_advice_ts", "pending_uplink", "pending_generation"
+        ):
+            cache.pop(key, None)
+
+    def invalidate_advice(self, device_id: str) -> None:
+        """Invalidate advice from the previous guided screening."""
+        with self._cache_lock:
+            cache = self.latest.setdefault(device_id, {})
+            self._invalidate_advice_locked(cache)
+
+    @staticmethod
+    def _advice_is_retained(last_advice_ts: object, now: int) -> bool:
+        return (
+            isinstance(last_advice_ts, int)
+            and 0 <= now - last_advice_ts <= 300
+        )
+
     def _is_stopping(self) -> bool:
         stop = getattr(self, "_stop", None)
         return stop is not None and stop.is_set()
@@ -140,15 +162,27 @@ class MqttBridge:
         worker_token = None
         with self._cache_lock:
             cache = self.latest.setdefault(device_id, {})
+            previous = cache.get("uplink")
+            previous_stage = (
+                previous.screening_stage
+                if isinstance(previous, UplinkPayload) else 0
+            )
+            if up.screening_stage == 1 and previous_stage != 1:
+                self._invalidate_advice_locked(cache)
             generation = int(cache.get("generation", 0)) + 1
             cache["generation"] = generation
             cache["uplink"] = up
             cache["received_at"] = received_at
-            cache["pending_uplink"] = up
-            cache["pending_generation"] = generation
-            if cache.get("advice_worker") is None:
-                worker_token = object()
-                cache["advice_worker"] = worker_token
+            advice_eligible = (
+                up.level != "insufficient"
+                and up.screening_stage not in {1, 2, 3, 4, 5, 7}
+            )
+            if advice_eligible:
+                cache["pending_uplink"] = up
+                cache["pending_generation"] = generation
+                if cache.get("advice_worker") is None:
+                    worker_token = object()
+                    cache["advice_worker"] = worker_token
 
         try:
             self._influx.write_uplink(
@@ -181,11 +215,7 @@ class MqttBridge:
                     return
 
                 now = int(time.time())
-                if (
-                    up.level == "normal"
-                    and isinstance(last_advice_ts, int)
-                    and (now - last_advice_ts) < 60
-                ):
+                if self._advice_is_retained(last_advice_ts, now):
                     continue
 
                 try:
@@ -212,25 +242,42 @@ class MqttBridge:
                     ts=now,
                     source=advice_source,
                 )
+                accepted = False
+                topic = TOPIC_DOWNLINK_FMT.format(device_id=device_id)
                 with self._cache_lock:
                     cache = self.latest.get(device_id)
                     if not isinstance(cache, dict):
                         return
+                    barrier = cache.get("advice_barrier_generation", 0)
+                    if not isinstance(barrier, int):
+                        barrier = 0
                     previous_generation = cache.get("advice_generation", 0)
                     if not isinstance(previous_generation, int):
                         previous_generation = 0
-                    if generation >= previous_generation:
-                        cache["advice"] = down
-                        cache["advice_generation"] = generation
-                        cache["last_advice_ts"] = down.ts
+                    if generation >= barrier and generation >= previous_generation:
+                        try:
+                            self._client.publish(
+                                topic, down.model_dump_json(), qos=1, retain=False
+                            )
+                        except Exception:
+                            log.exception(
+                                "could not publish advice for %s generation %s",
+                                device_id, generation,
+                            )
+                        else:
+                            cache["advice"] = down
+                            cache["advice_generation"] = generation
+                            cache["last_advice_ts"] = down.ts
+                            accepted = True
 
-                # A completed older generation remains valid advice and is published in order.
-                topic = TOPIC_DOWNLINK_FMT.format(device_id=device_id)
-                try:
-                    self._client.publish(topic, down.model_dump_json(), qos=1, retain=False)
-                    log.info("downlink -> %s (%d ms, %d chars)", topic, latency, len(advice_text))
-                except Exception:
-                    log.exception("could not publish advice for %s generation %s", device_id, generation)
+                if not accepted:
+                    log.info(
+                        "discard stale advice for %s generation %s",
+                        device_id, generation,
+                    )
+                    continue
+
+                log.info("downlink -> %s (%d ms, %d chars)", topic, latency, len(advice_text))
 
                 try:
                     self._influx.write_advice(device_id, up.level, advice_text, latency)

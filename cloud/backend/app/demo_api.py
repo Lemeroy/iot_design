@@ -25,6 +25,7 @@ from .schemas import (
 
 DEMO_SESSION_COOKIE = "sg_demo_session"
 ONLINE_WINDOW_SECONDS = 30
+ADVICE_VISIBLE_SECONDS = 300
 LOGIN_WINDOW_SECONDS = 60
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_MAX_CLIENTS = 1024
@@ -104,6 +105,16 @@ def _is_online(cache: dict[str, Any], *, now: float | None = None) -> bool:
         return False
     age = (time.time() if now is None else now) - received_at
     return 0 <= age <= ONLINE_WINDOW_SECONDS
+
+
+def _visible_advice(
+    cache: dict[str, Any], *, now: float | None = None
+) -> DownlinkPayload | None:
+    advice = cache.get("advice")
+    if not isinstance(advice, DownlinkPayload):
+        return None
+    age = (time.time() if now is None else now) - advice.ts
+    return advice if 0 <= age <= ADVICE_VISIBLE_SECONDS else None
 
 
 def _cache_for_device(device_id: str) -> dict[str, Any] | None:
@@ -190,7 +201,11 @@ async def screening(request: Request, req: DemoScreeningReq) -> DemoScreeningRes
     if cache is None or not _is_online(cache):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="device is offline")
     bridge = _bridge()
-    if bridge is None or not bridge.publish_screening_control(device_id, req.action):
+    if bridge is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="control unavailable")
+    if req.action == "start":
+        bridge.invalidate_advice(device_id)
+    if not bridge.publish_screening_control(device_id, req.action):
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="control unavailable")
     return DemoScreeningResp(accepted=True, action=req.action)
 
@@ -206,7 +221,7 @@ async def device(request: Request) -> DemoDeviceResp:
     if cache is None:
         return DemoDeviceResp(device_id=device_id, online=False)
     uplink = cache.get("uplink")
-    advice = cache.get("advice")
+    advice = _visible_advice(cache)
     if not isinstance(uplink, UplinkPayload):
         return DemoDeviceResp(
             device_id=device_id,
@@ -248,13 +263,14 @@ async def device_ws(websocket: WebSocket) -> None:
                 await websocket.close(code=4401)
                 return
             cache = _cache_for_device(device_id)
+            advice = _visible_advice(cache) if cache else None
             marker = (
                 cache.get("generation") if cache else None,
                 cache.get("received_at") if cache else None,
+                advice.ts if advice else None,
             )
             if marker != last_marker:
                 uplink = cache.get("uplink") if cache else None
-                advice = cache.get("advice") if cache else None
                 payload = DemoDeviceResp(
                     device_id=device_id,
                     online=bool(cache and _is_online(cache)),
