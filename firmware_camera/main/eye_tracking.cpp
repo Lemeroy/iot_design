@@ -117,18 +117,17 @@ extern "C" bool sg_eye_score_sequence(
     const int right_r = right->right_x - center->right_x;
     const int left_mean = (left_l + left_r) / 2;
     const int right_mean = (right_l + right_r) / 2;
-    const int travel = std::min({
-        std::abs(left_l), std::abs(left_r),
-        std::abs(right_l), std::abs(right_r),
-    });
-    if (travel < kMinTravel) return false;
+    const int left_travel = std::max(std::abs(left_l), std::abs(left_r));
+    const int right_travel = std::max(std::abs(right_l), std::abs(right_r));
+    const int directional_travel = std::min(left_travel, right_travel);
+    if (directional_travel < kMinTravel) return false;
 
     const int difference = std::max(
         std::abs(left_l - left_r), std::abs(right_l - right_r));
     const bool conjugate = left_l * left_r > 0 && right_l * right_r > 0;
     const bool opposite_steps = left_mean * right_mean < 0;
     const int agreement_score = std::clamp(100 - difference, 0, 100);
-    const int travel_score = std::clamp(travel * 2, 0, 100);
+    const int travel_score = std::clamp(directional_travel * 2, 0, 100);
     out->score = (uint8_t)((conjugate && opposite_steps)
         ? (agreement_score * 7 + travel_score * 3) / 10
         : 0);

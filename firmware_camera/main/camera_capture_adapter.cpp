@@ -36,6 +36,8 @@ static uint32_t s_face_reject_count;
 static const char *s_face_reject_reason;
 static sg_camera_face_bbox_t s_last_face_bbox;
 static uint8_t s_bbox_miss_count;
+static sg_screening_stage_t s_eye_log_stage = SG_STAGE_IDLE;
+static uint32_t s_eye_log_count;
 
 static void note_face_rejection(const char *reason)
 {
@@ -275,6 +277,10 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
     screening_sample.face_ready = frame_valid
         && sg_face_baseline_ready(&s_face_baseline);
     const sg_screening_stage_t stage = sg_screening_session_stage(&s_screening);
+    if (stage != s_eye_log_stage) {
+        s_eye_log_stage = stage;
+        s_eye_log_count = 0;
+    }
     if (stage == SG_STAGE_FACE) {
         const char *reason = nullptr;
         if (!selected.bbox.valid) reason = "no_face";
@@ -310,6 +316,19 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
         };
         screening_sample.eye_valid = sg_eye_measure(
             &eye_input, &screening_sample.eye);
+        ++s_eye_log_count;
+        if (s_eye_log_count == 1 || s_eye_log_count % 5U == 0) {
+            if (screening_sample.eye_valid) {
+                ESP_LOGI(TAG,
+                         "eye sample stage=%u left=%d right=%d quality=%u",
+                         (unsigned)stage, screening_sample.eye.left_x,
+                         screening_sample.eye.right_x,
+                         screening_sample.eye.quality);
+            } else {
+                ESP_LOGI(TAG, "eye sample invalid stage=%u count=%lu",
+                         (unsigned)stage, (unsigned long)s_eye_log_count);
+            }
+        }
     } else if (selected.landmarks_valid && stage == SG_STAGE_TONGUE) {
         const int face_width = selected.geometry.box.x1 - selected.geometry.box.x0 + 1;
         const int mouth_y = (selected.geometry.left_mouth.y

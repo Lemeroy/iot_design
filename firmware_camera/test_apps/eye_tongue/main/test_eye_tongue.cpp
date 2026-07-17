@@ -147,6 +147,18 @@ TEST_CASE("eye sequence rejects insufficient travel", "[eye_tracking]")
     TEST_ASSERT_FALSE(sg_eye_score_sequence(&center, &left, &right, &out));
 }
 
+TEST_CASE("eye sequence reports measured one-eye dropout as discordant", "[eye_tracking]")
+{
+    const auto center = measured(0, 31, 90);
+    const auto left = measured(17, 59, 86);
+    const auto right = measured(-15, 31, 88);
+    sg_eye_sequence_result_t out = {};
+
+    TEST_ASSERT_TRUE(sg_eye_score_sequence(&center, &left, &right, &out));
+    TEST_ASSERT_LESS_THAN_UINT8(80, out.score);
+    TEST_ASSERT_GREATER_OR_EQUAL_INT8(15, out.binocular_difference);
+}
+
 static void tongue_blob(int cx, int cy, int radius_x, int radius_y,
                         uint8_t red = 220, uint8_t green = 65,
                         uint8_t blue = 85)

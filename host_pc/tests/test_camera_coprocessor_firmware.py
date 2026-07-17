@@ -202,6 +202,9 @@ def test_camera_guided_session_is_wired_to_i2c_and_capture():
         assert token in session_h or token in session_c
     assert "sg_eye_measure" in adapter
     assert "sg_tongue_measure" in adapter
+    assert "eye sample stage=%u left=%d right=%d quality=%u" in adapter
+    assert "eye sample invalid stage=%u count=%lu" in adapter
+    assert "directional_travel" in read("eye_tracking.cpp")
     assert "SG_CAMERA_CONTROL_REGISTER" in target
     assert "SG_CAMERA_EYE_REGISTER" in target
     assert "SG_CAMERA_TONGUE_REGISTER" in target
