@@ -256,7 +256,7 @@ TEST_CASE("continuous low eye does not independently upgrade warning",
     TEST_ASSERT_EQUAL(SG_LEVEL_NORMAL, out.level);
 }
 
-TEST_CASE("stale speech clears veto provenance", "[speech][score_bus]")
+TEST_CASE("retained speech contributes without stale veto", "[speech][score_bus]")
 {
     sg_scores_in_t snapshot;
     TEST_ASSERT_EQUAL(ESP_OK, sg_score_bus_init());
@@ -267,6 +267,14 @@ TEST_CASE("stale speech clears veto provenance", "[speech][score_bus]")
     TEST_ASSERT_TRUE(snapshot.speech_veto_eligible);
 
     sg_score_bus_snapshot(&snapshot, 3000000, 1000);
+    TEST_ASSERT_EQUAL(20, snapshot.speech);
+    TEST_ASSERT_FALSE(snapshot.speech_veto_eligible);
+
+    sg_score_bus_snapshot(&snapshot, 301000000, 1000);
+    TEST_ASSERT_EQUAL(20, snapshot.speech);
+    TEST_ASSERT_FALSE(snapshot.speech_veto_eligible);
+
+    sg_score_bus_snapshot(&snapshot, 301000001, 1000);
     TEST_ASSERT_EQUAL(-1, snapshot.speech);
     TEST_ASSERT_FALSE(snapshot.speech_veto_eligible);
 }

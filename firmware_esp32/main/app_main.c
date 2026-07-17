@@ -66,6 +66,11 @@ static void task_downlink(void *arg)
             continue;
         }
         if (downlink.type == SG_MQTT_DOWNLINK_CONTROL) {
+            if (downlink.payload.control.action == SG_SCREENING_START) {
+                (void)sg_score_bus_clear_speech();
+                ESP_LOGI(SG_TAG_MAIN,
+                         "new screening clears retained speech");
+            }
             esp_err_t err = sg_camera_coprocessor_control(
                 downlink.payload.control.action);
             if (err != ESP_OK) {
@@ -171,11 +176,20 @@ static void task_fusion(void *arg)
         if (have_speech_result && result.window_id != 0U
             && result.window_id != last_speech_window_id) {
             last_speech_window_id = result.window_id;
-            esp_err_t speech_err = result.available
-                ? sg_score_bus_set_speech(
-                    result.score, result.p_clear, false, esp_timer_get_time())
-                : sg_score_bus_clear_speech();
-            if (speech_err == ESP_OK) {
+            esp_err_t speech_err = ESP_OK;
+            bool speech_result_applied = false;
+            if (result.available) {
+                speech_err = sg_score_bus_set_speech(
+                    result.score, result.p_clear, false, esp_timer_get_time());
+                speech_result_applied = true;
+            } else if (result.reason == SG_SPEECH_REASON_IO_ERROR) {
+                speech_err = sg_score_bus_clear_speech();
+                speech_result_applied = true;
+            } else {
+                ESP_LOGI(SG_TAG_MAIN,
+                         "speech window unavailable; retaining previous score");
+            }
+            if (speech_result_applied && speech_err == ESP_OK) {
                 speech_score_updated = true;
                 ESP_LOGI(SG_TAG_MAIN,
                          "continuous speech window=%lu available=%u score=%u",

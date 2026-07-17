@@ -156,10 +156,13 @@ void sg_score_bus_snapshot(sg_scores_in_t *out, int64_t now_us,
         out->face = (int8_t)s_face.score;
         out->face_theta_deg = s_face.aux;
     }
-    if (entry_fresh(&s_speech, now_us, stale_us)) {
+    const int64_t speech_retain_us =
+        (int64_t)SG_SPEECH_RETAIN_MS * 1000LL;
+    if (entry_fresh(&s_speech, now_us, speech_retain_us)) {
         out->speech = (int8_t)s_speech.score;
         out->speech_p_clear = s_speech.aux;
-        out->speech_veto_eligible = s_speech.veto_eligible;
+        out->speech_veto_eligible = s_speech.veto_eligible
+            && entry_fresh(&s_speech, now_us, stale_us);
     }
     if (entry_fresh(&s_tongue, now_us, stale_us)) {
         out->tongue = (int8_t)s_tongue.score;

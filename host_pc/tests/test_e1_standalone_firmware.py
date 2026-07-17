@@ -163,12 +163,28 @@ def test_preliminary_speech_score_carries_non_veto_provenance():
         assert forbidden not in cloud
 
 
-def test_invalid_continuous_speech_window_clears_old_score():
+def test_continuous_speech_retains_only_non_io_failures_for_five_minutes():
+    app = read("app_main.c")
+    bus_h = read("score_bus.h")
+    bus_c = read("score_bus.c")
+
+    assert "SG_SPEECH_RETAIN_MS 300000U" in bus_h
+    assert "SG_SPEECH_RETAIN_MS" in bus_c
+    assert "SG_SPEECH_REASON_IO_ERROR" in app
+    assert "speech window unavailable; retaining previous score" in app
+    assert "new screening clears retained speech" in app
+
+    result_block = app[app.index("if (have_speech_result"):app.index("#endif", app.index("if (have_speech_result"))]
+    assert "sg_score_bus_clear_speech" in result_block
+    assert "SG_SPEECH_REASON_IO_ERROR" in result_block
+
+
+def test_only_io_error_clears_old_continuous_speech_score():
     app = read("app_main.c")
 
     assert "result.window_id != last_speech_window_id" in app
-    assert "result.available" in app
-    assert "sg_score_bus_clear_speech" in app
+    assert "else if (result.reason == SG_SPEECH_REASON_IO_ERROR)" in app
+    assert "speech window unavailable; retaining previous score" in app
     assert "screening_stage = SG_STAGE_ERROR" not in app
 
 

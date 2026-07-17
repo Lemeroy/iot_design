@@ -5,6 +5,8 @@
 #include "esp_err.h"
 #include "fusion.h"
 
+#define SG_SPEECH_RETAIN_MS 300000U
+
 esp_err_t sg_score_bus_init(void);
 esp_err_t sg_score_bus_set_face(int score, float theta_deg, int64_t now_us);
 esp_err_t sg_score_bus_set_speech(int score, float p_clear,
