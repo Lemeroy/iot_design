@@ -164,10 +164,12 @@ static void task_fusion(void *arg)
 
         int64_t now_us = esp_timer_get_time();
         int64_t unix_ts = sg_time_unix_seconds();
-        sg_screening_stage_t screening_stage = sg_camera_coprocessor_stage();
+        sg_screening_stage_t camera_screening_stage =
+            sg_camera_coprocessor_stage();
+        sg_screening_stage_t screening_stage = camera_screening_stage;
         bool speech_score_updated = false;
 #if CONFIG_STROKEGUARD_NMO432_ENABLE
-        if (screening_stage == SG_STAGE_DONE
+        if (camera_screening_stage == SG_STAGE_DONE
             && previous_screening_stage != SG_STAGE_DONE) {
             sg_score_bus_clear_speech();
             speech_result_published = false;
@@ -178,8 +180,9 @@ static void task_fusion(void *arg)
             }
         }
         sg_speech_result_t result;
-        if (!speech_result_published
-            && sg_audio_nmo432_speech_snapshot(&result) == ESP_OK
+        bool have_speech_result =
+            sg_audio_nmo432_speech_snapshot(&result) == ESP_OK;
+        if (!speech_result_published && have_speech_result
             && result.state == SG_SPEECH_COMPLETE && result.available) {
             esp_err_t speech_err = sg_score_bus_set_speech(
                 result.score, result.p_clear, false, esp_timer_get_time());
@@ -191,8 +194,20 @@ static void task_fusion(void *arg)
                          (unsigned)result.score, (double)result.p_clear);
             }
         }
+        if (have_speech_result && result.state == SG_SPEECH_RETRY
+            && camera_screening_stage == SG_STAGE_DONE) {
+            screening_stage = SG_STAGE_ERROR;
+        }
 #endif
-        previous_screening_stage = screening_stage;
+        previous_screening_stage = camera_screening_stage;
+        if (speech_score_updated) {
+            sg_score_bus_snapshot(&in, esp_timer_get_time(), SG_SCORE_STALE_MS);
+            in.seq = (int32_t)(n_processed - 1U);
+            in.csi = (csi_local >= 0 && csi_local <= 100)
+                       ? (int8_t)csi_local : (int8_t)-1;
+            sg_fusion_compute(&in, -1, &out);
+            sg_local_alert_apply_fusion(&out);
+        }
         bool publish_due = !has_published
             || speech_score_updated
             || out.level != last_published_level

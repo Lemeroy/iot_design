@@ -85,12 +85,15 @@
     7: ["采集失败，请重新筛查", 0],
   };
 
-  function renderScreening(stage, online) {
+  function renderScreening(stage, online, speechScore) {
     const normalized = Number.isInteger(stage) && stage >= 0 && stage <= 7 ? stage : 0;
-    const [instruction, progress] = stageContent[normalized];
+    const speechPending = normalized === 6 && !Number.isFinite(speechScore);
+    const [instruction, progress] = speechPending
+      ? ["初赛声学筛查 · 请朗读：今天的天气很好", 90]
+      : stageContent[normalized];
     document.querySelector("#screening-instruction").textContent = instruction;
     document.querySelector("#screening-progress").value = progress;
-    const active = normalized >= 1 && normalized <= 5;
+    const active = (normalized >= 1 && normalized <= 5) || speechPending;
     document.querySelector("#screening-start").disabled = !online || active;
     document.querySelector("#screening-cancel").disabled = !online || !active;
   }
@@ -113,7 +116,7 @@
       document.querySelector(`#score-${id}`).textContent = scoreValue(scores[name], online, stage);
     });
     fields.device.textContent = data.device_id || "--";
-    renderScreening(stage, online);
+    renderScreening(stage, online, scores.speech);
     fields.online.textContent = online ? "在线" : "离线";
     fields.indicator.className = `indicator ${online ? "online" : "offline"}`;
     fields.receipt.textContent = formatTime(data.received_at);

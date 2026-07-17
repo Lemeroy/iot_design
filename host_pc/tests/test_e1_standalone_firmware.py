@@ -157,6 +157,14 @@ def test_preliminary_speech_score_carries_non_veto_provenance():
         assert forbidden not in cloud
 
 
+def test_speech_retry_reuses_existing_screening_error_stage():
+    app = read("app_main.c")
+
+    assert "camera_screening_stage" in app
+    assert "result.state == SG_SPEECH_RETRY" in app
+    assert "screening_stage = SG_STAGE_ERROR" in app
+
+
 def test_production_app_does_not_accept_pc_scores():
     app = read("app_main.c")
     cmake = read("CMakeLists.txt")

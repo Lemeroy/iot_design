@@ -82,6 +82,16 @@ def test_demo_web_supports_guided_screening_with_websocket_fallback():
         assert forbidden not in script
 
 
+def test_demo_web_guides_preliminary_speech_after_camera_stages():
+    script = _read(STATIC / "app.js")
+
+    assert "初赛声学筛查" in script
+    assert "请朗读：今天的天气很好" in script
+    assert "function renderScreening(stage, online, speechScore)" in script
+    assert "normalized === 6 && !Number.isFinite(speechScore)" in script
+    assert "renderScreening(stage, online, scores.speech)" in script
+
+
 def test_demo_web_wraps_the_long_connected_device_id_on_small_screens():
     css = _read(STATIC / "app.css")
 
