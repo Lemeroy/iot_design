@@ -282,6 +282,12 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
         else if (!frame_valid) reason = "geometry";
         else if (!sg_face_baseline_ready(&s_face_baseline)) reason = "baseline";
         note_face_rejection(reason);
+        if (reason != nullptr && std::strcmp(reason, "baseline") == 0
+            && s_face_reject_count == 1) {
+            ESP_LOGI(TAG, "face baseline sample quality=%u count=%u",
+                     frame_metrics.quality,
+                     (unsigned)s_face_baseline.calibration_count);
+        }
     } else {
         note_face_rejection(nullptr);
     }

@@ -198,7 +198,7 @@ TEST_CASE("personal baseline rejects low quality and unstable windows", "[face_b
     sg_face_baseline_t state = {};
     sg_face_frame_metrics_t out = {};
     for (int i = 0; i < 5; ++i) {
-        const auto low_quality = baseline_sample(1.0f, 0.05f, 69);
+        const auto low_quality = baseline_sample(1.0f, 0.05f, 49);
         TEST_ASSERT_FALSE(sg_face_baseline_update(
             &state, &low_quality, 1000000LL + i * 500000LL, &out));
     }
@@ -212,6 +212,19 @@ TEST_CASE("personal baseline rejects low quality and unstable windows", "[face_b
             &state, &sample, 5000000LL + i * 500000LL, &out));
     }
     TEST_ASSERT_FALSE(sg_face_baseline_ready(&state));
+}
+
+TEST_CASE("personal baseline accepts practical QVGA face quality", "[face_baseline]")
+{
+    sg_face_baseline_t state = {};
+    sg_face_frame_metrics_t out = {};
+    const auto sample = baseline_sample(1.0f, 0.05f, 50);
+
+    for (size_t i = 0; i < SG_FACE_BASELINE_CALIBRATION_SAMPLES; ++i) {
+        TEST_ASSERT_FALSE(sg_face_baseline_update(
+            &state, &sample, 1000000LL + i * 500000LL, &out));
+    }
+    TEST_ASSERT_TRUE(sg_face_baseline_ready(&state));
 }
 
 TEST_CASE("relative score responds after three frames", "[face_baseline]")

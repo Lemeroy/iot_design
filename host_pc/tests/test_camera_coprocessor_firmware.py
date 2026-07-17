@@ -134,6 +134,7 @@ def test_camera_has_volatile_personal_face_baseline():
     source = read("face_baseline.c")
 
     for token in (
+        "SG_FACE_BASELINE_MIN_QUALITY 50U",
         "SG_FACE_BASELINE_CALIBRATION_SAMPLES",
         "SG_FACE_BASELINE_OUTPUT_SAMPLES",
         "SG_FACE_BASELINE_RESET_US",
