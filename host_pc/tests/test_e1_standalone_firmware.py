@@ -174,6 +174,24 @@ def test_stale_camera_done_cannot_autostart_speech_after_boot():
     assert "s_screening_requested = false" in app
 
 
+def test_unity_hardware_run_restores_production_device_config():
+    unity = (
+        ROOT
+        / "firmware_esp32"
+        / "test_apps"
+        / "e1_core"
+        / "main"
+        / "test_e1_core.c"
+    ).read_text(encoding="utf-8")
+
+    assert "backup_device_config" in unity
+    assert "restore_device_config" in unity
+    assert 'nvs_get_blob(handle, "device"' in unity
+    assert 'nvs_set_blob(handle, "device"' in unity
+    assert unity.index("backup_device_config(&backup)") < unity.index("unity_run_all_tests")
+    assert unity.index("restore_device_config(&backup)") > unity.index("unity_run_all_tests")
+
+
 def test_production_app_does_not_accept_pc_scores():
     app = read("app_main.c")
     cmake = read("CMakeLists.txt")

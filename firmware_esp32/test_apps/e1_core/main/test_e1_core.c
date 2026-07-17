@@ -25,6 +25,46 @@
 static char captured_level[16];
 static char captured_text[SG_ADVICE_TEXT_MAX + 128];
 
+typedef struct {
+    bool existed;
+    size_t length;
+    uint8_t bytes[sizeof(sg_device_config_t)];
+} device_config_backup_t;
+
+static esp_err_t backup_device_config(device_config_backup_t *backup)
+{
+    if (backup == NULL) return ESP_ERR_INVALID_ARG;
+    memset(backup, 0, sizeof(*backup));
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open("sg_cfg", NVS_READWRITE, &handle);
+    if (err != ESP_OK) return err;
+    size_t length = sizeof(backup->bytes);
+    err = nvs_get_blob(handle, "device", backup->bytes, &length);
+    nvs_close(handle);
+    if (err == ESP_ERR_NVS_NOT_FOUND) return ESP_OK;
+    if (err != ESP_OK) return err;
+    backup->existed = true;
+    backup->length = length;
+    return ESP_OK;
+}
+
+static esp_err_t restore_device_config(const device_config_backup_t *backup)
+{
+    if (backup == NULL) return ESP_ERR_INVALID_ARG;
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open("sg_cfg", NVS_READWRITE, &handle);
+    if (err != ESP_OK) return err;
+    if (backup->existed) {
+        err = nvs_set_blob(handle, "device", backup->bytes, backup->length);
+    } else {
+        err = nvs_erase_key(handle, "device");
+        if (err == ESP_ERR_NVS_NOT_FOUND) err = ESP_OK;
+    }
+    if (err == ESP_OK) err = nvs_commit(handle);
+    nvs_close(handle);
+    return err;
+}
+
 static void fill_silence(int16_t *samples)
 {
     memset(samples, 0, SG_SPEECH_FRAME_SAMPLES * sizeof(*samples));
@@ -509,6 +549,9 @@ void app_main(void)
         err = nvs_flash_init();
     }
     TEST_ASSERT_EQUAL(ESP_OK, err);
+    device_config_backup_t backup;
+    ESP_ERROR_CHECK(backup_device_config(&backup));
     unity_run_all_tests();
+    ESP_ERROR_CHECK(restore_device_config(&backup));
     while (1) vTaskDelay(pdMS_TO_TICKS(1000));
 }
