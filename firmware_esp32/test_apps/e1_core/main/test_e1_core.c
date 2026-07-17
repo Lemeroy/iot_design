@@ -186,6 +186,19 @@ TEST_CASE("completed result is stable until next start", "[speech]")
     TEST_ASSERT_EQUAL_MEMORY(&before, &after, sizeof(before));
 }
 
+TEST_CASE("speech IO failure produces unavailable terminal result", "[speech]")
+{
+    sg_speech_context_t context;
+    sg_speech_result_t result;
+    sg_speech_screening_init(&context);
+    sg_speech_screening_start(&context);
+    sg_speech_screening_fail(&context, SG_SPEECH_REASON_IO_ERROR);
+    sg_speech_screening_snapshot(&context, &result);
+    TEST_ASSERT_EQUAL(SG_SPEECH_RETRY, result.state);
+    TEST_ASSERT_FALSE(result.available);
+    TEST_ASSERT_EQUAL(SG_SPEECH_REASON_IO_ERROR, result.reason);
+}
+
 TEST_CASE("heuristic low speech contributes without danger veto",
           "[speech][fusion]")
 {

@@ -25,6 +25,7 @@ typedef enum {
 } sg_speech_reason_t;
 
 typedef struct {
+    uint32_t window_id;
     sg_speech_state_t state;
     bool available;
     uint8_t score;
@@ -55,6 +56,7 @@ void sg_speech_screening_start(sg_speech_context_t *context);
 void sg_speech_screening_cancel(sg_speech_context_t *context);
 void sg_speech_screening_process(sg_speech_context_t *context,
                                  const int16_t *samples, size_t count);
+void sg_speech_screening_fail(sg_speech_context_t *context,
+                              sg_speech_reason_t reason);
 void sg_speech_screening_snapshot(const sg_speech_context_t *context,
                                   sg_speech_result_t *result);
-

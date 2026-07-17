@@ -8,7 +8,6 @@
 #include "driver/i2s_std.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
 #include "freertos/task.h"
 
 #include "app_config.h"
@@ -16,21 +15,14 @@
 #include "log_tag.h"
 
 static i2s_chan_handle_t s_rx_channel;
-static QueueHandle_t s_speech_commands;
 static portMUX_TYPE s_speech_result_lock = portMUX_INITIALIZER_UNLOCKED;
 static sg_speech_result_t s_speech_result;
 
-typedef enum {
-    SG_SPEECH_COMMAND_START = 1,
-    SG_SPEECH_COMMAND_CANCEL = 2,
-} sg_speech_command_t;
-
-static void publish_speech_snapshot(const sg_speech_context_t *context)
+static void publish_speech_result(const sg_speech_result_t *result)
 {
-    sg_speech_result_t snapshot;
-    sg_speech_screening_snapshot(context, &snapshot);
+    if (result == NULL) return;
     taskENTER_CRITICAL(&s_speech_result_lock);
-    s_speech_result = snapshot;
+    s_speech_result = *result;
     taskEXIT_CRITICAL(&s_speech_result_lock);
 }
 
@@ -81,54 +73,61 @@ static void audio_diagnostic_task(void *arg)
     (void)arg;
     sg_speech_context_t speech_context;
     sg_speech_screening_init(&speech_context);
-    publish_speech_snapshot(&speech_context);
-    sg_speech_state_t last_speech_state = SG_SPEECH_IDLE;
+    sg_speech_screening_start(&speech_context);
+    sg_speech_result_t initial_result;
+    sg_speech_screening_snapshot(&speech_context, &initial_result);
+    publish_speech_result(&initial_result);
+    uint32_t speech_window_id = 0;
+    unsigned consecutive_io_failures = 0;
     uint32_t blocks = 0;
     uint32_t valid_blocks = 0;
     float latest_rms = 0.0f;
     int latest_peak = 0;
+    static const int16_t silence[SG_NMO432_BLOCK_SAMPLES] = {0};
     while (1) {
-        sg_speech_command_t command;
-        if (xQueueReceive(s_speech_commands, &command, 0) == pdTRUE) {
-            if (command == SG_SPEECH_COMMAND_START) {
-                sg_speech_screening_start(&speech_context);
-            } else {
-                sg_speech_screening_cancel(&speech_context);
-            }
-            publish_speech_snapshot(&speech_context);
-        }
         sg_audio_block_t block;
         esp_err_t err = sg_audio_nmo432_read(&block, 1000);
         ++blocks;
         if (err == ESP_OK) {
+            consecutive_io_failures = 0;
             latest_rms = block.rms;
             latest_peak = block.peak;
             if (block.valid) ++valid_blocks;
             if (block.valid) {
                 sg_speech_screening_process(&speech_context, block.samples,
                                             SG_NMO432_BLOCK_SAMPLES);
-                publish_speech_snapshot(&speech_context);
+            } else {
+                sg_speech_screening_process(&speech_context, silence,
+                                            SG_NMO432_BLOCK_SAMPLES);
             }
+        } else if (++consecutive_io_failures >= 3U) {
+            sg_speech_screening_fail(
+                &speech_context, SG_SPEECH_REASON_IO_ERROR);
+            consecutive_io_failures = 0;
         }
         sg_speech_result_t speech_result;
         sg_speech_screening_snapshot(&speech_context, &speech_result);
-        if (speech_result.state != last_speech_state) {
+        if (speech_result.state == SG_SPEECH_COMPLETE
+            || speech_result.state == SG_SPEECH_RETRY) {
+            speech_result.window_id = ++speech_window_id;
+            publish_speech_result(&speech_result);
             ESP_LOGI(SG_TAG_MAIN,
-                     "speech heuristic state=%u available=%u score=%u reason=%u frames=%u voiced=%u",
+                     "speech window=%lu state=%u available=%u score=%u reason=%u frames=%u voiced=%u",
+                     (unsigned long)speech_result.window_id,
                      (unsigned)speech_result.state,
                      (unsigned)speech_result.available,
                      (unsigned)speech_result.score,
                      (unsigned)speech_result.reason,
                      (unsigned)speech_result.valid_frames,
                      (unsigned)speech_result.voiced_frames);
-            last_speech_state = speech_result.state;
+            sg_speech_screening_start(&speech_context);
         }
         if (blocks >= 250) {
             ESP_LOGI(SG_TAG_MAIN,
-                     "NMO432 quality valid=%lu/%lu rms=%.1f peak=%d speech_state=%u",
+                     "NMO432 quality valid=%lu/%lu rms=%.1f peak=%d speech_window=%lu",
                      (unsigned long)valid_blocks, (unsigned long)blocks,
                      (double)latest_rms, latest_peak,
-                     (unsigned)speech_result.state);
+                     (unsigned long)speech_window_id);
             blocks = 0;
             valid_blocks = 0;
         }
@@ -138,20 +137,13 @@ static void audio_diagnostic_task(void *arg)
 esp_err_t sg_audio_nmo432_init(void)
 {
     if (s_rx_channel != NULL) return ESP_ERR_INVALID_STATE;
-
-    s_speech_commands = xQueueCreate(1, sizeof(sg_speech_command_t));
-    if (s_speech_commands == NULL) return ESP_ERR_NO_MEM;
     memset(&s_speech_result, 0, sizeof(s_speech_result));
     s_speech_result.state = SG_SPEECH_IDLE;
 
     i2s_chan_config_t channel_config = I2S_CHANNEL_DEFAULT_CONFIG(
         I2S_NUM_AUTO, I2S_ROLE_MASTER);
     esp_err_t err = i2s_new_channel(&channel_config, NULL, &s_rx_channel);
-    if (err != ESP_OK) {
-        vQueueDelete(s_speech_commands);
-        s_speech_commands = NULL;
-        return err;
-    }
+    if (err != ESP_OK) return err;
 
     i2s_std_config_t standard_config = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(16000),
@@ -176,8 +168,6 @@ esp_err_t sg_audio_nmo432_init(void)
     if (err != ESP_OK) {
         i2s_del_channel(s_rx_channel);
         s_rx_channel = NULL;
-        vQueueDelete(s_speech_commands);
-        s_speech_commands = NULL;
         return err;
     }
     if (xTaskCreatePinnedToCore(
@@ -186,34 +176,15 @@ esp_err_t sg_audio_nmo432_init(void)
         i2s_channel_disable(s_rx_channel);
         i2s_del_channel(s_rx_channel);
         s_rx_channel = NULL;
-        vQueueDelete(s_speech_commands);
-        s_speech_commands = NULL;
         return ESP_ERR_NO_MEM;
     }
     return ESP_OK;
 }
 
-static esp_err_t send_speech_command(sg_speech_command_t command)
-{
-    if (s_speech_commands == NULL) return ESP_ERR_INVALID_STATE;
-    return xQueueOverwrite(s_speech_commands, &command) == pdPASS
-        ? ESP_OK : ESP_FAIL;
-}
-
-esp_err_t sg_audio_nmo432_speech_start(void)
-{
-    return send_speech_command(SG_SPEECH_COMMAND_START);
-}
-
-esp_err_t sg_audio_nmo432_speech_cancel(void)
-{
-    return send_speech_command(SG_SPEECH_COMMAND_CANCEL);
-}
-
 esp_err_t sg_audio_nmo432_speech_snapshot(sg_speech_result_t *result)
 {
     if (result == NULL) return ESP_ERR_INVALID_ARG;
-    if (s_speech_commands == NULL) return ESP_ERR_INVALID_STATE;
+    if (s_rx_channel == NULL) return ESP_ERR_INVALID_STATE;
     taskENTER_CRITICAL(&s_speech_result_lock);
     *result = s_speech_result;
     taskEXIT_CRITICAL(&s_speech_result_lock);

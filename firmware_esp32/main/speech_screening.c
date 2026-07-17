@@ -195,6 +195,20 @@ void sg_speech_screening_process(sg_speech_context_t *context,
     if (result->valid_frames >= SG_SPEECH_MAX_FRAMES) finish_session(context);
 }
 
+void sg_speech_screening_fail(sg_speech_context_t *context,
+                              sg_speech_reason_t reason)
+{
+    if (context == NULL || context->result.state != SG_SPEECH_LISTENING
+        || reason == SG_SPEECH_REASON_NONE) {
+        return;
+    }
+    context->result.available = false;
+    context->result.score = 0U;
+    context->result.p_clear = 0.0f;
+    context->result.reason = reason;
+    context->result.state = SG_SPEECH_RETRY;
+}
+
 void sg_speech_screening_snapshot(const sg_speech_context_t *context,
                                   sg_speech_result_t *result)
 {

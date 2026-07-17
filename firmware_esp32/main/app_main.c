@@ -49,7 +49,6 @@ static volatile bool s_wifi_got_ip = false;
 static sg_device_config_t s_device_config;
 static bool s_device_config_loaded;
 static QueueHandle_t s_downlink_q;
-static volatile bool s_screening_requested;
 
 static void on_mqtt_downlink(const sg_mqtt_downlink_t *downlink, void *ctx)
 {
@@ -67,16 +66,9 @@ static void task_downlink(void *arg)
             continue;
         }
         if (downlink.type == SG_MQTT_DOWNLINK_CONTROL) {
-#if CONFIG_STROKEGUARD_NMO432_ENABLE
-            sg_audio_nmo432_speech_cancel();
-            sg_score_bus_clear_speech();
-            s_screening_requested =
-                downlink.payload.control.action == SG_SCREENING_START;
-#endif
             esp_err_t err = sg_camera_coprocessor_control(
                 downlink.payload.control.action);
             if (err != ESP_OK) {
-                s_screening_requested = false;
                 ESP_LOGW(SG_TAG_MQTT, "screening control failed: %s",
                          esp_err_to_name(err));
             }
@@ -150,8 +142,7 @@ static void task_fusion(void *arg)
     bool has_published = false;
     sg_level_t last_published_level = SG_LEVEL_INSUFFICIENT;
     sg_screening_stage_t last_published_stage = SG_STAGE_IDLE;
-    sg_screening_stage_t previous_screening_stage = SG_STAGE_IDLE;
-    bool speech_result_published = false;
+    uint32_t last_speech_window_id = 0;
     int64_t last_publish_us = 0;
     TickType_t last = xTaskGetTickCount();
 
@@ -170,44 +161,30 @@ static void task_fusion(void *arg)
 
         int64_t now_us = esp_timer_get_time();
         int64_t unix_ts = sg_time_unix_seconds();
-        sg_screening_stage_t camera_screening_stage =
+        sg_screening_stage_t screening_stage =
             sg_camera_coprocessor_stage();
-        sg_screening_stage_t screening_stage = camera_screening_stage;
         bool speech_score_updated = false;
 #if CONFIG_STROKEGUARD_NMO432_ENABLE
-        if (camera_screening_stage == SG_STAGE_DONE
-            && previous_screening_stage != SG_STAGE_DONE
-            && s_screening_requested) {
-            sg_score_bus_clear_speech();
-            speech_result_published = false;
-            esp_err_t speech_err = sg_audio_nmo432_speech_start();
-            s_screening_requested = false;
-            if (speech_err != ESP_OK) {
-                ESP_LOGW(SG_TAG_MAIN, "speech start failed: %s",
-                         esp_err_to_name(speech_err));
-            }
-        }
         sg_speech_result_t result;
         bool have_speech_result =
             sg_audio_nmo432_speech_snapshot(&result) == ESP_OK;
-        if (!speech_result_published && have_speech_result
-            && result.state == SG_SPEECH_COMPLETE && result.available) {
-            esp_err_t speech_err = sg_score_bus_set_speech(
-                result.score, result.p_clear, false, esp_timer_get_time());
+        if (have_speech_result && result.window_id != 0U
+            && result.window_id != last_speech_window_id) {
+            last_speech_window_id = result.window_id;
+            esp_err_t speech_err = result.available
+                ? sg_score_bus_set_speech(
+                    result.score, result.p_clear, false, esp_timer_get_time())
+                : sg_score_bus_clear_speech();
             if (speech_err == ESP_OK) {
-                speech_result_published = true;
                 speech_score_updated = true;
                 ESP_LOGI(SG_TAG_MAIN,
-                         "preliminary speech score=%u p_clear=%.2f veto_eligible=0",
-                         (unsigned)result.score, (double)result.p_clear);
+                         "continuous speech window=%lu available=%u score=%u",
+                         (unsigned long)result.window_id,
+                         (unsigned)result.available,
+                         (unsigned)result.score);
             }
         }
-        if (have_speech_result && result.state == SG_SPEECH_RETRY
-            && camera_screening_stage == SG_STAGE_DONE) {
-            screening_stage = SG_STAGE_ERROR;
-        }
 #endif
-        previous_screening_stage = camera_screening_stage;
         if (speech_score_updated) {
             sg_score_bus_snapshot(&in, esp_timer_get_time(), SG_SCORE_STALE_MS);
             in.seq = (int32_t)(n_processed - 1U);

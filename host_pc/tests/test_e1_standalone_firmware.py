@@ -110,7 +110,9 @@ def test_preliminary_speech_engine_is_bounded_and_allocation_free():
         "sg_speech_screening_start",
         "sg_speech_screening_cancel",
         "sg_speech_screening_process",
+        "sg_speech_screening_fail",
         "sg_speech_screening_snapshot",
+        "window_id",
         "SG_SPEECH_FRAME_SAMPLES 320",
     ):
         assert token in header or token in source
@@ -119,21 +121,25 @@ def test_preliminary_speech_engine_is_bounded_and_allocation_free():
         assert forbidden not in lowered
 
 
-def test_nmo432_task_owns_guided_speech_session_lifecycle():
+def test_nmo432_task_runs_continuous_speech_windows():
     audio = read("audio_nmo432.c")
     audio_h = read("audio_nmo432.h")
     app = read("app_main.c")
     cmake = read("CMakeLists.txt")
 
+    task = audio[audio.index("static void audio_diagnostic_task"):]
     assert "sg_speech_screening_process(&speech_context, block.samples" in audio
-    assert "xQueueOverwrite" in audio
-    assert "sg_audio_nmo432_speech_start" in audio_h
-    assert "sg_audio_nmo432_speech_cancel" in audio_h
+    assert task.index("sg_speech_screening_start(&speech_context)") < task.index("while (1)")
+    assert task.count("sg_speech_screening_start(&speech_context)") >= 2
+    assert "window_id" in audio
+    assert "xQueueOverwrite" not in audio
+    assert "sg_audio_nmo432_speech_start" not in audio_h
+    assert "sg_audio_nmo432_speech_cancel" not in audio_h
     assert "sg_audio_nmo432_speech_snapshot" in audio_h
-    assert "sg_audio_nmo432_speech_start" in app
-    assert "sg_audio_nmo432_speech_cancel" in app
-    assert "previous_screening_stage" in app
-    assert "screening_stage == SG_STAGE_DONE" in app
+    assert "last_speech_window_id" in app
+    assert "result.window_id" in app
+    assert "sg_audio_nmo432_speech_start" not in app
+    assert "sg_audio_nmo432_speech_cancel" not in app
     assert '"speech_screening.c"' in cmake
 
 
@@ -157,21 +163,23 @@ def test_preliminary_speech_score_carries_non_veto_provenance():
         assert forbidden not in cloud
 
 
-def test_speech_retry_reuses_existing_screening_error_stage():
+def test_invalid_continuous_speech_window_clears_old_score():
     app = read("app_main.c")
 
-    assert "camera_screening_stage" in app
-    assert "result.state == SG_SPEECH_RETRY" in app
-    assert "screening_stage = SG_STAGE_ERROR" in app
+    assert "result.window_id != last_speech_window_id" in app
+    assert "result.available" in app
+    assert "sg_score_bus_clear_speech" in app
+    assert "screening_stage = SG_STAGE_ERROR" not in app
 
 
-def test_stale_camera_done_cannot_autostart_speech_after_boot():
+def test_guided_camera_control_does_not_control_continuous_speech():
     app = read("app_main.c")
 
-    assert "s_screening_requested" in app
-    assert "downlink.payload.control.action == SG_SCREENING_START" in app
-    assert "&& s_screening_requested" in app
-    assert "s_screening_requested = false" in app
+    assert "s_screening_requested" not in app
+    control_start = app.index("if (downlink.type == SG_MQTT_DOWNLINK_CONTROL)")
+    control_end = app.index("continue;", control_start)
+    control = app[control_start:control_end]
+    assert "sg_audio_nmo432" not in control
 
 
 def test_unity_hardware_run_restores_production_device_config():
