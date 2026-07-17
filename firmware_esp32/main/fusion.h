@@ -30,6 +30,7 @@ typedef struct {
 
     int8_t  speech;
     float   speech_p_clear;    /* [0,1], NaN=未测 */
+    bool    speech_veto_eligible;
 
     int8_t  tongue;
 

@@ -137,7 +137,8 @@ void sg_fusion_compute(const sg_scores_in_t *in,
                        (double)SG_FACE_MOUTH_DEG_DANGER);
         }
     }
-    if (a_speech && speech <= SG_SPEECH_DANGER_MAX) {
+    if (a_speech && in->speech_veto_eligible
+        && speech <= SG_SPEECH_DANGER_MAX) {
         if (!isnan(in->speech_p_clear)
             && in->speech_p_clear < SPEECH_P_DANGER_MAX) {
             out->veto_speech = 1;

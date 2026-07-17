@@ -9,6 +9,7 @@ typedef struct {
     int score;
     float aux;
     int64_t updated_us;
+    bool veto_eligible;
 } sg_score_entry_t;
 
 static SemaphoreHandle_t s_lock;
@@ -22,6 +23,7 @@ static void entry_reset(sg_score_entry_t *entry)
     entry->score = -1;
     entry->aux = NAN;
     entry->updated_us = 0;
+    entry->veto_eligible = false;
 }
 
 static bool score_valid(int score)
@@ -30,7 +32,7 @@ static bool score_valid(int score)
 }
 
 static esp_err_t entry_set(sg_score_entry_t *entry, int score,
-                           float aux, int64_t now_us)
+                           float aux, bool veto_eligible, int64_t now_us)
 {
     if (!s_lock) return ESP_ERR_INVALID_STATE;
     if (!score_valid(score) || now_us <= 0) return ESP_ERR_INVALID_ARG;
@@ -38,6 +40,7 @@ static esp_err_t entry_set(sg_score_entry_t *entry, int score,
     entry->score = score;
     entry->aux = aux;
     entry->updated_us = now_us;
+    entry->veto_eligible = veto_eligible;
     xSemaphoreGive(s_lock);
     return ESP_OK;
 }
@@ -67,25 +70,35 @@ esp_err_t sg_score_bus_set_face(int score, float theta_deg, int64_t now_us)
     if (!isfinite(theta_deg) || theta_deg < 0.0f || theta_deg > 90.0f) {
         return ESP_ERR_INVALID_ARG;
     }
-    return entry_set(&s_face, score, theta_deg, now_us);
+    return entry_set(&s_face, score, theta_deg, false, now_us);
 }
 
-esp_err_t sg_score_bus_set_speech(int score, float p_clear, int64_t now_us)
+esp_err_t sg_score_bus_set_speech(int score, float p_clear,
+                                  bool veto_eligible, int64_t now_us)
 {
     if (!isfinite(p_clear) || p_clear < 0.0f || p_clear > 1.0f) {
         return ESP_ERR_INVALID_ARG;
     }
-    return entry_set(&s_speech, score, p_clear, now_us);
+    return entry_set(&s_speech, score, p_clear, veto_eligible, now_us);
+}
+
+esp_err_t sg_score_bus_clear_speech(void)
+{
+    if (!s_lock) return ESP_ERR_INVALID_STATE;
+    if (xSemaphoreTake(s_lock, portMAX_DELAY) != pdTRUE) return ESP_ERR_TIMEOUT;
+    entry_reset(&s_speech);
+    xSemaphoreGive(s_lock);
+    return ESP_OK;
 }
 
 esp_err_t sg_score_bus_set_tongue(int score, int64_t now_us)
 {
-    return entry_set(&s_tongue, score, NAN, now_us);
+    return entry_set(&s_tongue, score, NAN, false, now_us);
 }
 
 esp_err_t sg_score_bus_set_eye(int score, int64_t now_us)
 {
-    return entry_set(&s_eye, score, NAN, now_us);
+    return entry_set(&s_eye, score, NAN, false, now_us);
 }
 
 esp_err_t sg_score_bus_apply_camera(
@@ -102,17 +115,17 @@ esp_err_t sg_score_bus_apply_camera(
     }
     if (xSemaphoreTake(s_lock, portMAX_DELAY) != pdTRUE) return ESP_ERR_TIMEOUT;
     if (face_valid) {
-        s_face = (sg_score_entry_t){face, theta_deg, now_us};
+        s_face = (sg_score_entry_t){face, theta_deg, now_us, false};
     } else {
         entry_reset(&s_face);
     }
     if (tongue_valid) {
-        s_tongue = (sg_score_entry_t){tongue, NAN, now_us};
+        s_tongue = (sg_score_entry_t){tongue, NAN, now_us, false};
     } else {
         entry_reset(&s_tongue);
     }
     if (eye_valid) {
-        s_eye = (sg_score_entry_t){eye, NAN, now_us};
+        s_eye = (sg_score_entry_t){eye, NAN, now_us, false};
     } else {
         entry_reset(&s_eye);
     }
@@ -130,6 +143,7 @@ void sg_score_bus_snapshot(sg_scores_in_t *out, int64_t now_us,
     out->face_theta_deg = NAN;
     out->speech = -1;
     out->speech_p_clear = NAN;
+    out->speech_veto_eligible = false;
     out->tongue = -1;
     out->eye = -1;
     out->csi = -1;
@@ -145,6 +159,7 @@ void sg_score_bus_snapshot(sg_scores_in_t *out, int64_t now_us,
     if (entry_fresh(&s_speech, now_us, stale_us)) {
         out->speech = (int8_t)s_speech.score;
         out->speech_p_clear = s_speech.aux;
+        out->speech_veto_eligible = s_speech.veto_eligible;
     }
     if (entry_fresh(&s_tongue, now_us, stale_us)) {
         out->tongue = (int8_t)s_tongue.score;

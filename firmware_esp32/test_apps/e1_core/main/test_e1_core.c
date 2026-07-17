@@ -15,6 +15,7 @@
 #include "local_alert.h"
 #include "device_config.h"
 #include "sg_manager_api.h"
+#include "score_bus.h"
 #include "speech_screening.h"
 
 #ifndef M_PI
@@ -143,6 +144,59 @@ TEST_CASE("completed result is stable until next start", "[speech]")
     sg_speech_screening_process(&context, samples, SG_SPEECH_FRAME_SAMPLES);
     sg_speech_screening_snapshot(&context, &after);
     TEST_ASSERT_EQUAL_MEMORY(&before, &after, sizeof(before));
+}
+
+TEST_CASE("heuristic low speech contributes without danger veto",
+          "[speech][fusion]")
+{
+    sg_scores_in_t in = {
+        .face = 80,
+        .face_theta_deg = 2.0f,
+        .speech = 20,
+        .speech_p_clear = 0.2f,
+        .speech_veto_eligible = false,
+        .tongue = 80,
+        .eye = 80,
+        .csi = 80,
+    };
+    sg_fusion_out_t out;
+    sg_fusion_compute(&in, -1, &out);
+    TEST_ASSERT_EQUAL(0, out.veto_speech);
+    TEST_ASSERT_GREATER_THAN(0.0f, out.contrib_speech);
+}
+
+TEST_CASE("evaluated low speech remains veto eligible",
+          "[speech][fusion]")
+{
+    sg_scores_in_t in = {
+        .face = 80,
+        .face_theta_deg = 2.0f,
+        .speech = 20,
+        .speech_p_clear = 0.2f,
+        .speech_veto_eligible = true,
+        .tongue = 80,
+        .eye = 80,
+        .csi = 80,
+    };
+    sg_fusion_out_t out;
+    sg_fusion_compute(&in, -1, &out);
+    TEST_ASSERT_EQUAL(1, out.veto_speech);
+    TEST_ASSERT_EQUAL(SG_LEVEL_DANGER, out.level);
+}
+
+TEST_CASE("stale speech clears veto provenance", "[speech][score_bus]")
+{
+    sg_scores_in_t snapshot;
+    TEST_ASSERT_EQUAL(ESP_OK, sg_score_bus_init());
+    TEST_ASSERT_EQUAL(ESP_OK,
+        sg_score_bus_set_speech(20, 0.2f, true, 1000000));
+    sg_score_bus_snapshot(&snapshot, 1000000, 1000);
+    TEST_ASSERT_EQUAL(20, snapshot.speech);
+    TEST_ASSERT_TRUE(snapshot.speech_veto_eligible);
+
+    sg_score_bus_snapshot(&snapshot, 3000000, 1000);
+    TEST_ASSERT_EQUAL(-1, snapshot.speech);
+    TEST_ASSERT_FALSE(snapshot.speech_veto_eligible);
 }
 
 esp_err_t sg_alert_io_init(void)

@@ -7,7 +7,9 @@
 
 esp_err_t sg_score_bus_init(void);
 esp_err_t sg_score_bus_set_face(int score, float theta_deg, int64_t now_us);
-esp_err_t sg_score_bus_set_speech(int score, float p_clear, int64_t now_us);
+esp_err_t sg_score_bus_set_speech(int score, float p_clear,
+                                  bool veto_eligible, int64_t now_us);
+esp_err_t sg_score_bus_clear_speech(void);
 esp_err_t sg_score_bus_set_tongue(int score, int64_t now_us);
 esp_err_t sg_score_bus_set_eye(int score, int64_t now_us);
 esp_err_t sg_score_bus_apply_camera(

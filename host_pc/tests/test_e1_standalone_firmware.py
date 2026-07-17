@@ -137,6 +137,26 @@ def test_nmo432_task_owns_guided_speech_session_lifecycle():
     assert '"speech_screening.c"' in cmake
 
 
+def test_preliminary_speech_score_carries_non_veto_provenance():
+    app = read("app_main.c")
+    bus_h = read("score_bus.h")
+    bus_c = read("score_bus.c")
+    fusion_h = read("fusion.h")
+    fusion_c = read("fusion.c")
+    cloud = read("cloud_contract.c").lower()
+
+    assert "speech_veto_eligible" in fusion_h
+    assert "bool veto_eligible" in bus_h
+    assert "speech_veto_eligible" in bus_c
+    assert "in->speech_veto_eligible" in fusion_c
+    assert "sg_score_bus_clear_speech" in bus_h
+    assert "sg_score_bus_clear_speech" in app
+    assert "sg_audio_nmo432_speech_snapshot" in app
+    assert "result.score, result.p_clear, false" in app
+    for forbidden in ("p_clear", "speech_veto_eligible", "pcm", "mfcc", "audio_b64"):
+        assert forbidden not in cloud
+
+
 def test_production_app_does_not_accept_pc_scores():
     app = read("app_main.c")
     cmake = read("CMakeLists.txt")
