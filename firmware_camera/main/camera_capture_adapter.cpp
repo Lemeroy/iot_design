@@ -38,6 +38,7 @@ static sg_camera_face_bbox_t s_last_face_bbox;
 static uint8_t s_bbox_miss_count;
 static sg_screening_stage_t s_eye_log_stage = SG_STAGE_IDLE;
 static uint32_t s_eye_log_count;
+static uint32_t s_tongue_log_count;
 
 static void note_face_rejection(const char *reason)
 {
@@ -280,6 +281,7 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
     if (stage != s_eye_log_stage) {
         s_eye_log_stage = stage;
         s_eye_log_count = 0;
+        s_tongue_log_count = 0;
     }
     if (stage == SG_STAGE_FACE) {
         const char *reason = nullptr;
@@ -358,6 +360,19 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
         };
         screening_sample.tongue_valid = sg_tongue_measure(
             &tongue_input, &screening_sample.tongue);
+        ++s_tongue_log_count;
+        if (s_tongue_log_count == 1 || s_tongue_log_count % 5U == 0) {
+            if (screening_sample.tongue_valid) {
+                ESP_LOGI(TAG,
+                         "tongue sample offset=%d score=%u quality=%u",
+                         screening_sample.tongue.signed_offset,
+                         screening_sample.tongue.score,
+                         screening_sample.tongue.quality);
+            } else {
+                ESP_LOGI(TAG, "tongue sample invalid count=%lu",
+                         (unsigned long)s_tongue_log_count);
+            }
+        }
     }
     const sg_screening_stage_t previous_stage = stage;
     sg_screening_session_update(&s_screening, &screening_sample, now_us);

@@ -124,11 +124,10 @@ extern "C" bool sg_eye_score_sequence(
 
     const int difference = std::max(
         std::abs(left_l - left_r), std::abs(right_l - right_r));
-    const bool conjugate = left_l * left_r > 0 && right_l * right_r > 0;
     const bool opposite_steps = left_mean * right_mean < 0;
     const int agreement_score = std::clamp(100 - difference, 0, 100);
     const int travel_score = std::clamp(directional_travel * 2, 0, 100);
-    out->score = (uint8_t)((conjugate && opposite_steps)
+    out->score = (uint8_t)(opposite_steps
         ? (agreement_score * 7 + travel_score * 3) / 10
         : 0);
     out->binocular_difference = (int8_t)std::clamp(difference, 0, 100);

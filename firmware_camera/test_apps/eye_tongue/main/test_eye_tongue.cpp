@@ -155,6 +155,7 @@ TEST_CASE("eye sequence reports measured one-eye dropout as discordant", "[eye_t
     sg_eye_sequence_result_t out = {};
 
     TEST_ASSERT_TRUE(sg_eye_score_sequence(&center, &left, &right, &out));
+    TEST_ASSERT_GREATER_THAN_UINT8(30, out.score);
     TEST_ASSERT_LESS_THAN_UINT8(80, out.score);
     TEST_ASSERT_GREATER_OR_EQUAL_INT8(15, out.binocular_difference);
 }
