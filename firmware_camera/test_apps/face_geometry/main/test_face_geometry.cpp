@@ -169,6 +169,30 @@ TEST_CASE("personal baseline calibrates from five stable samples", "[face_baseli
     TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.050f, state.baseline_asymmetry);
 }
 
+TEST_CASE("baseline calibration tolerates two missed frames", "[face_baseline]")
+{
+    sg_face_baseline_t state = {};
+    sg_face_frame_metrics_t out = {};
+    const auto sample = baseline_sample(1.0f, 0.05f);
+
+    TEST_ASSERT_FALSE(sg_face_baseline_update(&state, &sample, 1000000LL, &out));
+    TEST_ASSERT_FALSE(sg_face_baseline_update(&state, &sample, 1500000LL, &out));
+    sg_face_baseline_note_invalid(&state, 1600000LL);
+    sg_face_baseline_note_invalid(&state, 1700000LL);
+    TEST_ASSERT_FALSE(sg_face_baseline_update(&state, &sample, 2000000LL, &out));
+    TEST_ASSERT_FALSE(sg_face_baseline_update(&state, &sample, 2500000LL, &out));
+    TEST_ASSERT_FALSE(sg_face_baseline_update(&state, &sample, 3000000LL, &out));
+    TEST_ASSERT_TRUE(sg_face_baseline_ready(&state));
+
+    sg_face_baseline_reset(&state);
+    TEST_ASSERT_FALSE(sg_face_baseline_update(&state, &sample, 4000000LL, &out));
+    sg_face_baseline_note_invalid(&state, 4100000LL);
+    sg_face_baseline_note_invalid(&state, 4200000LL);
+    sg_face_baseline_note_invalid(&state, 4300000LL);
+    TEST_ASSERT_EQUAL(SG_FACE_BASELINE_WAITING, state.state);
+    TEST_ASSERT_EQUAL_UINT32(0, state.calibration_count);
+}
+
 TEST_CASE("personal baseline rejects low quality and unstable windows", "[face_baseline]")
 {
     sg_face_baseline_t state = {};

@@ -13,6 +13,7 @@ extern "C" {
 #define SG_FACE_BASELINE_CALIBRATION_SAMPLES 5U
 #define SG_FACE_BASELINE_OUTPUT_SAMPLES 3U
 #define SG_FACE_BASELINE_RESET_US 10000000LL
+#define SG_FACE_BASELINE_INVALID_TOLERANCE 3U
 
 typedef enum {
     SG_FACE_BASELINE_WAITING = 0,
@@ -25,6 +26,7 @@ typedef struct {
     float calibration_angles[SG_FACE_BASELINE_CALIBRATION_SAMPLES];
     float calibration_asymmetries[SG_FACE_BASELINE_CALIBRATION_SAMPLES];
     size_t calibration_count;
+    uint8_t calibration_invalid_count;
     float baseline_angle_deg;
     float baseline_asymmetry;
     uint8_t output_scores[SG_FACE_BASELINE_OUTPUT_SAMPLES];

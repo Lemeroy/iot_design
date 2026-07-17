@@ -65,8 +65,12 @@ void sg_face_baseline_note_invalid(sg_face_baseline_t *state, int64_t now_us)
 {
     if (state == NULL) return;
     if (state->state == SG_FACE_BASELINE_CALIBRATING) {
-        state->state = SG_FACE_BASELINE_WAITING;
-        state->calibration_count = 0U;
+        if (++state->calibration_invalid_count
+            >= SG_FACE_BASELINE_INVALID_TOLERANCE) {
+            state->state = SG_FACE_BASELINE_WAITING;
+            state->calibration_count = 0U;
+            state->calibration_invalid_count = 0U;
+        }
         return;
     }
     if (state->state == SG_FACE_BASELINE_READY && state->last_valid_us > 0
@@ -160,6 +164,7 @@ bool sg_face_baseline_update(
         return false;
     }
     state->last_valid_us = now_us;
+    state->calibration_invalid_count = 0U;
 
     if (state->state != SG_FACE_BASELINE_READY) {
         if (state->state == SG_FACE_BASELINE_WAITING) {

@@ -137,6 +137,8 @@ def test_camera_has_volatile_personal_face_baseline():
         "SG_FACE_BASELINE_CALIBRATION_SAMPLES",
         "SG_FACE_BASELINE_OUTPUT_SAMPLES",
         "SG_FACE_BASELINE_RESET_US",
+        "SG_FACE_BASELINE_INVALID_TOLERANCE 3U",
+        "calibration_invalid_count",
         "sg_face_baseline_update",
         "sg_face_baseline_note_invalid",
         "sg_face_baseline_ready",
