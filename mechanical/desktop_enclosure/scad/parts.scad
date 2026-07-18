@@ -199,6 +199,89 @@ module fit_coupon() {
     }
 }
 
+module linear_slot(length, diameter, height, axis = "x") {
+    hull() {
+        for (offset = [-length / 2, length / 2])
+            if (axis == "x")
+                translate([offset, 0, 0]) cylinder(h = height, d = diameter);
+            else
+                translate([0, offset, 0]) cylinder(h = height, d = diameter);
+    }
+}
+
+module camera_carriage() {
+    carriage_size = [72, 48, service_part_thickness];
+    difference() {
+        rounded_xy_box(carriage_size, 4);
+        translate([0, 0, -epsilon])
+            cube([camera_window[0] - 4, camera_window[1] - 4, service_part_thickness + 2 * epsilon], center = true);
+
+        for (y = [-17, 17])
+            translate([0, y, -epsilon])
+                linear_slot(camera_adjustment, m3_clearance, service_part_thickness + 2 * epsilon, "x");
+        for (x = [-28, 28])
+            translate([x, 0, -epsilon])
+                linear_slot(camera_adjustment, m3_clearance, service_part_thickness + 2 * epsilon, "y");
+    }
+}
+
+module camera_bezel(aperture = [28, 16]) {
+    bezel_size = [camera_window[0] + 8, camera_window[1] + 8, 2.4];
+    difference() {
+        rounded_xy_box(bezel_size, 3);
+        translate([0, 0, -epsilon])
+            cube([aperture[0], aperture[1], bezel_size[2] + 2 * epsilon], center = true);
+    }
+}
+
+module camera_lens_placeholder() {
+    rotate([90, 0, 0])
+        cylinder(h = 3, d = 12, center = true);
+}
+
+module controller_rail() {
+    rail_size = [126, 18, 5];
+    difference() {
+        rounded_xy_box(rail_size, 2);
+
+        for (x = [-48, -16, 16, 48])
+            translate([x, 0, -epsilon])
+                linear_slot(12, m3_clearance, rail_size[2] + 2 * epsilon, "x");
+
+        for (x = [-58, 58])
+            translate([x, 0, -epsilon])
+                cube([4, 10, rail_size[2] + 2 * epsilon], center = true);
+    }
+}
+
+module microphone_holder() {
+    holder_size = [38, 28, 4];
+    difference() {
+        rounded_xy_box(holder_size, 3);
+        translate([0, 0, -epsilon])
+            cylinder(h = holder_size[2] + 2 * epsilon, d = 8);
+        for (x = [-12, 12])
+            translate([x, 0, -epsilon])
+                cube([3.5, 18, holder_size[2] + 2 * epsilon], center = true);
+        translate([0, 12, -epsilon])
+            cube([10, 8, holder_size[2] + 2 * epsilon], center = true);
+    }
+
+    for (x = [-17, 17])
+        translate([x, 0, 7])
+            cube([2, 20, 14], center = true);
+}
+
+module usb_blank() {
+    blank_size = [34 - 2 * moving_clearance, 16 - 2 * moving_clearance, 2.4];
+    union() {
+        rounded_xy_box(blank_size, 2);
+        for (y = [-5, 5])
+            translate([0, y, blank_size[2]])
+                cube([blank_size[0] - 4, 1.5, 1.8], center = true);
+    }
+}
+
 module installed_rear_covers() {
     translate([0, body_depth / 2 + rear_cover_thickness / 2, split_height / 2])
         rotate([90, 0, 0])
@@ -208,11 +291,39 @@ module installed_rear_covers() {
             upper_rear_cover();
 }
 
+module installed_service_parts() {
+    camera_z = body_height - 24;
+
+    color([0.18, 0.22, 0.24])
+        translate([0, -body_depth / 2 + 8, camera_z])
+            rotate([90, 0, 0]) camera_carriage();
+    color([0.34, 0.39, 0.41])
+        translate([0, -body_depth / 2 - panel_thickness - 1.2, camera_z])
+            rotate([90, 0, 0]) camera_bezel();
+    color([0.04, 0.30, 0.38])
+        translate([0, -body_depth / 2 - panel_thickness - 3.2, camera_z])
+            camera_lens_placeholder();
+
+    for (z = [62, 116])
+        color([0.26, 0.30, 0.32])
+            translate([0, body_depth / 2 - 7, z])
+                rotate([90, 0, 0]) controller_rail();
+
+    color([0.26, 0.30, 0.32])
+        translate([0, -8, 7]) microphone_holder();
+
+    for (side = [-1, 1])
+        color([0.20, 0.24, 0.26])
+            translate([side * (body_width / 2 + 1.2), -2, split_height * 0.48])
+                rotate([0, side * 90, 0]) usb_blank();
+}
+
 module assembled_body() {
     lower_shell();
     translate([0, 0, split_height]) upper_shell();
     front_panel(body_height, camera = true);
     installed_rear_covers();
+    installed_service_parts();
 }
 
 module assembled_view() {
@@ -231,4 +342,11 @@ module exploded_view() {
     color([0.10, 0.12, 0.13]) translate([0, 0, -55]) base();
     color([0.38, 0.42, 0.44]) translate([-125, 0, 90]) upper_rear_cover();
     color([0.38, 0.42, 0.44]) translate([125, 0, 90]) lower_rear_cover();
+    color([0.34, 0.39, 0.41]) translate([-105, -70, 235]) camera_carriage();
+    color([0.44, 0.49, 0.51]) translate([0, -70, 235]) camera_bezel();
+    color([0.28, 0.32, 0.34]) translate([-70, -70, 45]) controller_rail();
+    color([0.28, 0.32, 0.34]) translate([70, -70, 45]) controller_rail();
+    color([0.28, 0.32, 0.34]) translate([0, -70, 0]) microphone_holder();
+    color([0.22, 0.26, 0.28]) translate([-60, -70, -35]) usb_blank();
+    color([0.22, 0.26, 0.28]) translate([60, -70, -35]) usb_blank();
 }

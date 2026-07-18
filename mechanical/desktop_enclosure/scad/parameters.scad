@@ -23,3 +23,5 @@ base_depth = 110;
 base_height = 16;
 panel_slot_depth = 4;
 joint_lip = 1.8;
+camera_adjustment = 10;
+service_part_thickness = 3;

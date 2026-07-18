@@ -86,3 +86,39 @@ def test_assembled_body_uses_one_front_panel_and_installs_rear_covers():
     assert "front_panel(split_height" not in parts
     assert "module installed_rear_covers(" in parts
     assert "installed_rear_covers();" in parts
+
+
+def test_service_modules_are_adjustable_and_do_not_claim_board_dimensions():
+    parts = scad_text("parts.scad")
+    for module in (
+        "module camera_carriage(",
+        "module camera_bezel(",
+        "module controller_rail(",
+        "module microphone_holder(",
+        "module usb_blank(",
+    ):
+        assert module in parts
+
+    assert "camera_adjustment = 10" in scad_text("parameters.scad")
+    assert "board_hole_spacing" not in parts
+    assert "fixed_usb_offset" not in parts
+
+
+def test_entry_point_exposes_service_part_modes():
+    entry = scad_text("strokeguard_enclosure.scad")
+    for mode in (
+        '"camera_carriage"',
+        '"camera_bezel"',
+        '"controller_rail"',
+        '"microphone_holder"',
+        '"usb_blank"',
+    ):
+        assert mode in entry
+
+
+def test_assembly_places_service_parts():
+    parts = scad_text("parts.scad")
+    assert "module installed_service_parts(" in parts
+    assert "installed_service_parts();" in parts
+    assert "module camera_lens_placeholder(" in parts
+    assert "camera_lens_placeholder();" in parts
