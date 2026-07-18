@@ -21,6 +21,90 @@ module front_panel(section_height, camera = false) {
     }
 }
 
+module front_panel_skin_plate(panel_height) {
+    translate([-front_panel_width / 2, 0, -front_panel_skin])
+        cube([front_panel_width, panel_height, front_panel_skin]);
+}
+
+module front_panel_rear_rib(x, y, width, height) {
+    translate([
+        x - width / 2,
+        y - height / 2,
+        -front_panel_skin - front_panel_rib_height
+    ])
+        cube([
+            width,
+            height,
+            front_panel_rib_height + epsilon
+        ]);
+}
+
+module front_panel_lower_printable() {
+    usable_width = front_panel_width - 2 * front_panel_rail_keepout;
+    rib_height = front_panel_half_height - 38;
+
+    union() {
+        front_panel_skin_plate(front_panel_half_height);
+
+        for (x = [-62, 62])
+            front_panel_rear_rib(x, 20 + rib_height / 2, front_panel_rib_width, rib_height);
+        for (y = [45, 100])
+            front_panel_rear_rib(0, y, usable_width, front_panel_rib_width);
+
+        translate([
+            -usable_width / 2,
+            front_panel_half_height - epsilon,
+            -front_panel_skin - 1.2
+        ])
+            cube([
+                usable_width,
+                front_panel_lap_height + epsilon,
+                1.2 + epsilon
+            ]);
+    }
+}
+
+module front_panel_upper_printable() {
+    usable_width = front_panel_width - 2 * front_panel_rail_keepout;
+    camera_local_y = body_height - 24 - (wall + front_panel_half_height + front_panel_gap);
+    rib_height = front_panel_half_height - 28;
+
+    difference() {
+        union() {
+            front_panel_skin_plate(front_panel_half_height);
+
+            for (x = [-62, 62])
+                front_panel_rear_rib(x, 14 + rib_height / 2, front_panel_rib_width, rib_height);
+            for (y = [40, 80])
+                front_panel_rear_rib(0, y, usable_width, front_panel_rib_width);
+        }
+
+        translate([
+            -camera_window[0] / 2,
+            camera_local_y - camera_window[1] / 2,
+            -front_panel_skin - front_panel_rib_height - epsilon
+        ])
+            cube([
+                camera_window[0],
+                camera_window[1],
+                front_panel_skin + front_panel_rib_height + 2 * epsilon
+            ]);
+    }
+}
+
+module front_panel_assembled() {
+    translate([0, -body_depth / 2, wall])
+        rotate([90, 0, 0])
+            front_panel_lower_printable();
+    translate([
+        0,
+        -body_depth / 2,
+        wall + front_panel_half_height + front_panel_gap
+    ])
+        rotate([90, 0, 0])
+            front_panel_upper_printable();
+}
+
 module panel_retaining_rails(section_height, top_closed = false, bottom_closed = false) {
     panel_slot = panel_thickness + panel_clearance;
     rail_y = -body_depth / 2 + wall + panel_slot + 1;
@@ -346,7 +430,7 @@ module installed_service_parts() {
 module assembled_body() {
     lower_shell();
     translate([0, 0, split_height]) upper_shell();
-    front_panel(body_height, camera = true);
+    front_panel_assembled();
     installed_rear_covers();
     installed_service_parts();
 }
@@ -395,4 +479,6 @@ module exploded_view() {
     color([0.28, 0.32, 0.34]) translate([0, -70, 0]) microphone_holder();
     color([0.22, 0.26, 0.28]) translate([-60, -70, -35]) usb_blank();
     color([0.22, 0.26, 0.28]) translate([60, -70, -35]) usb_blank();
+    color([0.17, 0.20, 0.22]) translate([-120, -230, 130]) front_panel_upper_printable();
+    color([0.15, 0.18, 0.20]) translate([120, -230, -25]) front_panel_lower_printable();
 }

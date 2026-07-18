@@ -132,10 +132,9 @@ def test_entry_point_exposes_body_output_modes():
     assert 'else if (part == "display_stl") display_stl_model();' in entry
 
 
-def test_assembled_body_uses_one_front_panel_and_installs_rear_covers():
+def test_assembled_body_uses_split_front_panel_and_installs_rear_covers():
     parts = scad_text("parts.scad")
-    assert "front_panel(body_height, camera = true);" in parts
-    assert "front_panel(split_height" not in parts
+    assert "front_panel_assembled();" in parts
     assert "module installed_rear_covers(" in parts
     assert "installed_rear_covers();" in parts
 
@@ -154,6 +153,28 @@ def test_service_modules_are_adjustable_and_do_not_claim_board_dimensions():
     assert "camera_adjustment = 10" in scad_text("parameters.scad")
     assert "board_hole_spacing" not in parts
     assert "fixed_usb_offset" not in parts
+
+
+def test_split_front_panel_contract():
+    parameters = scad_text("parameters.scad")
+    parts = scad_text("parts.scad")
+    entry = scad_text("strokeguard_enclosure.scad")
+    for declaration in (
+        "front_panel_skin = 2",
+        "front_panel_gap = 0.3",
+        "front_panel_lap_height = 8",
+        "front_panel_rib_width = 6",
+        "front_panel_rib_height = 2",
+    ):
+        assert declaration in parameters
+    for module in (
+        "module front_panel_upper_printable(",
+        "module front_panel_lower_printable(",
+        "module front_panel_assembled(",
+    ):
+        assert module in parts
+    assert '"front_panel_upper"' in entry
+    assert '"front_panel_lower"' in entry
 
 
 def test_entry_point_exposes_service_part_modes():

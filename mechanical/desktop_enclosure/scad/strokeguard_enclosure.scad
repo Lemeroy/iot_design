@@ -16,6 +16,8 @@ else if (part == "camera_bezel") camera_bezel();
 else if (part == "controller_rail") controller_rail();
 else if (part == "microphone_holder") microphone_holder();
 else if (part == "usb_blank") usb_blank();
+else if (part == "front_panel_upper") front_panel_upper_printable();
+else if (part == "front_panel_lower") front_panel_lower_printable();
 else if (part == "fit_coupon") fit_coupon();
 else if (part == "assembled") assembled_view();
 else if (part == "exploded") exploded_view();
