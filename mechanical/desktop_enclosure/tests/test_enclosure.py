@@ -8,6 +8,16 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 PRINTABLE_PARTS = (
+    "compact_shell",
+    "front_panel",
+    "rear_cover",
+    "desktop_base",
+    "camera_clamp",
+    "controller_rail",
+    "microphone_holder",
+)
+
+OBSOLETE_PARTS = {
     "upper_shell",
     "lower_shell",
     "upper_rear_cover",
@@ -16,13 +26,11 @@ PRINTABLE_PARTS = (
     "lean_support",
     "camera_carriage",
     "camera_bezel",
-    "controller_rail",
-    "microphone_holder",
     "usb_blank",
     "fit_coupon",
     "front_panel_upper",
     "front_panel_lower",
-)
+}
 
 
 def scad_text(name: str) -> str:
@@ -57,19 +65,30 @@ def test_export_script_preserves_scad_string_quotes_on_windows_powershell():
     assert r'variant=\`"$Variant\`"' in script
 
 
-def test_scad_contract_declares_approved_dimensions():
+def test_compact_parameter_contract():
     parameters = scad_text("parameters.scad")
     for declaration in (
-        "display_width = 220",
-        "printable_width = 214",
-        "body_height = 300",
-        "body_depth = 55",
-        "wall = 3",
-        "camera_window = [36, 22]",
-        "m3_clearance = 3.4",
-        "lean_angle = 7",
+        "body_width = 110",
+        "body_height = 165",
+        "body_depth = 40",
+        "camera_aperture_diameter = 12",
+        "camera_board = [27, 42, 19]",
+        "base_width = 110",
+        "base_depth = 65",
+        "base_height = 12",
     ):
         assert declaration in parameters
+
+
+def test_only_compact_part_modes_are_exported():
+    entry = scad_text("strokeguard_enclosure.scad")
+    script = (ROOT / "scripts" / "export_models.ps1").read_text(encoding="utf-8")
+    for name in PRINTABLE_PARTS:
+        assert f'"{name}"' in entry
+        assert f"'{name}'" in script
+    for name in OBSOLETE_PARTS:
+        assert f'"{name}"' not in entry
+        assert f"'{name}'" not in script
 
 
 def test_body_modules_include_required_interfaces():

@@ -1,43 +1,37 @@
 $fn = 48;
 
-display_width = 220;
-printable_width = 214;
-body_height = 300;
-body_depth = 55;
+body_width = 110;
+body_height = 165;
+body_depth = 40;
 wall = 3;
-corner_radius = 3;
-camera_window = [36, 22];
+corner_radius = 4;
+
+front_panel_thickness = 2;
 panel_clearance = 0.4;
+panel_slot_depth = 4;
 moving_clearance = 0.3;
-tongue_clearance = 0.25;
-tongue_overlap = 8;
+
+camera_aperture_diameter = 12;
+camera_board = [27, 42, 19];
+camera_clearance = 0.6;
+camera_position_z = body_height / 2 - 24;
+
 m3_clearance = 3.4;
 lean_angle = 7;
-split_height = body_height / 2;
-body_width = variant == "display" ? display_width : printable_width;
-
-epsilon = 0.2;
 rear_cover_thickness = 2.4;
-rear_opening_margin = 14;
-base_depth = 110;
-base_height = 16;
-panel_slot_depth = 4;
-joint_lip = 1.8;
-camera_adjustment = 10;
+rear_opening_margin = 8;
+rear_cover_fastener_x = [-44, 44];
+rear_cover_fastener_z = [-68, 68];
+rear_cover_boss_diameter = 9;
+
+base_width = 110;
+base_depth = 65;
+base_height = 12;
+base_fastener_x = [-32, 32];
+
 service_part_thickness = 3;
-joint_fastener_x = [-75, -25, 25, 75];
-rear_cover_fastener_x = [-90, 90];
-rear_cover_fastener_z = [-58, 58];
-rear_cover_boss_diameter = 12;
-base_support_fastener_x = [-36, 36];
-base_support_fastener_y = 20;
-support_mount_offset_y = 8;
-front_panel_skin = 2;
-front_panel_gap = 0.3;
-front_panel_lap_height = 8;
-front_panel_rib_width = 6;
-front_panel_rib_height = 2;
+controller_rail_length = 90;
+epsilon = 0.2;
+
 front_panel_width = body_width - 2 * wall;
 front_panel_height = body_height - 2 * wall;
-front_panel_half_height = (front_panel_height - front_panel_gap) / 2;
-front_panel_rail_keepout = wall + panel_thickness + panel_clearance + 4;

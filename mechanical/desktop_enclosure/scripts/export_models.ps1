@@ -12,20 +12,13 @@ $ScadEntry = Join-Path $ProjectRoot 'scad\strokeguard_enclosure.scad'
 $VenvPython = Join-Path $ProjectRoot '.venv\Scripts\python.exe'
 $Requirements = Join-Path $ProjectRoot 'requirements-dev.txt'
 $PrintableParts = @(
-    'upper_shell',
-    'lower_shell',
-    'upper_rear_cover',
-    'lower_rear_cover',
-    'base',
-    'lean_support',
-    'camera_carriage',
-    'camera_bezel',
+    'compact_shell',
+    'front_panel',
+    'rear_cover',
+    'desktop_base',
+    'camera_clamp',
     'controller_rail',
-    'microphone_holder',
-    'usb_blank',
-    'fit_coupon',
-    'front_panel_upper',
-    'front_panel_lower'
+    'microphone_holder'
 )
 $PrintableOutput = Join-Path $ProjectRoot 'stl\printable'
 $DisplayOutput = Join-Path $ProjectRoot 'stl\display'
