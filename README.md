@@ -210,6 +210,12 @@ The link uses `921600 8N1`. Frames are requested one at a time, displayed only
 in memory, and are not saved or uploaded. The VPS and large-model service never
 receive preview images. N16R8 I2C polling remains active during preview.
 
+## 桌面演示机 3D 模型
+
+可打印 OpenSCAD/STL、装配图、爆炸图、TinkerCAD 展示地址与打印验收说明位于
+[`mechanical/desktop_enclosure`](mechanical/desktop_enclosure/README.md)。打印版宽度
+为 214 mm，展示版宽度为 220 mm；开发板孔距和前板厚度保持可调，不使用猜测尺寸。
+
 ## 医学免责声明
 
 本设备是家庭健康风险提示工具，不是医疗诊断设备，不能替代医生的临床评估与治疗建议。若出现突发面部歪斜、言语不清、单侧肢体无力、视物异常、平衡障碍或意识改变等症状，无论设备结果如何，都应立即拨打 120，不等待复测或云端建议。

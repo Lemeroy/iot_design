@@ -54,6 +54,19 @@ module side_usb_windows(section_height) {
             cube([wall + 2 * epsilon, 30, 16], center = true);
 }
 
+module rear_cover_bosses(section_height) {
+    boss_y = body_depth / 2 - 4;
+    for (x = rear_cover_fastener_x, z = rear_cover_fastener_z)
+        difference() {
+            translate([x, boss_y, section_height / 2 + z])
+                rotate([90, 0, 0])
+                    cylinder(h = 8, d = rear_cover_boss_diameter, center = true);
+            translate([x, boss_y, section_height / 2 + z])
+                rotate([90, 0, 0])
+                    cylinder(h = 8 + 2 * epsilon, d = m3_clearance, center = true);
+        }
+}
+
 module shell_section(section_height, top_closed = false, bottom_closed = false, usb_windows = true) {
     inner_z0 = bottom_closed ? wall : -epsilon;
     inner_z1 = top_closed ? section_height - wall : section_height + epsilon;
@@ -76,6 +89,7 @@ module shell_section(section_height, top_closed = false, bottom_closed = false, 
         }
 
         panel_retaining_rails(section_height, top_closed, bottom_closed);
+        rear_cover_bosses(section_height);
     }
 }
 
@@ -101,7 +115,7 @@ module joint_tongue() {
 }
 
 module joint_bosses(z_offset = 0) {
-    for (x = [-62, 62])
+    for (x = joint_fastener_x)
         difference() {
             translate([x, body_depth / 2 - 8, z_offset])
                 cylinder(h = 8, d = 9, center = true);
@@ -136,7 +150,7 @@ module rear_cover(section_height = split_height, lower = false) {
             3
         );
 
-        for (x = [-72, 72], z = [-55, 55])
+        for (x = rear_cover_fastener_x, z = rear_cover_fastener_z)
             translate([x, z, -epsilon])
                 cylinder(h = rear_cover_thickness + 2 * epsilon, d = m3_clearance);
 
@@ -156,17 +170,19 @@ module lower_rear_cover() {
 }
 
 module base() {
+    support_width = 96;
+    support_depth = 42;
     difference() {
         rounded_xy_box([body_width, base_depth, base_height], 7);
-        translate([0, 5, base_height - 4])
-            cube([body_width - 42, 16, 8 + epsilon], center = true);
-        for (x = [-70, 70])
-            translate([x, 5, -epsilon])
+        translate([0, support_mount_offset_y + support_depth / 2, base_height - 4])
+            cube([support_width + moving_clearance, support_depth + moving_clearance, 8 + epsilon], center = true);
+        for (x = base_support_fastener_x)
+            translate([x, base_support_fastener_y, -epsilon])
                 cylinder(h = base_height + 2 * epsilon, d = m3_clearance);
     }
 }
 
-module lean_support() {
+module lean_support_solid() {
     support_width = 96;
     support_depth = 42;
     support_height = 82;
@@ -180,6 +196,15 @@ module lean_support() {
                 [support_depth - top_offset, support_height],
                 [support_depth - top_offset - 8, support_height]
             ]);
+}
+
+module lean_support() {
+    difference() {
+        lean_support_solid();
+        for (x = base_support_fastener_x)
+            translate([x, base_support_fastener_y - support_mount_offset_y, -epsilon])
+                cylinder(h = 12, d = m3_clearance);
+    }
 }
 
 module fit_coupon() {
@@ -332,7 +357,7 @@ module assembled_view() {
             rotate([-lean_angle, 0, 0])
                 assembled_body();
     color([0.10, 0.12, 0.13]) base();
-    color([0.28, 0.32, 0.34]) translate([0, 18, base_height]) lean_support();
+    color([0.28, 0.32, 0.34]) translate([0, support_mount_offset_y, base_height]) lean_support();
 }
 
 module display_body_solid() {
@@ -352,7 +377,7 @@ module display_stl_model() {
         translate([0, 6, base_height - 2])
             rotate([-lean_angle, 0, 0])
                 display_body_solid();
-        translate([0, 18, base_height - 2]) lean_support();
+        translate([0, support_mount_offset_y, base_height - 2]) lean_support();
     }
 }
 

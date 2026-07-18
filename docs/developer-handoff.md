@@ -65,6 +65,15 @@ idf.py -p COM3 flash monitor
 真实凭据只写入被 Git 忽略的 `firmware_esp32/sdkconfig`、云端 `.env` 和 PC
 系统 Keyring。移交前后都应运行敏感信息扫描，并检查 Git 状态只包含预期文件。
 
+## 机械模型交接
+
+桌面初赛演示机的参数化 OpenSCAD、已验证 STL、装配/爆炸渲染、TinkerCAD
+manifest、尺寸表和打印流程位于
+[`mechanical/desktop_enclosure`](../mechanical/desktop_enclosure/README.md)。
+OpenSCAD/STL 是制造依据，TinkerCAD 只用于在线展示。移交前应重新运行该目录的
+导出脚本和 pytest，并先打印 fit coupon；不得把未实测的板孔距、接口偏移或前板
+厚度写成固定机械参数。
+
 ## 医学与隐私边界
 
 本项目是风险提示和就医提醒工具，不是诊断设备。原始音视频只在镜端本地

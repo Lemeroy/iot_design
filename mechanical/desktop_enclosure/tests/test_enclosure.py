@@ -88,6 +88,32 @@ def test_body_modules_include_required_interfaces():
     assert "camera_window[1]" in parts
 
 
+def test_body_joint_has_four_rear_fastener_positions():
+    parameters = scad_text("parameters.scad")
+    parts = scad_text("parts.scad")
+    assert "joint_fastener_x = [-75, -25, 25, 75]" in parameters
+    assert "for (x = joint_fastener_x)" in parts
+
+
+def test_rear_covers_have_matching_shell_bosses():
+    parameters = scad_text("parameters.scad")
+    parts = scad_text("parts.scad")
+    assert "rear_cover_fastener_x = [-90, 90]" in parameters
+    assert "rear_cover_fastener_z = [-58, 58]" in parameters
+    assert "rear_cover_boss_diameter = 12" in parameters
+    assert "module rear_cover_bosses(" in parts
+    assert "rear_cover_bosses(section_height);" in parts
+
+
+def test_base_and_lean_support_share_fastener_positions():
+    parameters = scad_text("parameters.scad")
+    parts = scad_text("parts.scad")
+    assert "base_support_fastener_x = [-36, 36]" in parameters
+    assert "base_support_fastener_y = 20" in parameters
+    assert "for (x = base_support_fastener_x)" in parts
+    assert "support_mount_offset_y = 8" in parameters
+
+
 def test_entry_point_exposes_body_output_modes():
     entry = scad_text("strokeguard_enclosure.scad")
     for mode in (
@@ -158,6 +184,8 @@ def test_printable_meshes_are_watertight_and_fit_build_plate():
         assert mesh.is_watertight, name
         extents = sorted(mesh.extents.tolist(), reverse=True)
         assert extents[1] <= 220.01, (name, mesh.extents)
+        if name in ("upper_shell", "lower_shell"):
+            assert mesh.extents[1] <= 55.01, (name, mesh.extents)
 
 
 def test_display_stl_and_renders_are_nonblank():
@@ -183,3 +211,28 @@ def test_tinkercad_manifest_is_credential_free_and_matches_display_envelope():
     serialized = json.dumps(data).lower()
     for forbidden in ("cookie", "token", "password", "oauth"):
         assert forbidden not in serialized
+
+
+def test_handoff_documents_required_limits_and_workflow():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for phrase in (
+        "214 x 300 x 55 mm",
+        "220 x 300 x 55 mm",
+        "fit coupon",
+        "NMO432",
+        "camera",
+        "OpenSCAD",
+        "TinkerCAD",
+        "not a diagnostic device",
+    ):
+        assert phrase.lower() in readme.lower()
+
+    dimensions = (ROOT / "drawings" / "dimensions.md").read_text(encoding="utf-8")
+    assert "M3" in dimensions
+    assert "3.4 mm" in dimensions
+    assert "36 x 22 mm" in dimensions
+
+    repository_root = ROOT.parents[1]
+    for path in (repository_root / "README.md", repository_root / "docs" / "developer-handoff.md"):
+        text = path.read_text(encoding="utf-8")
+        assert "mechanical/desktop_enclosure" in text
