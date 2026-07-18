@@ -52,9 +52,9 @@
 
 **Interfaces:**
 - Consumes: Windows PowerShell 5.1 and either `OPENSCAD_EXE`, `openscad.com` on PATH, or the standard OpenSCAD install path.
-- Produces: `Find-OpenScad`, `Export-Stl`, and `Export-Render` PowerShell functions; pytest contract helpers `project_root()`, `scad_text()`, and `load_mesh(path)`.
+- Produces: `Find-OpenScad`, `Export-Stl`, and `Export-Render` PowerShell functions plus an isolated mechanical Python environment.
 
-- [ ] **Step 1: Write the dependency declaration and failing source-contract test**
+- [ ] **Step 1: Write the dependency declaration and failing toolchain-contract test**
 
 Create `requirements-dev.txt`:
 
@@ -65,7 +65,7 @@ numpy>=2.1,<3
 Pillow>=11,<12
 ```
 
-Create a test that requires the approved files and parameters:
+Create a test that requires the isolated export interface:
 
 ```python
 from pathlib import Path
@@ -73,34 +73,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def scad_text(name: str) -> str:
-    return (ROOT / "scad" / name).read_text(encoding="utf-8")
-
-
-def test_scad_contract_declares_approved_dimensions():
-    parameters = scad_text("parameters.scad")
-    for declaration in (
-        "display_width = 220",
-        "printable_width = 214",
-        "body_height = 300",
-        "body_depth = 55",
-        "wall = 3",
-        "camera_window = [36, 22]",
-        "m3_clearance = 3.4",
+def test_export_script_isolated_toolchain_contract():
+    script = (ROOT / "scripts" / "export_models.ps1").read_text("utf-8")
+    for contract in (
+        "function Find-OpenScad", "function Invoke-CheckedOpenScad",
+        "[switch]$InstallDependencies", "[switch]$Export",
+        "[switch]$Render", "$env:OPENSCAD_EXE", "mechanical environment",
     ):
-        assert declaration in parameters
-
-
-def test_entry_point_exposes_every_output_mode():
-    entry = scad_text("strokeguard_enclosure.scad")
-    for mode in (
-        '"upper_shell"', '"lower_shell"', '"upper_rear_cover"',
-        '"lower_rear_cover"', '"base"', '"lean_support"',
-        '"camera_carriage"', '"camera_bezel"', '"controller_rail"',
-        '"microphone_holder"', '"usb_blank"', '"fit_coupon"',
-        '"assembled"', '"exploded"', '"display_stl"',
-    ):
-        assert mode in entry
+        assert contract in script
+    assert "host_pc" not in script
 ```
 
 - [ ] **Step 2: Run the contract test and verify RED**
@@ -113,7 +94,7 @@ mechanical\desktop_enclosure\.venv\Scripts\python -m pip install -r mechanical\d
 mechanical\desktop_enclosure\.venv\Scripts\python -m pytest mechanical\desktop_enclosure\tests\test_enclosure.py -v
 ```
 
-Expected: FAIL because the `scad` source files do not exist.
+Expected: FAIL because `scripts/export_models.ps1` does not exist.
 
 - [ ] **Step 3: Implement OpenSCAD discovery and bounded export commands**
 
