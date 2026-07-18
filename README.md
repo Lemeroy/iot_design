@@ -214,7 +214,9 @@ receive preview images. N16R8 I2C polling remains active during preview.
 
 可打印 OpenSCAD/STL、装配图、爆炸图、TinkerCAD 展示地址与打印验收说明位于
 [`mechanical/desktop_enclosure`](mechanical/desktop_enclosure/README.md)。打印版宽度
-为 214 mm，展示版宽度为 220 mm；开发板孔距和前板厚度保持可调，不使用猜测尺寸。
+为 214 mm，展示版宽度为 220 mm；前面板已拆分为可直接切片的
+`front_panel_upper.stl` 与 `front_panel_lower.stl`，适配 220 x 220 mm 热床。开发板
+孔距和装配间隙保持参数化，不使用猜测尺寸。
 
 ## 医学免责声明
 

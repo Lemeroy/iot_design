@@ -273,6 +273,20 @@ def test_handoff_documents_required_limits_and_workflow():
     assert "3.4 mm" in dimensions
     assert "36 x 22 mm" in dimensions
 
+    front_panel_terms = (
+        "front_panel_upper.stl",
+        "front_panel_lower.stl",
+        "rear lap",
+        "0.30 mm",
+        "208 x 294 mm",
+        "before installing electronics",
+    )
+    combined_handoff = f"{readme}\n{dimensions}"
+    for phrase in front_panel_terms:
+        assert phrase.lower() in combined_handoff.lower()
+
+    assert "cut it only after printing" not in dimensions.lower()
+
     repository_root = ROOT.parents[1]
     for path in (repository_root / "README.md", repository_root / "docs" / "developer-handoff.md"):
         text = path.read_text(encoding="utf-8")

@@ -17,6 +17,24 @@ row explicitly requires a physical measurement.
 | Base height | 16 | 16 |
 | Body rearward lean | 7 degrees | 7 degrees |
 
+## Split Front Panel
+
+| Feature | Nominal dimension |
+| --- | ---: |
+| Assembled visible panel | 208 x 294 mm |
+| Upper printed part | 208 x 146.85 x 4 mm maximum envelope |
+| Lower printed part including rear lap | 208 x 154.85 x 4 mm maximum envelope |
+| Visible center process gap | 0.30 mm |
+| Integrated lower rear lap | 8 mm |
+| Visible skin | 2.0 mm |
+| Rear ribs | 6 mm wide x 2 mm high |
+
+Print `front_panel_upper.stl` and `front_panel_lower.stl` separately. In the
+slicer, orient the smooth visible face on the build plate and the rear ribs
+upward. Install the lower part first; the upper part covers its rear lap while
+the nominal `0.30 mm` center gap remains visible. The camera opening is present
+only in the upper part.
+
 ## Openings and Fits
 
 | Feature | Dimension |
@@ -31,10 +49,9 @@ row explicitly requires a physical measurement.
 | Camera carriage X/Y adjustment | 10 mm |
 | Rear cover thickness | 2.4 mm |
 
-The front panel is approximately the body width minus two side walls and the
-body height minus top/bottom retention space. Cut it only after printing and
-measuring the assembled shell. Its camera opening is centered horizontally and
-centered approximately 276 mm above the body bottom in the current source.
+The split front panel is generated directly from the OpenSCAD source and does
+not require a separately cut sheet. Its camera opening is centered horizontally
+and centered approximately 276 mm above the body bottom in the current source.
 
 ## Fasteners
 

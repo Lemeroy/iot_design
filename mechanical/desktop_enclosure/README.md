@@ -16,6 +16,8 @@ thermal certification, ingress protection, or production safety certification.
 - Part modules: `scad/parts.scad`.
 - Command-line entry point: `scad/strokeguard_enclosure.scad`.
 - Printable STL files: `stl/printable/`.
+- Split front-panel STL files: `stl/printable/front_panel_upper.stl` and
+  `stl/printable/front_panel_lower.stl`.
 - Watertight display STL: `stl/display/strokeguard-display.stl`.
 - Assembly and exploded renders: `renders/`.
 - TinkerCAD identity: `tinkercad-design.json`.
@@ -103,7 +105,12 @@ credentials in the TinkerCAD manifest.
 2. Test the locating tongue, panel slot, M3 clearance hole, and panel material.
 3. Adjust only the documented clearance parameters if the coupon does not fit.
 4. Print camera bezel, USB blank, controller rail, and microphone holder.
-5. Print rear covers, base, lean support, and the upper/lower shells.
+5. Print `front_panel_upper.stl` and `front_panel_lower.stl` as separate parts.
+6. Print rear covers, base, lean support, and the upper/lower shells.
+
+Before installing electronics, test-fit both front-panel pieces in the joined
+empty shell. Confirm that the lower rear lap enters freely, the upper piece
+seats without bowing, and both pieces can be removed without forcing the rails.
 
 Initial FDM settings are `0.20 mm` layer height, three perimeters, and about
 `20%` infill. They are first-print settings, not measured guarantees. Use the
@@ -111,6 +118,8 @@ printer and filament profile recommended by the material supplier.
 
 Suggested orientation:
 
+- split front panels: rotate so the smooth visible face is on the build plate
+  and the rear ribs face upward;
 - upper and lower shells: rear face on the build plate, front opening upward;
 - rear covers, camera carriage, bezel, rail, USB blank, and fit coupon: largest
   flat face on the build plate;
@@ -134,10 +143,12 @@ printing full shells.
 6. Join upper and lower shells with four M3 fasteners through the rear-accessible
    joint bosses.
 7. Seat the lean support in the base recess and secure it with two M3 fasteners.
-8. Insert the measured front panel and verify the `36 x 22 mm` camera opening is
-   unobstructed.
-9. Install each rear cover with four M3 fasteners.
-10. Fit or remove the USB blanking plates according to demonstration needs.
+8. Slide in `front_panel_lower.stl` first with its integrated `8 mm` rear lap
+   facing inward, then slide in `front_panel_upper.stl` so it covers the rear
+   lap. Keep the nominal `0.30 mm` visible process gap at the center joint.
+9. Verify the upper panel's `36 x 22 mm` camera opening is unobstructed.
+10. Install each rear cover with four M3 fasteners.
+11. Fit or remove the USB blanking plates according to demonstration needs.
 
 Select screw length after printing the fit coupon and measuring the actual boss,
 washer, insert, and nut stack. Do not force an overlong screw into a PCB or wire
