@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import numpy as np
@@ -169,3 +170,16 @@ def test_display_stl_and_renders_are_nonblank():
         image = Image.open(path).convert("RGB")
         assert image.size == (1600, 1200)
         assert float(np.asarray(image).std()) > 5.0
+
+
+def test_tinkercad_manifest_is_credential_free_and_matches_display_envelope():
+    data = json.loads((ROOT / "tinkercad-design.json").read_text(encoding="utf-8"))
+    assert data["name"] == "StrokeGuard Desktop Demonstrator"
+    assert data["envelope_mm"] == [220, 300, 55]
+    assert data["design_id"]
+    assert data["url"].startswith("https://www.tinkercad.com/")
+    assert data["authority"] == "presentation-only"
+
+    serialized = json.dumps(data).lower()
+    for forbidden in ("cookie", "token", "password", "oauth"):
+        assert forbidden not in serialized
