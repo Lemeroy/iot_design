@@ -23,7 +23,9 @@ $PrintableParts = @(
     'controller_rail',
     'microphone_holder',
     'usb_blank',
-    'fit_coupon'
+    'fit_coupon',
+    'front_panel_upper',
+    'front_panel_lower'
 )
 $PrintableOutput = Join-Path $ProjectRoot 'stl\printable'
 $DisplayOutput = Join-Path $ProjectRoot 'stl\display'

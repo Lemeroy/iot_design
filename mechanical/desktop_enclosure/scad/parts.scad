@@ -479,6 +479,10 @@ module exploded_view() {
     color([0.28, 0.32, 0.34]) translate([0, -70, 0]) microphone_holder();
     color([0.22, 0.26, 0.28]) translate([-60, -70, -35]) usb_blank();
     color([0.22, 0.26, 0.28]) translate([60, -70, -35]) usb_blank();
-    color([0.17, 0.20, 0.22]) translate([-120, -230, 130]) front_panel_upper_printable();
-    color([0.15, 0.18, 0.20]) translate([120, -230, -25]) front_panel_lower_printable();
+    color([0.17, 0.20, 0.22])
+        translate([-120, -230, 130])
+            rotate([180, 0, 0]) front_panel_upper_printable();
+    color([0.15, 0.18, 0.20])
+        translate([120, -230, -25])
+            rotate([180, 0, 0]) front_panel_lower_printable();
 }

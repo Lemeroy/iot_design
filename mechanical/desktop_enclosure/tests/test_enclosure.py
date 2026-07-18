@@ -20,6 +20,8 @@ PRINTABLE_PARTS = (
     "microphone_holder",
     "usb_blank",
     "fit_coupon",
+    "front_panel_upper",
+    "front_panel_lower",
 )
 
 
@@ -219,6 +221,24 @@ def test_display_stl_and_renders_are_nonblank():
         image = Image.open(path).convert("RGB")
         assert image.size == (1600, 1200)
         assert float(np.asarray(image).std()) > 5.0
+
+
+def test_split_panels_match_enclosure_and_camera_contract():
+    upper = load_mesh(ROOT / "stl" / "printable" / "front_panel_upper.stl")
+    lower = load_mesh(ROOT / "stl" / "printable" / "front_panel_lower.stl")
+    assert upper.is_watertight and lower.is_watertight
+    assert upper.extents[0] <= 208.01
+    assert lower.extents[0] <= 208.01
+    assert upper.extents[1] <= 220.01
+    assert lower.extents[1] <= 220.01
+    assert upper.extents[2] <= 4.01
+    assert lower.extents[2] <= 4.01
+
+
+def test_exploded_view_exposes_panel_rear_ribs():
+    parts = scad_text("parts.scad")
+    assert "rotate([180, 0, 0]) front_panel_upper_printable();" in parts
+    assert "rotate([180, 0, 0]) front_panel_lower_printable();" in parts
 
 
 def test_tinkercad_manifest_is_credential_free_and_matches_display_envelope():
