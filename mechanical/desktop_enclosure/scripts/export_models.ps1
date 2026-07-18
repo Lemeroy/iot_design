@@ -11,6 +11,23 @@ $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $ScadEntry = Join-Path $ProjectRoot 'scad\strokeguard_enclosure.scad'
 $VenvPython = Join-Path $ProjectRoot '.venv\Scripts\python.exe'
 $Requirements = Join-Path $ProjectRoot 'requirements-dev.txt'
+$PrintableParts = @(
+    'upper_shell',
+    'lower_shell',
+    'upper_rear_cover',
+    'lower_rear_cover',
+    'base',
+    'lean_support',
+    'camera_carriage',
+    'camera_bezel',
+    'controller_rail',
+    'microphone_holder',
+    'usb_blank',
+    'fit_coupon'
+)
+$PrintableOutput = Join-Path $ProjectRoot 'stl\printable'
+$DisplayOutput = Join-Path $ProjectRoot 'stl\display'
+$RenderOutput = Join-Path $ProjectRoot 'renders'
 
 function Find-OpenScad {
     $candidates = [System.Collections.Generic.List[string]]::new()
@@ -108,9 +125,27 @@ if ($Export -or $Render) {
 }
 
 if ($Export) {
-    throw 'Part export is enabled after the approved SCAD part modules are added.'
+    foreach ($partName in $PrintableParts) {
+        $outputPath = Join-Path $PrintableOutput "$partName.stl"
+        if (Test-Path -LiteralPath $outputPath) {
+            Remove-Item -LiteralPath $outputPath -Force
+        }
+        Export-Stl -Part $partName -OutputPath $outputPath -Variant 'printable'
+    }
+
+    $displayPath = Join-Path $DisplayOutput 'strokeguard-display.stl'
+    if (Test-Path -LiteralPath $displayPath) {
+        Remove-Item -LiteralPath $displayPath -Force
+    }
+    Export-Stl -Part 'display_stl' -OutputPath $displayPath -Variant 'display'
 }
 
 if ($Render) {
-    throw 'Rendering is enabled after the approved assembly modules are added.'
+    foreach ($viewName in @('assembled', 'exploded')) {
+        $outputPath = Join-Path $RenderOutput "$viewName.png"
+        if (Test-Path -LiteralPath $outputPath) {
+            Remove-Item -LiteralPath $outputPath -Force
+        }
+        Export-Render -Part $viewName -OutputPath $outputPath
+    }
 }

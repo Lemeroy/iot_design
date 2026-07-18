@@ -335,6 +335,27 @@ module assembled_view() {
     color([0.28, 0.32, 0.34]) translate([0, 18, base_height]) lean_support();
 }
 
+module display_body_solid() {
+    difference() {
+        rounded_xy_box([body_width, body_depth, body_height], corner_radius);
+        translate([0, -body_depth / 2, body_height - 24])
+            cube([camera_window[0], body_depth + 2 * epsilon, camera_window[1]], center = true);
+        for (side = [-1, 1])
+            translate([side * body_width / 2, -2, split_height * 0.48])
+                cube([wall + 2 * epsilon, 30, 16], center = true);
+    }
+}
+
+module display_stl_model() {
+    union() {
+        base();
+        translate([0, 6, base_height - 2])
+            rotate([-lean_angle, 0, 0])
+                display_body_solid();
+        translate([0, 18, base_height - 2]) lean_support();
+    }
+}
+
 module exploded_view() {
     color([0.12, 0.15, 0.17]) translate([0, 0, 210]) upper_shell();
     color([0.16, 0.19, 0.21]) lower_shell();

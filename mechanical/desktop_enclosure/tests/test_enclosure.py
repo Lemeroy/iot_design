@@ -1,11 +1,35 @@
 from pathlib import Path
 
+import numpy as np
+import trimesh
+from PIL import Image
+
 
 ROOT = Path(__file__).resolve().parents[1]
+PRINTABLE_PARTS = (
+    "upper_shell",
+    "lower_shell",
+    "upper_rear_cover",
+    "lower_rear_cover",
+    "base",
+    "lean_support",
+    "camera_carriage",
+    "camera_bezel",
+    "controller_rail",
+    "microphone_holder",
+    "usb_blank",
+    "fit_coupon",
+)
 
 
 def scad_text(name: str) -> str:
     return (ROOT / "scad" / name).read_text(encoding="utf-8")
+
+
+def load_mesh(path: Path) -> trimesh.Trimesh:
+    mesh = trimesh.load_mesh(path, force="mesh", process=True)
+    assert isinstance(mesh, trimesh.Trimesh)
+    return mesh
 
 
 def test_export_script_isolated_toolchain_contract():
@@ -78,6 +102,7 @@ def test_entry_point_exposes_body_output_modes():
         '"display_stl"',
     ):
         assert mode in entry
+    assert 'else if (part == "display_stl") display_stl_model();' in entry
 
 
 def test_assembled_body_uses_one_front_panel_and_installs_rear_covers():
@@ -122,3 +147,25 @@ def test_assembly_places_service_parts():
     assert "installed_service_parts();" in parts
     assert "module camera_lens_placeholder(" in parts
     assert "camera_lens_placeholder();" in parts
+
+
+def test_printable_meshes_are_watertight_and_fit_build_plate():
+    for name in PRINTABLE_PARTS:
+        path = ROOT / "stl" / "printable" / f"{name}.stl"
+        assert path.stat().st_size > 256
+        mesh = load_mesh(path)
+        assert mesh.is_watertight, name
+        extents = sorted(mesh.extents.tolist(), reverse=True)
+        assert extents[1] <= 220.01, (name, mesh.extents)
+
+
+def test_display_stl_and_renders_are_nonblank():
+    display_stl = ROOT / "stl" / "display" / "strokeguard-display.stl"
+    assert display_stl.stat().st_size > 256
+    assert load_mesh(display_stl).is_watertight
+
+    for name in ("assembled.png", "exploded.png"):
+        path = ROOT / "renders" / name
+        image = Image.open(path).convert("RGB")
+        assert image.size == (1600, 1200)
+        assert float(np.asarray(image).std()) > 5.0

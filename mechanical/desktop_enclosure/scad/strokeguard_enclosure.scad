@@ -19,5 +19,5 @@ else if (part == "usb_blank") usb_blank();
 else if (part == "fit_coupon") fit_coupon();
 else if (part == "assembled") assembled_view();
 else if (part == "exploded") exploded_view();
-else if (part == "display_stl") assembled_view();
+else if (part == "display_stl") display_stl_model();
 else assert(false, str("Unknown part: ", part));
