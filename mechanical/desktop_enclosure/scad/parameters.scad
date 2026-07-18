@@ -14,7 +14,7 @@ moving_clearance = 0.3;
 camera_aperture_diameter = 12;
 camera_board = [27, 42, 19];
 camera_clearance = 0.6;
-camera_position_z = body_height / 2 - 24;
+camera_position_z = body_height - 24;
 
 m3_clearance = 3.4;
 lean_angle = 7;

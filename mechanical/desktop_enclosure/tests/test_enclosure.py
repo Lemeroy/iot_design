@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 
 import numpy as np
@@ -55,7 +54,6 @@ def test_export_script_isolated_toolchain_contract():
         "mechanical environment",
     ):
         assert contract in script
-
     assert "host_pc" not in script
 
 
@@ -73,6 +71,7 @@ def test_compact_parameter_contract():
         "body_depth = 40",
         "camera_aperture_diameter = 12",
         "camera_board = [27, 42, 19]",
+        "camera_position_z = body_height - 24",
         "base_width = 110",
         "base_depth = 65",
         "base_height = 12",
@@ -89,133 +88,71 @@ def test_only_compact_part_modes_are_exported():
     for name in OBSOLETE_PARTS:
         assert f'"{name}"' not in entry
         assert f"'{name}'" not in script
+    for mode in ("assembled", "exploded", "display_stl"):
+        assert f'"{mode}"' in entry
 
 
-def test_body_modules_include_required_interfaces():
+def test_compact_modules_and_camera_contract():
     parts = scad_text("parts.scad")
     for module in (
-        "module upper_shell(",
-        "module lower_shell(",
-        "module upper_rear_cover(",
-        "module lower_rear_cover(",
-        "module base(",
-        "module lean_support(",
-        "module fit_coupon(",
-    ):
-        assert module in parts
-
-    assert "panel_thickness + panel_clearance" in parts
-    assert "camera_window[0]" in parts
-    assert "camera_window[1]" in parts
-
-
-def test_body_joint_has_four_rear_fastener_positions():
-    parameters = scad_text("parameters.scad")
-    parts = scad_text("parts.scad")
-    assert "joint_fastener_x = [-75, -25, 25, 75]" in parameters
-    assert "for (x = joint_fastener_x)" in parts
-
-
-def test_rear_covers_have_matching_shell_bosses():
-    parameters = scad_text("parameters.scad")
-    parts = scad_text("parts.scad")
-    assert "rear_cover_fastener_x = [-90, 90]" in parameters
-    assert "rear_cover_fastener_z = [-58, 58]" in parameters
-    assert "rear_cover_boss_diameter = 12" in parameters
-    assert "module rear_cover_bosses(" in parts
-    assert "rear_cover_bosses(section_height);" in parts
-
-
-def test_base_and_lean_support_share_fastener_positions():
-    parameters = scad_text("parameters.scad")
-    parts = scad_text("parts.scad")
-    assert "base_support_fastener_x = [-36, 36]" in parameters
-    assert "base_support_fastener_y = 20" in parameters
-    assert "for (x = base_support_fastener_x)" in parts
-    assert "support_mount_offset_y = 8" in parameters
-
-
-def test_entry_point_exposes_body_output_modes():
-    entry = scad_text("strokeguard_enclosure.scad")
-    for mode in (
-        '"upper_shell"',
-        '"lower_shell"',
-        '"upper_rear_cover"',
-        '"lower_rear_cover"',
-        '"base"',
-        '"lean_support"',
-        '"fit_coupon"',
-        '"assembled"',
-        '"exploded"',
-        '"display_stl"',
-    ):
-        assert mode in entry
-    assert 'else if (part == "display_stl") display_stl_model();' in entry
-
-
-def test_assembled_body_uses_split_front_panel_and_installs_rear_covers():
-    parts = scad_text("parts.scad")
-    assert "front_panel_assembled();" in parts
-    assert "module installed_rear_covers(" in parts
-    assert "installed_rear_covers();" in parts
-
-
-def test_service_modules_are_adjustable_and_do_not_claim_board_dimensions():
-    parts = scad_text("parts.scad")
-    for module in (
-        "module camera_carriage(",
-        "module camera_bezel(",
+        "module compact_shell(",
+        "module front_panel(",
+        "module rear_cover(",
+        "module desktop_base(",
+        "module camera_clamp(",
         "module controller_rail(",
         "module microphone_holder(",
-        "module usb_blank(",
     ):
         assert module in parts
+    assert "camera_aperture_diameter" in parts
+    assert "camera_board[0] + 2 * camera_clearance" in parts
+    assert "camera_board_hole_spacing" not in parts
 
-    assert "camera_adjustment = 10" in scad_text("parameters.scad")
-    assert "board_hole_spacing" not in parts
-    assert "fixed_usb_offset" not in parts
 
-
-def test_split_front_panel_contract():
-    parameters = scad_text("parameters.scad")
+def test_large_geometry_modules_are_removed():
     parts = scad_text("parts.scad")
-    entry = scad_text("strokeguard_enclosure.scad")
-    for declaration in (
-        "front_panel_skin = 2",
-        "front_panel_gap = 0.3",
-        "front_panel_lap_height = 8",
-        "front_panel_rib_width = 6",
-        "front_panel_rib_height = 2",
+    for obsolete in (
+        "upper_shell",
+        "lower_shell",
+        "joint_tongue",
+        "lean_support",
+        "front_panel_upper_printable",
+        "front_panel_lower_printable",
+        "camera_bezel",
+        "usb_blank",
     ):
-        assert declaration in parameters
-    for module in (
-        "module front_panel_upper_printable(",
-        "module front_panel_lower_printable(",
-        "module front_panel_assembled(",
-    ):
-        assert module in parts
-    assert '"front_panel_upper"' in entry
-    assert '"front_panel_lower"' in entry
+        assert f"module {obsolete}(" not in parts
 
 
-def test_entry_point_exposes_service_part_modes():
-    entry = scad_text("strokeguard_enclosure.scad")
-    for mode in (
-        '"camera_carriage"',
-        '"camera_bezel"',
-        '"controller_rail"',
-        '"microphone_holder"',
-        '"usb_blank"',
-    ):
-        assert mode in entry
-
-
-def test_assembly_places_service_parts():
+def test_shell_has_front_rails_rear_bosses_and_base_fasteners():
     parts = scad_text("parts.scad")
-    assert "module installed_service_parts(" in parts
+    assert "module front_panel_rails(" in parts
+    assert "module rear_cover_bosses(" in parts
+    assert "for (x = base_fastener_x)" in parts
+    assert "m3_clearance" in parts
+
+
+def test_base_integrates_lean_and_rear_cover_has_cable_exit():
+    parts = scad_text("parts.scad")
+    assert "rotate([lean_angle, 0, 0])" in parts
+    assert "module lean_support(" not in parts
+    assert "cover_height / 2" in parts
+    assert "cube([18, 8" in parts
+
+
+def test_assembly_places_only_compact_parts():
+    parts = scad_text("parts.scad")
+    assert "module assembled_body(" in parts
+    assert "compact_shell();" in parts
+    assert "installed_front_and_rear();" in parts
     assert "installed_service_parts();" in parts
-    assert "module camera_lens_placeholder(" in parts
-    assert "camera_lens_placeholder();" in parts
+    assert "desktop_base();" in parts
+
+
+def test_camera_clamp_installation_is_constrained_inside_body():
+    parts = scad_text("parts.scad")
+    assert "clamp_center_z = min(" in parts
+    assert "body_height - wall - clamp_height / 2" in parts
 
 
 def test_printable_meshes_are_watertight_and_fit_build_plate():
@@ -226,8 +163,23 @@ def test_printable_meshes_are_watertight_and_fit_build_plate():
         assert mesh.is_watertight, name
         extents = sorted(mesh.extents.tolist(), reverse=True)
         assert extents[1] <= 220.01, (name, mesh.extents)
-        if name in ("upper_shell", "lower_shell"):
-            assert mesh.extents[1] <= 55.01, (name, mesh.extents)
+
+
+def test_compact_body_panel_and_base_envelopes():
+    shell = load_mesh(ROOT / "stl" / "printable" / "compact_shell.stl")
+    assert np.all(shell.extents <= np.array([110.01, 40.01, 165.01]))
+
+    panel = load_mesh(ROOT / "stl" / "printable" / "front_panel.stl")
+    assert np.allclose(panel.extents, [104, 159, 2], atol=0.01)
+
+    base = load_mesh(ROOT / "stl" / "printable" / "desktop_base.stl")
+    assert np.allclose(base.extents, [110, 65, 12], atol=0.01)
+
+
+def test_camera_clamp_stays_within_service_depth():
+    clamp = load_mesh(ROOT / "stl" / "printable" / "camera_clamp.stl")
+    assert np.all(clamp.extents <= np.array([40, 52, 24]))
+    assert clamp.extents[2] >= 22
 
 
 def test_display_stl_and_renders_are_nonblank():
@@ -240,73 +192,3 @@ def test_display_stl_and_renders_are_nonblank():
         image = Image.open(path).convert("RGB")
         assert image.size == (1600, 1200)
         assert float(np.asarray(image).std()) > 5.0
-
-
-def test_split_panels_match_enclosure_and_camera_contract():
-    upper = load_mesh(ROOT / "stl" / "printable" / "front_panel_upper.stl")
-    lower = load_mesh(ROOT / "stl" / "printable" / "front_panel_lower.stl")
-    assert upper.is_watertight and lower.is_watertight
-    assert upper.extents[0] <= 208.01
-    assert lower.extents[0] <= 208.01
-    assert upper.extents[1] <= 220.01
-    assert lower.extents[1] <= 220.01
-    assert upper.extents[2] <= 4.01
-    assert lower.extents[2] <= 4.01
-
-
-def test_exploded_view_exposes_panel_rear_ribs():
-    parts = scad_text("parts.scad")
-    assert "rotate([180, 0, 0]) front_panel_upper_printable();" in parts
-    assert "rotate([180, 0, 0]) front_panel_lower_printable();" in parts
-
-
-def test_tinkercad_manifest_is_credential_free_and_matches_display_envelope():
-    data = json.loads((ROOT / "tinkercad-design.json").read_text(encoding="utf-8"))
-    assert data["name"] == "StrokeGuard Desktop Demonstrator"
-    assert data["envelope_mm"] == [220, 300, 55]
-    assert data["design_id"]
-    assert data["url"].startswith("https://www.tinkercad.com/")
-    assert data["authority"] == "presentation-only"
-
-    serialized = json.dumps(data).lower()
-    for forbidden in ("cookie", "token", "password", "oauth"):
-        assert forbidden not in serialized
-
-
-def test_handoff_documents_required_limits_and_workflow():
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    for phrase in (
-        "214 x 300 x 55 mm",
-        "220 x 300 x 55 mm",
-        "fit coupon",
-        "NMO432",
-        "camera",
-        "OpenSCAD",
-        "TinkerCAD",
-        "not a diagnostic device",
-    ):
-        assert phrase.lower() in readme.lower()
-
-    dimensions = (ROOT / "drawings" / "dimensions.md").read_text(encoding="utf-8")
-    assert "M3" in dimensions
-    assert "3.4 mm" in dimensions
-    assert "36 x 22 mm" in dimensions
-
-    front_panel_terms = (
-        "front_panel_upper.stl",
-        "front_panel_lower.stl",
-        "rear lap",
-        "0.30 mm",
-        "208 x 294 mm",
-        "before installing electronics",
-    )
-    combined_handoff = f"{readme}\n{dimensions}"
-    for phrase in front_panel_terms:
-        assert phrase.lower() in combined_handoff.lower()
-
-    assert "cut it only after printing" not in dimensions.lower()
-
-    repository_root = ROOT.parents[1]
-    for path in (repository_root / "README.md", repository_root / "docs" / "developer-handoff.md"):
-        text = path.read_text(encoding="utf-8")
-        assert "mechanical/desktop_enclosure" in text
