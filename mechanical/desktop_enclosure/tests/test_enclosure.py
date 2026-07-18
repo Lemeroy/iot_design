@@ -165,6 +165,11 @@ def test_printable_meshes_are_watertight_and_fit_build_plate():
         assert extents[1] <= 220.01, (name, mesh.extents)
 
 
+def test_printable_directory_contains_only_compact_parts():
+    actual = {path.stem for path in (ROOT / "stl" / "printable").glob("*.stl")}
+    assert actual == set(PRINTABLE_PARTS)
+
+
 def test_compact_body_panel_and_base_envelopes():
     shell = load_mesh(ROOT / "stl" / "printable" / "compact_shell.stl")
     assert np.all(shell.extents <= np.array([110.01, 40.01, 165.01]))
