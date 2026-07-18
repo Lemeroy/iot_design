@@ -33,25 +33,42 @@ module shell_frame() {
 }
 
 module front_panel_rails() {
-    rail_x = front_panel_width / 2 - 1;
+    rail_x = front_panel_width / 2 - 0.5;
     rail_y = -body_depth / 2 + wall + panel_slot_depth / 2;
 
     for (x = [-rail_x, rail_x])
         translate([x, rail_y, body_height / 2])
-            cube([2, panel_slot_depth, front_panel_height], center = true);
+            cube([3, panel_slot_depth, front_panel_height], center = true);
 }
 
 module rear_cover_bosses() {
     for (x = rear_cover_fastener_x, z_offset = rear_cover_fastener_z)
-        translate([x, body_depth / 2 - wall, body_height / 2 + z_offset])
-            rotate([90, 0, 0])
-                difference() {
-                    cylinder(h = 6, d = rear_cover_boss_diameter, center = true);
-                    cylinder(h = 6 + 2 * epsilon, d = m3_clearance, center = true);
+        let(
+            side = x < 0 ? -1 : 1,
+            support_width = body_width / 2 - wall - abs(x) + 2,
+            support_x = side * (abs(x) + body_width / 2 - wall) / 2,
+            boss_z = body_height / 2 + z_offset
+        )
+            difference() {
+                union() {
+                    translate([x, body_depth / 2 - wall, boss_z])
+                        rotate([90, 0, 0])
+                            cylinder(h = 6, d = rear_cover_boss_diameter, center = true);
+                    translate([support_x, body_depth / 2 - wall, boss_z])
+                        cube([
+                            support_width,
+                            6,
+                            rear_cover_boss_diameter
+                        ], center = true);
                 }
+
+                translate([x, body_depth / 2 - wall, boss_z])
+                    rotate([90, 0, 0])
+                        cylinder(h = 6 + 2 * epsilon, d = m3_clearance, center = true);
+            }
 }
 
-module compact_shell() {
+module compact_shell_model() {
     difference() {
         union() {
             shell_frame();
@@ -63,6 +80,11 @@ module compact_shell() {
             translate([x, 0, -epsilon])
                 cylinder(h = wall + 2 * epsilon, d = m3_clearance);
     }
+}
+
+module compact_shell() {
+    translate([0, 0, body_width / 2])
+        rotate([0, 90, 0]) compact_shell_model();
 }
 
 module front_panel() {
@@ -219,7 +241,7 @@ module installed_service_parts() {
 }
 
 module assembled_body(include_service_parts = true) {
-    compact_shell();
+    compact_shell_model();
     installed_front_and_rear();
     if (include_service_parts) installed_service_parts();
 }
@@ -253,7 +275,7 @@ module display_stl_model() {
 }
 
 module exploded_view() {
-    color([0.14, 0.17, 0.19]) translate([0, 0, 20]) compact_shell();
+    color([0.14, 0.17, 0.19]) translate([0, 0, 20]) compact_shell_model();
     color([0.18, 0.21, 0.23])
         translate([-85, -35, 102]) rotate([90, 0, 0]) front_panel();
     color([0.34, 0.38, 0.40])

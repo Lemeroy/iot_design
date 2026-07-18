@@ -88,7 +88,8 @@ build-plate profiles recommended by their manufacturers.
 Suggested orientation:
 
 - `front_panel.stl`: smooth visible face on the build plate;
-- `compact_shell.stl`: one broad side wall on the build plate;
+- `compact_shell.stl`: already exported with one broad side wall on the build
+  plate; keep the default imported orientation;
 - `rear_cover.stl`: largest flat face on the build plate;
 - `desktop_base.stl`: bottom face on the build plate;
 - `camera_clamp.stl`: back plate on the build plate, guides upward;

@@ -42,6 +42,31 @@ def load_mesh(path: Path) -> trimesh.Trimesh:
     return mesh
 
 
+def mesh_component_count(mesh: trimesh.Trimesh) -> int:
+    parent = list(range(len(mesh.vertices)))
+
+    def find(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    def union(left: int, right: int) -> None:
+        left_root = find(left)
+        right_root = find(right)
+        if left_root != right_root:
+            parent[right_root] = left_root
+
+    used_vertices: set[int] = set()
+    for face in mesh.faces:
+        first = int(face[0])
+        used_vertices.update(int(index) for index in face)
+        union(first, int(face[1]))
+        union(first, int(face[2]))
+
+    return len({find(index) for index in used_vertices})
+
+
 def test_export_script_isolated_toolchain_contract():
     script = (ROOT / "scripts" / "export_models.ps1").read_text(encoding="utf-8")
     for contract in (
@@ -143,7 +168,7 @@ def test_base_integrates_lean_and_rear_cover_has_cable_exit():
 def test_assembly_places_only_compact_parts():
     parts = scad_text("parts.scad")
     assert "module assembled_body(" in parts
-    assert "compact_shell();" in parts
+    assert "compact_shell_model();" in parts
     assert "installed_front_and_rear();" in parts
     assert "installed_service_parts();" in parts
     assert "desktop_base();" in parts
@@ -172,7 +197,9 @@ def test_printable_directory_contains_only_compact_parts():
 
 def test_compact_body_panel_and_base_envelopes():
     shell = load_mesh(ROOT / "stl" / "printable" / "compact_shell.stl")
-    assert np.all(shell.extents <= np.array([110.01, 40.01, 165.01]))
+    assert np.allclose(shell.extents, [165, 40, 110], atol=0.01)
+    assert abs(float(shell.bounds[0][2])) <= 0.01
+    assert mesh_component_count(shell) == 1
 
     panel = load_mesh(ROOT / "stl" / "printable" / "front_panel.stl")
     assert np.allclose(panel.extents, [104, 159, 2], atol=0.01)
