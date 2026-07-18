@@ -67,12 +67,12 @@ idf.py -p COM3 flash monitor
 
 ## 机械模型交接
 
-桌面初赛演示机的参数化 OpenSCAD、已验证 STL、装配/爆炸渲染、TinkerCAD
-manifest、尺寸表和打印流程位于
+桌面初赛演示机的参数化 OpenSCAD、七个紧凑版 STL、装配/爆炸渲染、尺寸表和
+打印流程位于
 [`mechanical/desktop_enclosure`](../mechanical/desktop_enclosure/README.md)。
-OpenSCAD/STL 是制造依据，TinkerCAD 只用于在线展示。移交前应重新运行该目录的
-导出脚本和 pytest，并先打印 fit coupon；不得把未实测的板孔距、接口偏移或前板
-厚度写成固定机械参数。
+OpenSCAD/STL 是制造依据。镜身最大尺寸为 `110 x 165 x 40 mm`，摄像头模块采用
+已知 `27 x 42 x 19 mm` 包络和 `12 mm` 镜头孔。移交前应重新运行该目录的导出脚本
+和 pytest；不得把未实测的板孔距、接口偏移或打印性能写成固定机械参数。
 
 ## 医学与隐私边界
 

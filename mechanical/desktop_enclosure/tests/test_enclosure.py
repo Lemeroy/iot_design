@@ -197,3 +197,35 @@ def test_display_stl_and_renders_are_nonblank():
         image = Image.open(path).convert("RGB")
         assert image.size == (1600, 1200)
         assert float(np.asarray(image).std()) > 5.0
+
+
+def test_compact_handoff_documents_match_current_production_model():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    dimensions = (ROOT / "drawings" / "dimensions.md").read_text(encoding="utf-8")
+    combined_handoff = f"{readme}\n{dimensions}"
+
+    for phrase in (
+        "110 x 165 x 40 mm",
+        "12 mm",
+        "27 x 42 x 19 mm",
+        "compact_shell.stl",
+        "front_panel.stl",
+        "desktop_base.stl",
+        "smooth visible face",
+        "before installing electronics",
+        "not a diagnostic device",
+    ):
+        assert phrase.lower() in combined_handoff.lower()
+
+    for obsolete in (
+        "214 x 300",
+        "front_panel_upper.stl",
+        "rear lap",
+        "36 x 22 mm",
+    ):
+        assert obsolete.lower() not in combined_handoff.lower()
+
+    repository_root = ROOT.parents[1]
+    for path in (repository_root / "README.md", repository_root / "docs" / "developer-handoff.md"):
+        text = path.read_text(encoding="utf-8")
+        assert "mechanical/desktop_enclosure" in text

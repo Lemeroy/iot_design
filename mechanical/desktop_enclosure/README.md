@@ -1,43 +1,42 @@
-# StrokeGuard Desktop Enclosure
+# StrokeGuard Compact Desktop Enclosure
 
-This package contains the desktop preliminary-demonstration enclosure for
-StrokeGuard. OpenSCAD is the manufacturing source of truth. TinkerCAD is a
-presentation copy and is not authoritative for fit or print dimensions.
+This package is the manufacturing handoff for the compact StrokeGuard
+preliminary-demonstration enclosure. OpenSCAD is the source of truth for fit
+and dimensions. The mirror body is limited to `110 x 165 x 40 mm`.
 
 StrokeGuard is a risk-reminder and care-seeking aid, not a diagnostic device.
 The enclosure does not establish clinical accuracy, microphone calibration,
 thermal certification, ingress protection, or production safety certification.
 
-## Deliverables
+## Production Files
 
-- Printable assembly envelope: `214 x 300 x 55 mm`.
-- TinkerCAD/display envelope: `220 x 300 x 55 mm`.
-- Parameter source: `scad/parameters.scad`.
-- Part modules: `scad/parts.scad`.
-- Command-line entry point: `scad/strokeguard_enclosure.scad`.
-- Printable STL files: `stl/printable/`.
-- Split front-panel STL files: `stl/printable/front_panel_upper.stl` and
-  `stl/printable/front_panel_lower.stl`.
-- Watertight display STL: `stl/display/strokeguard-display.stl`.
-- Assembly and exploded renders: `renders/`.
-- TinkerCAD identity: `tinkercad-design.json`.
-- Dimension and fastener schedule: `drawings/dimensions.md`.
+The `stl/printable/` directory contains exactly these parts:
 
-The TinkerCAD presentation is available at:
+- `compact_shell.stl`;
+- `front_panel.stl`;
+- `rear_cover.stl`;
+- `desktop_base.stl`;
+- `camera_clamp.stl`;
+- `controller_rail.stl`;
+- `microphone_holder.stl`.
 
-https://www.tinkercad.com/things/kai4l0KkMBD/edit
+The one-piece front panel has a centered `12 mm` circular camera aperture. The
+camera clamp is based on the supplied `27 x 42 x 19 mm` module envelope. It uses
+side constraints and cable-tie slots because the supplied drawing does not give
+complete mounting-hole spacing.
 
-## Included Hardware Provisions
+Additional delivery files:
 
-This revision provides adjustable mounting for:
+- parameters: `scad/parameters.scad`;
+- geometry modules: `scad/parts.scad`;
+- command-line entry: `scad/strokeguard_enclosure.scad`;
+- display STL: `stl/display/strokeguard-display.stl`;
+- assembly and exploded renders: `renders/`;
+- dimension schedule: `drawings/dimensions.md`.
 
-- ESP32-S3-WROOM-1 N16R8 main controller;
-- camera coprocessor and centered camera opening;
-- NMO432 microphone with a hidden lower-edge acoustic path.
-
-It does not add ST7789, MAX98357A, RGB LED, buzzer, buttons, or another sensor.
-Board outlines, mounting-hole spacing, and USB offsets remain adjustable rather
-than being inferred from unmeasured development boards.
+This revision provides only the N16R8 controller rail, camera clamp, NMO432
+holder, rear service cover, and desktop base. It does not add ST7789,
+MAX98357A, RGB LED, buzzer, buttons, or another sensor.
 
 ## Tool Setup
 
@@ -48,7 +47,7 @@ winget install --id OpenSCAD.OpenSCAD --exact `
   --accept-package-agreements --accept-source-agreements
 ```
 
-Create the isolated mechanical environment:
+Create the isolated mechanical test environment:
 
 ```powershell
 cd F:\iot_design
@@ -57,30 +56,6 @@ mechanical\desktop_enclosure\.venv\Scripts\python.exe -m pip install `
   -r mechanical\desktop_enclosure\requirements-dev.txt
 ```
 
-The export script discovers OpenSCAD from `OPENSCAD_EXE`, PATH, or the standard
-`C:\Program Files\OpenSCAD` installation. It does not use or modify the PC
-application environment.
-
-## Change Parameters
-
-Edit `scad/parameters.scad` for approved envelope and fit values. Pass measured
-front-panel thickness without editing source:
-
-```powershell
-& 'C:\Program Files\OpenSCAD\openscad.com' `
-  -D 'part=\"fit_coupon\"' `
-  -D 'variant=\"printable\"' `
-  -D 'panel_thickness=2.0' `
-  -o fit_coupon.stl `
-  mechanical\desktop_enclosure\scad\strokeguard_enclosure.scad
-```
-
-Do not encode guessed board dimensions into the model. Use the camera carriage,
-controller rails, M2/M3 slots, and cable-tie slots until actual boards have been
-measured.
-
-## Export and Test
-
 Regenerate all committed STL and PNG outputs:
 
 ```powershell
@@ -88,83 +63,70 @@ powershell -ExecutionPolicy Bypass -File `
   mechanical\desktop_enclosure\scripts\export_models.ps1 -Export -Render
 ```
 
-Run geometry and handoff tests:
+Run the geometry and handoff tests:
 
 ```powershell
 mechanical\desktop_enclosure\.venv\Scripts\python.exe -m pytest `
   mechanical\desktop_enclosure\tests\test_enclosure.py -v
 ```
 
-The tests load every STL through trimesh, require watertight meshes, enforce the
-`220 x 220 mm` printable XY limit, validate nonblank renders, and reject
-credentials in the TinkerCAD manifest.
+## Bambu Studio
 
-## Print Order
+Select the built-in Bambu Lab H2S printer profile and the nozzle actually
+installed on the printer. Import the seven production STL files at `100%`
+scale. For a first PLA print with a `0.4 mm` nozzle, use these starting values:
 
-1. Print `fit_coupon.stl` first.
-2. Test the locating tongue, panel slot, M3 clearance hole, and panel material.
-3. Adjust only the documented clearance parameters if the coupon does not fit.
-4. Print camera bezel, USB blank, controller rail, and microphone holder.
-5. Print `front_panel_upper.stl` and `front_panel_lower.stl` as separate parts.
-6. Print rear covers, base, lean support, and the upper/lower shells.
+- `0.20 mm` standard layer profile;
+- three walls;
+- `15-20%` infill;
+- support disabled initially, then enabled only where the slicer preview shows
+  unsupported geometry.
 
-Before installing electronics, test-fit both front-panel pieces in the joined
-empty shell. Confirm that the lower rear lap enters freely, the upper piece
-seats without bowing, and both pieces can be removed without forcing the rails.
-
-Initial FDM settings are `0.20 mm` layer height, three perimeters, and about
-`20%` infill. They are first-print settings, not measured guarantees. Use the
-printer and filament profile recommended by the material supplier.
+These are starting settings, not measured guarantees. Use the filament and
+build-plate profiles recommended by their manufacturers.
 
 Suggested orientation:
 
-- split front panels: rotate so the smooth visible face is on the build plate
-  and the rear ribs face upward;
-- upper and lower shells: rear face on the build plate, front opening upward;
-- rear covers, camera carriage, bezel, rail, USB blank, and fit coupon: largest
-  flat face on the build plate;
-- base and microphone holder: bottom face on the build plate;
-- lean support: broad side face on the build plate.
+- `front_panel.stl`: smooth visible face on the build plate;
+- `compact_shell.stl`: one broad side wall on the build plate;
+- `rear_cover.stl`: largest flat face on the build plate;
+- `desktop_base.stl`: bottom face on the build plate;
+- `camera_clamp.stl`: back plate on the build plate, guides upward;
+- controller rail and microphone holder: largest flat face on the build plate.
 
-Inspect slicer previews for unsupported bridges and screw-hole closure before
-printing full shells.
+Inspect the complete slicer preview for closed holes, unsupported rails, thin
+walls, and the `12 mm` camera aperture before printing.
 
 ## Assembly Order
 
-1. Deburr the camera window, side USB windows, acoustic path, and M3 holes.
-2. Install the camera on the adjustable carriage and align it through the
-   replaceable bezel.
-3. Install the N16R8 on the two slotted controller rails. Keep its antenna area
-   clear of fasteners and bundled wiring.
-4. Attach NMO432 to the adjustable holder with its acoustic port aligned to the
-   lower-edge channel. Verify microphone response after enclosure assembly.
-5. Route camera I2C and microphone I2S harnesses separately and add strain
-   relief before closing the case.
-6. Join upper and lower shells with four M3 fasteners through the rear-accessible
-   joint bosses.
-7. Seat the lean support in the base recess and secure it with two M3 fasteners.
-8. Slide in `front_panel_lower.stl` first with its integrated `8 mm` rear lap
-   facing inward, then slide in `front_panel_upper.stl` so it covers the rear
-   lap. Keep the nominal `0.30 mm` visible process gap at the center joint.
-9. Verify the upper panel's `36 x 22 mm` camera opening is unobstructed.
-10. Install each rear cover with four M3 fasteners.
-11. Fit or remove the USB blanking plates according to demonstration needs.
+1. Before installing electronics, test-fit the shell, front panel, rear cover,
+   and base. Do not force tight rails or fasteners.
+2. Deburr the camera aperture, lower acoustic notch, cable exit, and M3 holes.
+3. Seat the `27 x 42 x 19 mm` camera module in `camera_clamp.stl`, secure it
+   through the cable-tie slots, and align the lens through the `12 mm` aperture.
+4. Install the N16R8 on `controller_rail.stl`. Keep its antenna area clear of
+   fasteners and bundled wiring.
+5. Align NMO432 with the hidden lower acoustic path and verify that the live S
+   value responds after the front panel is installed.
+6. Route camera I2C and microphone I2S separately, add strain relief, and pass
+   power and debug wiring through the lower rear cable exit.
+7. Install the rear cover with four M3 fasteners and attach the body to the base
+   through the two underside M3 positions.
 
-Select screw length after printing the fit coupon and measuring the actual boss,
-washer, insert, and nut stack. Do not force an overlong screw into a PCB or wire
-path.
+Select screw lengths only after measuring the printed stack, washers, and any
+inserts or nuts. Do not force an overlong screw into a PCB or wire path.
 
 ## Physical Acceptance
 
-The repository tests validate digital geometry only. Before presentation:
+Repository tests validate digital geometry only. Before presentation:
 
-- confirm the base remains stable with both USB cables connected;
-- confirm shell joints and rear covers seat without stress cracking;
-- confirm USB plugs can be inserted without removing a main shell;
-- verify camera framing at the intended screening distance;
-- speak near NMO432 and verify the live S signal changes;
-- verify Wi-Fi connectivity with the final panel and wiring installed;
-- record enclosure surface temperature as a measured observation.
+- verify front-panel and rear-cover fit on the real print;
+- verify the camera module clears the rear cover and frames the intended user;
+- verify NMO432 response with the enclosure closed;
+- verify the base remains stable with final power and debug cables attached;
+- verify Wi-Fi operation with the final enclosure and wiring;
+- record print time, material use, shrinkage, and surface temperature only as
+  measured observations.
 
-Raw audio and video remain local to the device. Mechanical files and TinkerCAD
-contain no user profile, sensor capture, cloud credential, or device secret.
+Raw audio and video remain local. Mechanical files contain no user profile,
+sensor capture, cloud credential, or device secret.
