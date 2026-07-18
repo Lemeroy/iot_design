@@ -10,20 +10,19 @@ thermal certification, ingress protection, or production safety certification.
 
 ## Production Files
 
-The `stl/printable/` directory contains exactly these parts:
+The `stl/printable/` directory contains exactly five production parts:
 
 - `compact_shell.stl`;
 - `front_panel.stl`;
+- `electronics_tray.stl`;
 - `rear_cover.stl`;
-- `desktop_base.stl`;
-- `camera_clamp.stl`;
-- `controller_rail.stl`;
-- `microphone_holder.stl`.
+- `desktop_base.stl`.
 
 The one-piece front panel has a centered `12 mm` circular camera aperture. The
-camera clamp is based on the supplied `27 x 42 x 19 mm` module envelope. It uses
-side constraints and cable-tie slots because the supplied drawing does not give
-complete mounting-hole spacing.
+removable electronics tray provides a camera cage sized from the supplied
+`27 x 42 x 19 mm` module envelope, repeated N16R8 slots, NMO432 slots, and cable
+routing. All three modules use cable ties because the supplied drawings do not
+give complete mounting-hole coordinates.
 
 Additional delivery files:
 
@@ -34,9 +33,9 @@ Additional delivery files:
 - assembly and exploded renders: `renders/`;
 - dimension schedule: `drawings/dimensions.md`.
 
-This revision provides only the N16R8 controller rail, camera clamp, NMO432
-holder, rear service cover, and desktop base. It does not add ST7789,
-MAX98357A, RGB LED, buzzer, buttons, or another sensor.
+This revision provides only the integrated electronics tray, rear service
+cover, and desktop base needed by the N16R8, camera module, and NMO432. It does
+not add ST7789, MAX98357A, RGB LED, buzzer, buttons, or another sensor.
 
 ## Tool Setup
 
@@ -73,7 +72,7 @@ mechanical\desktop_enclosure\.venv\Scripts\python.exe -m pytest `
 ## Bambu Studio
 
 Select the built-in Bambu Lab H2S printer profile and the nozzle actually
-installed on the printer. Import the seven production STL files at `100%`
+installed on the printer. Import the five production STL files at `100%`
 scale. For a first PLA print with a `0.4 mm` nozzle, use these starting values:
 
 - `0.20 mm` standard layer profile;
@@ -92,30 +91,37 @@ Suggested orientation:
   plate; keep the default imported orientation;
 - `rear_cover.stl`: largest flat face on the build plate;
 - `desktop_base.stl`: bottom face on the build plate;
-- `camera_clamp.stl`: back plate on the build plate, guides upward;
-- controller rail and microphone holder: largest flat face on the build plate.
+- `electronics_tray.stl`: broad backplane on the build plate, guides upward.
 
 Inspect the complete slicer preview for closed holes, unsupported rails, thin
 walls, and the `12 mm` camera aperture before printing.
 
 ## Assembly Order
 
-1. Before installing electronics, test-fit the shell, front panel, rear cover,
-   and base. Do not force tight rails or fasteners.
+1. Before installing electronics, test-fit all five printed parts. Slide the
+   empty tray in from the rear and confirm that it reaches the shell stop pads
+   without binding. Do not force tight rails or fasteners.
 2. Deburr the camera aperture, lower acoustic notch, cable exit, and M3 holes.
-3. Seat the `27 x 42 x 19 mm` camera module in `camera_clamp.stl`, secure it
-   through the cable-tie slots, and align the lens through the `12 mm` aperture.
-4. Install the N16R8 on `controller_rail.stl`. Keep its antenna area clear of
-   fasteners and bundled wiring.
-5. Align NMO432 with the hidden lower acoustic path and verify that the live S
-   value responds after the front panel is installed.
-6. Route camera I2C and microphone I2S separately, add strain relief, and pass
-   power and debug wiring through the lower rear cable exit.
-7. Install the rear cover with four M3 fasteners and attach the body to the base
-   through the two underside M3 positions.
+3. Populate the electronics tray first. Secure the `27 x 42 x 19 mm` camera
+   module in the upper cage with cable ties, then align the N16R8 and NMO432 on
+   their adjustable slots. Keep the N16R8 antenna area clear of fasteners and
+   bundled wiring.
+4. Route camera I2C and microphone I2S separately on the tray, add strain
+   relief, and leave enough cable for the lower rear exit.
+5. Insert the populated tray from the rear until it rests against the shell
+   stop pads. Confirm the camera lens is centered in the `12 mm` aperture and
+   NMO432 faces the hidden lower acoustic path.
+6. Fit the rear cover. Its rear-cover pressure posts retain the tray against the
+   shell stops; they are not screw bosses and must not crush a PCB or cable.
+7. Install four M3 screws through the rear cover's `3.4 mm` clearance holes into
+   the shell's `2.6 mm` printed pilot holes. Attach the body to the base with two
+   M3 screws through its `3.4 mm` clearance holes into the reinforced `2.6 mm`
+   shell pilots.
 
 Select screw lengths only after measuring the printed stack, washers, and any
-inserts or nuts. Do not force an overlong screw into a PCB or wire path.
+inserts or nuts. Pilot-hole and screw fit is pending a physical print; drill or
+ream cautiously if material shrinkage makes a pilot too tight. Do not force an
+overlong screw into a PCB or wire path.
 
 ## Physical Acceptance
 

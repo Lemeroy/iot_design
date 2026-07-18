@@ -142,14 +142,31 @@ def test_compact_modules_and_camera_contract():
         "module front_panel(",
         "module rear_cover(",
         "module desktop_base(",
-        "module camera_clamp(",
-        "module controller_rail(",
-        "module microphone_holder(",
+        "module electronics_tray(",
     ):
         assert module in parts
     assert "camera_aperture_diameter" in parts
     assert "camera_board[0] + 2 * camera_clearance" in parts
     assert "camera_board_hole_spacing" not in parts
+
+
+def test_service_tray_and_retention_contract():
+    parts = scad_text("parts.scad")
+    for module in (
+        "module electronics_tray(",
+        "module tray_stop_pads(",
+        "module base_pilot_bosses(",
+        "module rear_cover_pressure_posts(",
+    ):
+        assert module in parts
+    for obsolete in (
+        "camera_clamp",
+        "controller_rail",
+        "microphone_holder",
+        "installed_service_parts",
+    ):
+        assert f"module {obsolete}(" not in parts
+    assert "m3_pilot_diameter" in parts
 
 
 def test_large_geometry_modules_are_removed():
@@ -191,14 +208,15 @@ def test_assembly_places_only_compact_parts():
     assert "module assembled_body(" in parts
     assert "compact_shell_model();" in parts
     assert "installed_front_and_rear();" in parts
-    assert "installed_service_parts();" in parts
+    assert "installed_electronics_tray();" in parts
     assert "desktop_base();" in parts
 
 
-def test_camera_clamp_installation_is_constrained_inside_body():
+def test_tray_is_sandwiched_between_shell_stops_and_cover_posts():
     parts = scad_text("parts.scad")
-    assert "clamp_center_z = min(" in parts
-    assert "body_height - wall - clamp_height / 2" in parts
+    assert "stop_y = tray_installed_y - tray_thickness - moving_clearance - 2" in parts
+    assert "body_depth / 2 - tray_installed_y - moving_clearance" in parts
+    assert "translate([0, tray_installed_y, body_height / 2])" in parts
 
 
 def test_printable_meshes_are_watertight_and_fit_build_plate():
@@ -207,6 +225,7 @@ def test_printable_meshes_are_watertight_and_fit_build_plate():
         assert path.stat().st_size > 256
         mesh = load_mesh(path)
         assert mesh.is_watertight, name
+        assert mesh_component_count(mesh) == 1, name
         extents = sorted(mesh.extents.tolist(), reverse=True)
         assert extents[1] <= 220.01, (name, mesh.extents)
 
@@ -230,10 +249,13 @@ def test_compact_body_panel_and_base_envelopes():
     assert unsupported_downward_area(base) < 1.0
 
 
-def test_camera_clamp_stays_within_service_depth():
-    clamp = load_mesh(ROOT / "stl" / "printable" / "camera_clamp.stl")
-    assert np.all(clamp.extents <= np.array([40, 52, 24]))
-    assert clamp.extents[2] >= 22
+def test_electronics_tray_is_printable_and_within_envelope():
+    tray = load_mesh(ROOT / "stl" / "printable" / "electronics_tray.stl")
+    assert tray.is_watertight
+    assert mesh_component_count(tray) == 1
+    assert np.all(tray.extents <= np.array([96.01, 149.01, 15.01]))
+    assert abs(float(tray.bounds[0][2])) <= 0.01
+    assert unsupported_downward_area(tray) < 1.0
 
 
 def test_display_stl_and_renders_are_nonblank():
@@ -259,9 +281,19 @@ def test_compact_handoff_documents_match_current_production_model():
         "27 x 42 x 19 mm",
         "compact_shell.stl",
         "front_panel.stl",
+        "electronics_tray.stl",
+        "rear_cover.stl",
         "desktop_base.stl",
+        "exactly five",
         "smooth visible face",
-        "before installing electronics",
+        "populate the electronics tray first",
+        "insert the populated tray from the rear",
+        "shell stop pads",
+        "rear-cover pressure posts",
+        "3.4 mm",
+        "2.6 mm",
+        "cable ties",
+        "physical print",
         "not a diagnostic device",
     ):
         assert phrase.lower() in combined_handoff.lower()
@@ -271,6 +303,10 @@ def test_compact_handoff_documents_match_current_production_model():
         "front_panel_upper.stl",
         "rear lap",
         "36 x 22 mm",
+        "camera_clamp.stl",
+        "controller_rail.stl",
+        "microphone_holder.stl",
+        "seven production",
     ):
         assert obsolete.lower() not in combined_handoff.lower()
 

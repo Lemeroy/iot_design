@@ -215,7 +215,9 @@ receive preview images. N16R8 I2C polling remains active during preview.
 可打印 OpenSCAD/STL、装配图、爆炸图与打印验收说明位于
 [`mechanical/desktop_enclosure`](mechanical/desktop_enclosure/README.md)。紧凑镜身为
 `110 x 165 x 40 mm`，使用单件 `front_panel.stl` 和 `12 mm` 圆形摄像头孔；生产目录
-仅保留七个当前打印件。开发板孔距和装配间隙保持参数化，不使用猜测尺寸。
+仅保留五个当前打印件：壳体、前面板、一体式可拆电子托盘、后盖和桌面底座。摄像头、
+N16R8 与 NMO432 先用扎带安装到托盘，再从壳体后方整体插入；开发板孔距和装配间隙
+保持参数化，不使用猜测尺寸。
 
 ## 医学免责声明
 

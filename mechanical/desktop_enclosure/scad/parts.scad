@@ -64,8 +64,23 @@ module rear_cover_bosses() {
 
                 translate([x, body_depth / 2 - wall, boss_z])
                     rotate([90, 0, 0])
-                        cylinder(h = 6 + 2 * epsilon, d = m3_clearance, center = true);
+                        cylinder(h = 6 + 2 * epsilon, d = m3_pilot_diameter, center = true);
             }
+}
+
+module tray_stop_pads() {
+    stop_x = tray_width / 2 + 1;
+    stop_y = tray_installed_y - tray_thickness - moving_clearance - 2;
+    stop_z = tray_height / 2 - 8;
+
+    for (x = [-stop_x, stop_x], z_offset = [-stop_z, stop_z])
+        translate([x, stop_y, body_height / 2 + z_offset])
+            cube([8, 4, 10], center = true);
+}
+
+module base_pilot_bosses() {
+    for (x = base_fastener_x)
+        translate([x, 0, 0]) cylinder(h = 8, d = 9);
 }
 
 module compact_shell_model() {
@@ -74,11 +89,13 @@ module compact_shell_model() {
             shell_frame();
             front_panel_rails();
             rear_cover_bosses();
+            tray_stop_pads();
+            base_pilot_bosses();
         }
 
         for (x = base_fastener_x)
             translate([x, 0, -epsilon])
-                cylinder(h = wall + 2 * epsilon, d = m3_clearance);
+                cylinder(h = 8 + 2 * epsilon, d = m3_pilot_diameter);
     }
 }
 
@@ -107,23 +124,34 @@ module front_panel() {
     }
 }
 
+module rear_cover_pressure_posts() {
+    post_height = body_depth / 2 - tray_installed_y - moving_clearance + tray_stop_overlap;
+    post_z = rear_cover_thickness - tray_stop_overlap + post_height / 2;
+
+    for (x = [-42, 42], y = [-60, 60])
+        translate([x, y, post_z]) cube([8, 8, post_height], center = true);
+}
+
 module rear_cover() {
     cover_width = body_width - 2 * rear_opening_margin + 8;
     cover_height = body_height - 2 * rear_opening_margin + 8;
 
-    difference() {
-        rounded_plate(cover_width, cover_height, rear_cover_thickness, 3);
+    union() {
+        difference() {
+            rounded_plate(cover_width, cover_height, rear_cover_thickness, 3);
 
-        for (x = rear_cover_fastener_x, z_offset = rear_cover_fastener_z)
-            translate([x, z_offset, -epsilon])
-                cylinder(h = rear_cover_thickness + 2 * epsilon, d = m3_clearance);
+            for (x = rear_cover_fastener_x, z_offset = rear_cover_fastener_z)
+                translate([x, z_offset, -epsilon])
+                    cylinder(h = rear_cover_thickness + 2 * epsilon, d = m3_clearance);
 
-        for (y = [-45, -30, -15, 0, 15, 30, 45])
-            translate([0, y, -epsilon])
-                cube([60, 3, rear_cover_thickness + 2 * epsilon], center = true);
+            for (y = [-45, -30, -15, 0, 15, 30, 45])
+                translate([0, y, -epsilon])
+                    cube([60, 3, rear_cover_thickness + 2 * epsilon], center = true);
 
-        translate([0, -cover_height / 2, -epsilon])
-            cube([18, 8, rear_cover_thickness + 2 * epsilon], center = true);
+            translate([0, -cover_height / 2, -epsilon])
+                cube([18, 8, rear_cover_thickness + 2 * epsilon], center = true);
+        }
+        rear_cover_pressure_posts();
     }
 }
 
@@ -141,78 +169,83 @@ module desktop_base() {
                 ], center = true);
 
         for (x = base_fastener_x)
-            translate([x, 0, -epsilon])
-                cylinder(h = base_height + 2 * epsilon, d = m3_clearance);
+            translate([x, 0, base_height / 2])
+                rotate([-lean_angle, 0, 0])
+                    cylinder(
+                        h = base_height + 4,
+                        d = m3_clearance,
+                        center = true
+                    );
     }
 }
 
-module camera_clamp() {
-    clamp_inner = [
+module electronics_tray() {
+    camera_inner = [
         camera_board[0] + 2 * camera_clearance,
-        camera_board[1] + 2 * camera_clearance,
-        camera_board[2]
+        camera_board[1] + 2 * camera_clearance
     ];
-    plate_width = clamp_inner[0] + 10;
-    plate_height = clamp_inner[1] + 6;
+    camera_y = tray_height / 2 - camera_board[1] / 2 - 3;
+    microphone_y = -tray_height / 2 + 15;
     guide_thickness = 2.4;
+    feature_z = tray_thickness - tray_stop_overlap + tray_feature_height / 2;
 
     difference() {
-        rounded_plate(plate_width, plate_height, service_part_thickness, 3);
-        translate([0, 0, -epsilon])
+        union() {
+            rounded_plate(tray_width, tray_height, tray_thickness, 3);
+
+            for (x = [
+                -camera_inner[0] / 2 - guide_thickness / 2,
+                camera_inner[0] / 2 + guide_thickness / 2
+            ])
+                translate([x, camera_y, feature_z])
+                    cube([
+                        guide_thickness,
+                        camera_inner[1],
+                        tray_feature_height
+                    ], center = true);
+
+            for (y = [
+                camera_y - camera_inner[1] / 2 - guide_thickness / 2,
+                camera_y + camera_inner[1] / 2 + guide_thickness / 2
+            ])
+                translate([0, y, tray_thickness - tray_stop_overlap + 3])
+                    cube([
+                        camera_inner[0] + 2 * guide_thickness,
+                        guide_thickness,
+                        6
+                    ], center = true);
+
+            for (x = [-13, 13])
+                translate([x, microphone_y, tray_thickness - tray_stop_overlap + 4])
+                    cube([2, 18, 8], center = true);
+        }
+
+        translate([0, camera_y, (tray_thickness + tray_feature_height) / 2])
             cube([
                 camera_board[0] - 8,
                 camera_board[1] - 8,
-                service_part_thickness + 2 * epsilon
+                tray_thickness + tray_feature_height + 2 * epsilon
             ], center = true);
 
-        for (x = [-plate_width / 2 + 4, plate_width / 2 - 4])
-            translate([x, 0, -epsilon])
-                cube([3, 22, service_part_thickness + 2 * epsilon], center = true);
+        for (x = [-20, 20])
+            translate([x, camera_y, tray_thickness / 2])
+                cube([3, 28, tray_thickness + 2 * epsilon], center = true);
+
+        for (x = [-30, -10, 10, 30], y = [-25, -5, 15])
+            translate([x, y, tray_thickness / 2])
+                cube([3, 12, tray_thickness + 2 * epsilon], center = true);
+
+        for (x = [-10, 10])
+            translate([x, microphone_y, tray_thickness / 2])
+                cube([3, 16, tray_thickness + 2 * epsilon], center = true);
+
+        translate([0, microphone_y, -epsilon])
+            cylinder(h = tray_thickness + tray_feature_height + 2 * epsilon, d = 8);
+
+        for (y = [-42, 24])
+            translate([0, y, tray_thickness / 2])
+                cube([18, 4, tray_thickness + 2 * epsilon], center = true);
     }
-
-    for (x = [
-        -clamp_inner[0] / 2 - guide_thickness / 2,
-        clamp_inner[0] / 2 + guide_thickness / 2
-    ])
-        translate([x, 0, service_part_thickness + clamp_inner[2] / 2])
-            cube([guide_thickness, clamp_inner[1], clamp_inner[2]], center = true);
-
-    for (y = [-clamp_inner[1] / 2, clamp_inner[1] / 2])
-        translate([0, y, service_part_thickness + 3])
-            cube([clamp_inner[0], guide_thickness, 6], center = true);
-}
-
-module controller_rail() {
-    rail_size = [controller_rail_length, 16, 5];
-    difference() {
-        rounded_xy_box(rail_size, 2);
-
-        for (x = [-32, -16, 0, 16, 32])
-            translate([x, 0, -epsilon])
-                linear_slot(8, m3_clearance, rail_size[2] + 2 * epsilon, "x");
-
-        for (x = [-41, 41])
-            translate([x, 0, -epsilon])
-                cube([3, 10, rail_size[2] + 2 * epsilon], center = true);
-    }
-}
-
-module microphone_holder() {
-    holder_size = [30, 24, 4];
-    difference() {
-        rounded_xy_box(holder_size, 3);
-        translate([0, 0, -epsilon])
-            cylinder(h = holder_size[2] + 2 * epsilon, d = 8);
-        for (x = [-9, 9])
-            translate([x, 0, -epsilon])
-                cube([3, 16, holder_size[2] + 2 * epsilon], center = true);
-        translate([0, 10, -epsilon])
-            cube([8, 8, holder_size[2] + 2 * epsilon], center = true);
-    }
-
-    for (x = [-13, 13])
-        translate([x, 0, 8])
-            cube([2, 18, 12], center = true);
 }
 
 module installed_front_and_rear() {
@@ -222,29 +255,16 @@ module installed_front_and_rear() {
         rotate([90, 0, 0]) rear_cover();
 }
 
-module installed_service_parts() {
-    clamp_height = camera_board[1] + 2 * camera_clearance + 6;
-    clamp_center_z = min(
-        camera_position_z,
-        body_height - wall - clamp_height / 2
-    );
-
+module installed_electronics_tray() {
     color([0.30, 0.35, 0.37])
-        translate([0, -body_depth / 2 + wall + front_panel_thickness, clamp_center_z])
-            rotate([-90, 0, 0]) camera_clamp();
-
-    color([0.25, 0.30, 0.32])
-        translate([0, body_depth / 2 - 6, 78])
-            rotate([90, 0, 0]) controller_rail();
-
-    color([0.25, 0.30, 0.32])
-        translate([0, -5, 12]) microphone_holder();
+        translate([0, tray_installed_y, body_height / 2])
+            rotate([90, 0, 0]) electronics_tray();
 }
 
 module assembled_body(include_service_parts = true) {
     compact_shell_model();
     installed_front_and_rear();
-    if (include_service_parts) installed_service_parts();
+    if (include_service_parts) installed_electronics_tray();
 }
 
 module assembled_view() {
@@ -282,7 +302,5 @@ module exploded_view() {
     color([0.34, 0.38, 0.40])
         translate([85, 35, 102]) rotate([90, 0, 0]) rear_cover();
     color([0.10, 0.13, 0.15]) translate([0, 0, -30]) desktop_base();
-    color([0.30, 0.35, 0.37]) translate([-55, -45, 135]) camera_clamp();
-    color([0.25, 0.30, 0.32]) translate([55, -45, 75]) controller_rail();
-    color([0.25, 0.30, 0.32]) translate([0, -45, 20]) microphone_holder();
+    color([0.30, 0.35, 0.37]) translate([0, -55, 75]) electronics_tray();
 }

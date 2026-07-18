@@ -18,32 +18,34 @@ The base is outside the mirror-body envelope. The final assembled footprint
 depends on the body angle and must be checked in the slicer and on the real
 print.
 
-## Camera And Service Parts
+## Camera And Electronics Tray
 
 | Feature | Nominal size or constraint |
 | --- | ---: |
 | Camera aperture | 12 mm circular |
 | Supplied camera module envelope | 27 x 42 x 19 mm |
-| Camera clamp maximum envelope | 38.2 x 49.2 x 22 mm |
-| Controller rail | 90 x 16 x 5 mm |
-| NMO432 holder | 30 x 24 x 14 mm |
+| Tray backplane | 96 x 149 x 3 mm |
+| Tray total maximum envelope | 96 x 149 x 15 mm |
 | Moving fit clearance | 0.30 mm |
 | Front-panel nominal clearance | 0.40 mm |
 
 The camera drawing marks `4 mm` holes but does not provide complete mounting
-coordinates. `camera_clamp.stl` therefore uses adjustable side constraints and
-cable-tie slots. N16R8 and NMO432 mounts also avoid guessed board-hole spacing.
+coordinates. `electronics_tray.stl` therefore combines adjustable camera side
+guides with cable-tie slots. N16R8 and NMO432 slots also avoid guessed board-hole
+spacing. Shell stop pads set the tray's forward position; rear-cover pressure
+posts retain it after the cover is installed.
 
 ## Fasteners
 
 | Joint | Quantity | CAD interface | Length selection |
 | --- | ---: | --- | --- |
-| Rear cover to shell | 4 | M3 through, 3.4 mm clearance | Measure cover, boss, and insert or nut stack |
-| Mirror body to base | 2 | M3 through, 3.4 mm clearance | Measure base and lower shell stack |
-| Camera module | As fitted | Side guides and cable ties | Match the supplied 27 x 42 mm board |
-| N16R8 controller | As fitted | Repeated slots or cable ties | Match the actual controller board |
-| NMO432 microphone | As fitted | Open holder and tie slots | Match the actual microphone module |
+| Rear cover to shell | 4 | 3.4 mm cover clearance into 2.6 mm printed pilot | Select after measuring the physical print |
+| Mirror body to base | 2 | 3.4 mm base clearance into 2.6 mm reinforced pilot | Select after measuring the physical print |
+| Camera module | As fitted | Tray side guides and cable ties | Match the supplied 27 x 42 mm board |
+| N16R8 controller | As fitted | Repeated tray slots and cable ties | Match the actual controller board |
+| NMO432 microphone | As fitted | Tray slots and cable ties | Match the actual microphone module |
 
-M3 fasteners are mechanical additions, not sensors. Board connector offsets,
-print shrinkage, screw lengths, material use, and stability require physical
-measurement and are not fixed by this CAD revision.
+M3 fasteners are mechanical additions, not sensors. The `2.6 mm` pilot is a CAD
+starting point for thread-forming into printed plastic, not a guaranteed fit.
+Board connector offsets, pilot/screw fit, print shrinkage, screw lengths,
+material use, and stability require a physical print and measurement.
