@@ -128,15 +128,16 @@ module rear_cover() {
 }
 
 module desktop_base() {
+    slot_cutter_height = 20;
     difference() {
         rounded_xy_box([base_width, base_depth, base_height], 6);
 
-        translate([0, 0, base_height - 4])
-            rotate([lean_angle, 0, 0])
+        translate([0, 0, base_height + 4])
+            rotate([-lean_angle, 0, 0])
                 cube([
                     body_width + moving_clearance,
                     body_depth + moving_clearance,
-                    9
+                    slot_cutter_height
                 ], center = true);
 
         for (x = base_fastener_x)

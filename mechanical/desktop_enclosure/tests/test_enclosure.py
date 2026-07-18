@@ -67,6 +67,11 @@ def mesh_component_count(mesh: trimesh.Trimesh) -> int:
     return len({find(index) for index in used_vertices})
 
 
+def unsupported_downward_area(mesh: trimesh.Trimesh) -> float:
+    mask = (mesh.face_normals[:, 2] < -0.2) & (mesh.triangles_center[:, 2] > 0.25)
+    return float(mesh.area_faces[mask].sum())
+
+
 def test_export_script_isolated_toolchain_contract():
     script = (ROOT / "scripts" / "export_models.ps1").read_text(encoding="utf-8")
     for contract in (
@@ -159,7 +164,10 @@ def test_shell_has_front_rails_rear_bosses_and_base_fasteners():
 
 def test_base_integrates_lean_and_rear_cover_has_cable_exit():
     parts = scad_text("parts.scad")
-    assert "rotate([lean_angle, 0, 0])" in parts
+    assert (
+        "translate([0, 0, base_height + 4])\n"
+        "            rotate([-lean_angle, 0, 0])"
+    ) in parts
     assert "module lean_support(" not in parts
     assert "cover_height / 2" in parts
     assert "cube([18, 8" in parts
@@ -206,6 +214,7 @@ def test_compact_body_panel_and_base_envelopes():
 
     base = load_mesh(ROOT / "stl" / "printable" / "desktop_base.stl")
     assert np.allclose(base.extents, [110, 65, 12], atol=0.01)
+    assert unsupported_downward_area(base) < 1.0
 
 
 def test_camera_clamp_stays_within_service_depth():
