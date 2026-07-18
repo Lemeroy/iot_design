@@ -17,6 +17,7 @@ camera_clearance = 0.6;
 camera_position_z = body_height - 24;
 
 m3_clearance = 3.4;
+m3_pilot_diameter = 2.6;
 lean_angle = 7;
 rear_cover_thickness = 2.4;
 rear_opening_margin = 8;
@@ -28,6 +29,13 @@ base_width = 110;
 base_depth = 65;
 base_height = 12;
 base_fastener_x = [-32, 32];
+
+tray_width = 96;
+tray_height = 149;
+tray_thickness = 3;
+tray_feature_height = 12;
+tray_installed_y = 0;
+tray_stop_overlap = 1;
 
 service_part_thickness = 3;
 controller_rail_length = 90;

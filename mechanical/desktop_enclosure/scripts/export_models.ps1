@@ -14,11 +14,9 @@ $Requirements = Join-Path $ProjectRoot 'requirements-dev.txt'
 $PrintableParts = @(
     'compact_shell',
     'front_panel',
+    'electronics_tray',
     'rear_cover',
-    'desktop_base',
-    'camera_clamp',
-    'controller_rail',
-    'microphone_holder'
+    'desktop_base'
 )
 $PrintableOutput = Join-Path $ProjectRoot 'stl\printable'
 $DisplayOutput = Join-Path $ProjectRoot 'stl\display'

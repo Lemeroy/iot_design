@@ -9,11 +9,9 @@ ROOT = Path(__file__).resolve().parents[1]
 PRINTABLE_PARTS = (
     "compact_shell",
     "front_panel",
+    "electronics_tray",
     "rear_cover",
     "desktop_base",
-    "camera_clamp",
-    "controller_rail",
-    "microphone_holder",
 )
 
 OBSOLETE_PARTS = {
@@ -29,6 +27,9 @@ OBSOLETE_PARTS = {
     "fit_coupon",
     "front_panel_upper",
     "front_panel_lower",
+    "camera_clamp",
+    "controller_rail",
+    "microphone_holder",
 }
 
 
@@ -105,6 +106,18 @@ def test_compact_parameter_contract():
         "base_width = 110",
         "base_depth = 65",
         "base_height = 12",
+    ):
+        assert declaration in parameters
+
+
+def test_five_part_parameter_contract():
+    parameters = scad_text("parameters.scad")
+    for declaration in (
+        "tray_width = 96",
+        "tray_height = 149",
+        "tray_thickness = 3",
+        "tray_feature_height = 12",
+        "m3_pilot_diameter = 2.6",
     ):
         assert declaration in parameters
 
