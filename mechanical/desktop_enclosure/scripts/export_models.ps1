@@ -71,8 +71,8 @@ function Export-Stl {
     $parent = Split-Path -Parent $OutputPath
     New-Item -ItemType Directory -Force -Path $parent | Out-Null
     Invoke-CheckedOpenScad -Arguments @(
-        '-D', "part=`"$Part`"",
-        '-D', "variant=`"$Variant`"",
+        '-D', "part=\`"$Part\`"",
+        '-D', "variant=\`"$Variant\`"",
         '-o', $OutputPath,
         $ScadEntry
     )
@@ -90,8 +90,8 @@ function Export-Render {
         '--imgsize=1600,1200',
         '--viewall',
         '--autocenter',
-        '-D', "part=`"$Part`"",
-        '-D', 'variant="display"',
+        '-D', "part=\`"$Part\`"",
+        '-D', 'variant=\"display\"',
         '-o', $OutputPath,
         $ScadEntry
     )

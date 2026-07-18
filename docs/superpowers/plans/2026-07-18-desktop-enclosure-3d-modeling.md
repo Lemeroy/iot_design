@@ -162,6 +162,21 @@ git push origin codex/preliminary-demo
 - [ ] **Step 1: Extend tests for shell geometry and source safety**
 
 ```python
+def scad_text(name: str) -> str:
+    return (ROOT / "scad" / name).read_text(encoding="utf-8")
+
+
+def test_scad_contract_declares_approved_dimensions():
+    parameters = scad_text("parameters.scad")
+    for declaration in (
+        "display_width = 220", "printable_width = 214",
+        "body_height = 300", "body_depth = 55", "wall = 3",
+        "camera_window = [36, 22]", "m3_clearance = 3.4",
+        "lean_angle = 7",
+    ):
+        assert declaration in parameters
+
+
 def test_body_modules_include_required_interfaces():
     parts = scad_text("parts.scad")
     for module in (

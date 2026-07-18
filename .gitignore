@@ -1,6 +1,7 @@
 host_pc/data/
 host_pc/.venv/
 mechanical/**/.venv/
+mechanical/**/.tmp/
 host_pc/**/__pycache__/
 host_pc/*.egg-info/
 host_pc/.pytest_cache/

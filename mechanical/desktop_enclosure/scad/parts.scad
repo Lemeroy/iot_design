@@ -1,0 +1,234 @@
+module rounded_xy_box(size, radius = 3) {
+    linear_extrude(height = size[2])
+        offset(r = radius)
+            square([size[0] - 2 * radius, size[1] - 2 * radius], center = true);
+}
+
+module rounded_plate(width, height, thickness, radius = 2) {
+    linear_extrude(height = thickness)
+        offset(r = radius)
+            square([width - 2 * radius, height - 2 * radius], center = true);
+}
+
+module front_panel(section_height, camera = false) {
+    difference() {
+        translate([0, -body_depth / 2 - panel_thickness / 2, section_height / 2])
+            cube([body_width - 2 * wall, panel_thickness, section_height - 2 * wall], center = true);
+
+        if (camera)
+            translate([0, -body_depth / 2 - panel_thickness / 2, section_height - 24])
+                cube([camera_window[0], panel_thickness + 2 * epsilon, camera_window[1]], center = true);
+    }
+}
+
+module panel_retaining_rails(section_height, top_closed = false, bottom_closed = false) {
+    panel_slot = panel_thickness + panel_clearance;
+    rail_y = -body_depth / 2 + wall + panel_slot + 1;
+    rail_x = body_width / 2 - wall - panel_slot - 1;
+
+    for (side = [-1, 1])
+        translate([side * rail_x, rail_y, section_height / 2])
+            cube([2, panel_slot_depth, section_height - 2 * wall], center = true);
+
+    if (top_closed)
+        translate([0, rail_y, section_height - wall - panel_slot - 1])
+            cube([body_width - 2 * wall, panel_slot_depth, 2], center = true);
+
+    if (bottom_closed)
+        translate([0, rail_y, wall + panel_slot + 1])
+            cube([body_width - 2 * wall, panel_slot_depth, 2], center = true);
+}
+
+module rear_service_opening(section_height) {
+    translate([0, body_depth / 2 - wall / 2, section_height / 2])
+        cube([
+            body_width - 2 * rear_opening_margin,
+            wall + 2 * epsilon,
+            section_height - 2 * rear_opening_margin
+        ], center = true);
+}
+
+module side_usb_windows(section_height) {
+    for (side = [-1, 1])
+        translate([side * body_width / 2, -2, section_height * 0.48])
+            cube([wall + 2 * epsilon, 30, 16], center = true);
+}
+
+module shell_section(section_height, top_closed = false, bottom_closed = false, usb_windows = true) {
+    inner_z0 = bottom_closed ? wall : -epsilon;
+    inner_z1 = top_closed ? section_height - wall : section_height + epsilon;
+
+    union() {
+        difference() {
+            rounded_xy_box([body_width, body_depth, section_height], corner_radius);
+
+            translate([0, -wall / 2, (inner_z0 + inner_z1) / 2])
+                cube([
+                    body_width - 2 * wall,
+                    body_depth - wall + 2 * epsilon,
+                    inner_z1 - inner_z0
+                ], center = true);
+
+            rear_service_opening(section_height);
+
+            if (usb_windows)
+                side_usb_windows(section_height);
+        }
+
+        panel_retaining_rails(section_height, top_closed, bottom_closed);
+    }
+}
+
+module joint_tongue() {
+    difference() {
+        translate([0, -wall / 2, split_height + tongue_overlap / 2])
+            cube([
+                body_width - 2 * (wall + tongue_clearance),
+                body_depth - wall - 2 * tongue_clearance,
+                tongue_overlap
+            ], center = true);
+
+        translate([0, -wall, split_height + tongue_overlap / 2])
+            cube([
+                body_width - 2 * (wall + tongue_clearance + joint_lip),
+                body_depth - wall - 2 * (tongue_clearance + joint_lip),
+                tongue_overlap + 2 * epsilon
+            ], center = true);
+
+        translate([0, -body_depth / 2, split_height + tongue_overlap / 2])
+            cube([body_width, wall * 3, tongue_overlap + 2 * epsilon], center = true);
+    }
+}
+
+module joint_bosses(z_offset = 0) {
+    for (x = [-62, 62])
+        difference() {
+            translate([x, body_depth / 2 - 8, z_offset])
+                cylinder(h = 8, d = 9, center = true);
+            translate([x, body_depth / 2 - 8, z_offset])
+                cylinder(h = 8 + 2 * epsilon, d = m3_clearance, center = true);
+        }
+}
+
+module upper_shell() {
+    translate([0, 0, -split_height])
+        union() {
+            translate([0, 0, split_height])
+                shell_section(split_height, top_closed = true, bottom_closed = false, usb_windows = true);
+            joint_bosses(split_height + 4);
+        }
+}
+
+module lower_shell() {
+    union() {
+        shell_section(split_height, top_closed = false, bottom_closed = true, usb_windows = true);
+        joint_tongue();
+        joint_bosses(split_height - 4);
+    }
+}
+
+module rear_cover(section_height = split_height, lower = false) {
+    difference() {
+        rounded_plate(
+            body_width - 2 * rear_opening_margin + 8,
+            section_height - 2 * rear_opening_margin + 8,
+            rear_cover_thickness,
+            3
+        );
+
+        for (x = [-72, 72], z = [-55, 55])
+            translate([x, z, -epsilon])
+                cylinder(h = rear_cover_thickness + 2 * epsilon, d = m3_clearance);
+
+        if (lower)
+            for (z = [-40, -24, -8, 8, 24, 40])
+                translate([0, z, -epsilon])
+                    cube([92, 4, rear_cover_thickness + 2 * epsilon], center = true);
+    }
+}
+
+module upper_rear_cover() {
+    rear_cover(lower = false);
+}
+
+module lower_rear_cover() {
+    rear_cover(lower = true);
+}
+
+module base() {
+    difference() {
+        rounded_xy_box([body_width, base_depth, base_height], 7);
+        translate([0, 5, base_height - 4])
+            cube([body_width - 42, 16, 8 + epsilon], center = true);
+        for (x = [-70, 70])
+            translate([x, 5, -epsilon])
+                cylinder(h = base_height + 2 * epsilon, d = m3_clearance);
+    }
+}
+
+module lean_support() {
+    support_width = 96;
+    support_depth = 42;
+    support_height = 82;
+    top_offset = tan(lean_angle) * support_height;
+
+    rotate([90, 0, 90])
+        linear_extrude(height = support_width, center = true)
+            polygon(points = [
+                [0, 0],
+                [support_depth, 0],
+                [support_depth - top_offset, support_height],
+                [support_depth - top_offset - 8, support_height]
+            ]);
+}
+
+module fit_coupon() {
+    difference() {
+        union() {
+            cube([70, 24, 8]);
+            translate([4, 4, 8])
+                cube([28, 16, tongue_overlap]);
+            translate([40, 4, 8])
+                cube([26, 16, 6]);
+        }
+
+        translate([40 + wall, 3.8, 8 + wall])
+            cube([20, panel_thickness + panel_clearance, 6 + epsilon]);
+        translate([57, 12, -epsilon])
+            cylinder(h = 8 + 2 * epsilon, d = m3_clearance);
+    }
+}
+
+module installed_rear_covers() {
+    translate([0, body_depth / 2 + rear_cover_thickness / 2, split_height / 2])
+        rotate([90, 0, 0])
+            lower_rear_cover();
+    translate([0, body_depth / 2 + rear_cover_thickness / 2, split_height * 1.5])
+        rotate([90, 0, 0])
+            upper_rear_cover();
+}
+
+module assembled_body() {
+    lower_shell();
+    translate([0, 0, split_height]) upper_shell();
+    front_panel(body_height, camera = true);
+    installed_rear_covers();
+}
+
+module assembled_view() {
+    color([0.12, 0.15, 0.17])
+        translate([0, 6, base_height])
+            rotate([-lean_angle, 0, 0])
+                assembled_body();
+    color([0.10, 0.12, 0.13]) base();
+    color([0.28, 0.32, 0.34]) translate([0, 18, base_height]) lean_support();
+}
+
+module exploded_view() {
+    color([0.12, 0.15, 0.17]) translate([0, 0, 210]) upper_shell();
+    color([0.16, 0.19, 0.21]) lower_shell();
+    color([0.28, 0.32, 0.34]) translate([0, 95, 38]) lean_support();
+    color([0.10, 0.12, 0.13]) translate([0, 0, -55]) base();
+    color([0.38, 0.42, 0.44]) translate([-125, 0, 90]) upper_rear_cover();
+    color([0.38, 0.42, 0.44]) translate([125, 0, 90]) lower_rear_cover();
+}
