@@ -122,6 +122,22 @@ def test_five_part_parameter_contract():
         assert declaration in parameters
 
 
+def test_physical_camera_and_cover_fit_contract():
+    parameters = scad_text("parameters.scad")
+    parts = scad_text("parts.scad")
+
+    for declaration in (
+        "camera_mount_inner_width = 30",
+        "tray_installed_y = 2",
+        "rear_cover_post_gap = 0.5",
+    ):
+        assert declaration in parameters
+
+    assert "camera_mount_inner_width" in parts
+    assert "body_depth / 2 - 2 * rear_cover_thickness" in parts
+    assert "rear_cover_post_gap" in parts
+
+
 def test_only_compact_part_modes_are_exported():
     entry = scad_text("strokeguard_enclosure.scad")
     script = (ROOT / "scripts" / "export_models.ps1").read_text(encoding="utf-8")
@@ -146,7 +162,7 @@ def test_compact_modules_and_camera_contract():
     ):
         assert module in parts
     assert "camera_aperture_diameter" in parts
-    assert "camera_board[0] + 2 * camera_clearance" in parts
+    assert "camera_mount_inner_width" in parts
     assert "camera_board_hole_spacing" not in parts
 
 
@@ -215,7 +231,8 @@ def test_assembly_places_only_compact_parts():
 def test_tray_is_sandwiched_between_shell_stops_and_cover_posts():
     parts = scad_text("parts.scad")
     assert "stop_y = tray_installed_y - tray_thickness - moving_clearance - 2" in parts
-    assert "body_depth / 2 - tray_installed_y - moving_clearance" in parts
+    assert "body_depth / 2 - 2 * rear_cover_thickness" in parts
+    assert "tray_installed_y - rear_cover_post_gap" in parts
     assert "translate([0, tray_installed_y, body_height / 2])" in parts
 
 
@@ -274,6 +291,7 @@ def test_compact_handoff_documents_match_current_production_model():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     dimensions = (ROOT / "drawings" / "dimensions.md").read_text(encoding="utf-8")
     combined_handoff = f"{readme}\n{dimensions}"
+    normalized_handoff = " ".join(combined_handoff.lower().split())
 
     for phrase in (
         "110 x 165 x 40 mm",
@@ -292,11 +310,15 @@ def test_compact_handoff_documents_match_current_production_model():
         "rear-cover pressure posts",
         "3.4 mm",
         "2.6 mm",
+        "30 mm camera-guide opening",
+        "2 mm rearward",
+        "0.5 mm assembly gap",
+        "reprint the shell, electronics tray, and rear cover",
         "cable ties",
         "physical print",
         "not a diagnostic device",
     ):
-        assert phrase.lower() in combined_handoff.lower()
+        assert phrase.lower() in normalized_handoff
 
     for obsolete in (
         "214 x 300",
@@ -308,7 +330,7 @@ def test_compact_handoff_documents_match_current_production_model():
         "microphone_holder.stl",
         "seven production",
     ):
-        assert obsolete.lower() not in combined_handoff.lower()
+        assert obsolete.lower() not in normalized_handoff
 
     repository_root = ROOT.parents[1]
     for path in (repository_root / "README.md", repository_root / "docs" / "developer-handoff.md"):

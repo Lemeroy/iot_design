@@ -125,8 +125,10 @@ module front_panel() {
 }
 
 module rear_cover_pressure_posts() {
-    post_height = body_depth / 2 - tray_installed_y - moving_clearance + tray_stop_overlap;
-    post_z = rear_cover_thickness - tray_stop_overlap + post_height / 2;
+    post_start_z = rear_cover_thickness - tray_stop_overlap;
+    post_height = body_depth / 2 - 2 * rear_cover_thickness
+        - tray_installed_y - rear_cover_post_gap + tray_stop_overlap;
+    post_z = post_start_z + post_height / 2;
 
     for (x = [-42, 42], y = [-60, 60])
         translate([x, y, post_z]) cube([8, 8, post_height], center = true);
@@ -181,7 +183,7 @@ module desktop_base() {
 
 module electronics_tray() {
     camera_inner = [
-        camera_board[0] + 2 * camera_clearance,
+        camera_mount_inner_width,
         camera_board[1] + 2 * camera_clearance
     ];
     camera_y = tray_height / 2 - camera_board[1] / 2 - 3;

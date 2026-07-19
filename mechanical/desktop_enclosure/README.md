@@ -24,6 +24,11 @@ removable electronics tray provides a camera cage sized from the supplied
 routing. All three modules use cable ties because the supplied drawings do not
 give complete mounting-hole coordinates.
 
+The first-print correction uses a `30 mm camera-guide opening`, moves the tray
+`2 mm rearward`, and leaves a nominal `0.5 mm assembly gap` between the tray and
+rear-cover posts. These are prototype clearances derived from physical fit
+feedback, not production tolerances.
+
 Additional delivery files:
 
 - parameters: `scad/parameters.scad`;
@@ -117,6 +122,12 @@ walls, and the `12 mm` camera aperture before printing.
    the shell's `2.6 mm` printed pilot holes. Attach the body to the base with two
    M3 screws through its `3.4 mm` clearance holes into the reinforced `2.6 mm`
    shell pilots.
+
+When replacing the earlier tight-fitting revision, reprint the shell,
+electronics tray, and rear cover. The shell contains the shifted tray stops,
+the tray contains the wider camera guides, and the rear cover contains the
+shortened posts. The front panel and desktop base do not need reprinting for
+this correction unless their physical parts are damaged or out of tolerance.
 
 Select screw lengths only after measuring the printed stack, washers, and any
 inserts or nuts. Pilot-hole and screw fit is pending a physical print; drill or

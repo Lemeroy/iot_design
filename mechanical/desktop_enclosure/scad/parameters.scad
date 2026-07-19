@@ -14,6 +14,7 @@ moving_clearance = 0.3;
 camera_aperture_diameter = 12;
 camera_board = [27, 42, 19];
 camera_clearance = 0.6;
+camera_mount_inner_width = 30;
 camera_position_z = body_height - 24;
 
 m3_clearance = 3.4;
@@ -34,8 +35,9 @@ tray_width = 96;
 tray_height = 149;
 tray_thickness = 3;
 tray_feature_height = 12;
-tray_installed_y = 0;
+tray_installed_y = 2;
 tray_stop_overlap = 1;
+rear_cover_post_gap = 0.5;
 
 service_part_thickness = 3;
 controller_rail_length = 90;

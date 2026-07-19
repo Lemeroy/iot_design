@@ -24,8 +24,11 @@ print.
 | --- | ---: |
 | Camera aperture | 12 mm circular |
 | Supplied camera module envelope | 27 x 42 x 19 mm |
+| Camera-guide clear opening | 30 mm |
 | Tray backplane | 96 x 149 x 3 mm |
 | Tray total maximum envelope | 96 x 149 x 15 mm |
+| Tray installed shift | 2 mm rearward from the original center plane |
+| Rear-cover post nominal gap | 0.5 mm assembly gap |
 | Moving fit clearance | 0.30 mm |
 | Front-panel nominal clearance | 0.40 mm |
 
