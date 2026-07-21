@@ -48,6 +48,8 @@ def test_demo_web_assets_define_the_read_only_monitor_contract():
     assert ".desk { width: 100%; max-width: 1180px;" in css
     assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in css
     assert "卒中卫士" in page
+    assert '<h2 id="login-title">卒中卫士</h2>' in page
+    assert '<h2 id="connect-title">卒中卫士</h2>' in page
     assert 'class="score-tile final-tile score-final"' in page
     assert ".score-final { grid-column: 1 / -1;" in css
     assert ".score-csi { grid-column: 1; grid-row: 3;" in css

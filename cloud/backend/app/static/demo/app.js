@@ -212,7 +212,7 @@
       }
     } catch (_) {
       showView("login");
-      report("请登录后连接设备");
+      report("请先登录，再连接设备");
     }
   }
 
