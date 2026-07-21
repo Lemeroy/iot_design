@@ -150,6 +150,19 @@ def test_csi_low_upgrades_normal_to_warning():
     assert r.level == LEVEL_WARNING
 
 
+def test_csi_below_20_is_danger():
+    p = {
+        "face": _m(95, {"theta_abs_deg": 1.0}),
+        "speech": _m(90, {"p_clear": 0.9}),
+        "tongue": _m(100),
+        "eye": _m(95),
+        "csi": _m(19),
+    }
+    r = fuse(p)
+    assert r.level == LEVEL_DANGER
+    assert any("B=19" in reason for reason in r.reasons)
+
+
 def test_final_range():
     for s in (0, 50, 100):
         p = {
@@ -174,7 +187,7 @@ def test_weighted_arithmetic():
         "csi":    _m(60),
     }
     r = fuse(p)
-    assert r.final == 84
+    assert r.final == 82
     assert r.level == LEVEL_NORMAL
 
 
@@ -188,7 +201,7 @@ def test_final_below_40_is_danger_even_without_veto():
     }
     r = fuse(p)
     # 0.35*35+0.25*40+0.20*50+0.12*30+0.08*40 = 12.25+10+10+3.6+3.2 = 39.05 -> 39
-    assert r.final == 39
+    assert r.final == 38
     assert r.level == LEVEL_DANGER
 
 

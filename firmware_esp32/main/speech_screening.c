@@ -7,7 +7,7 @@
 #define SG_SPEECH_MIN_VALID_FRAMES 55U
 #define SG_SPEECH_MIN_VOICED_FRAMES 35U
 #define SG_SPEECH_MAX_CLIPPED_RATIO 0.05f
-#define SG_SPEECH_VAD_RATIO 1.6f
+#define SG_SPEECH_VAD_RATIO 1.35f
 #define SG_SPEECH_VAD_MARGIN 3.0f
 #define SG_SPEECH_SAMPLE_RATE 16000.0f
 
@@ -82,7 +82,7 @@ static void finish_session(sg_speech_context_t *context)
 
     const float continuity = clamp01(
         (float)context->longest_voice_run / voiced);
-    const float voiced_quality = clamp01(voiced_ratio / 0.45f);
+    const float voiced_quality = clamp01(voiced_ratio / 0.35f);
     const float dynamics = clamp01(rms_cv / 0.30f);
     const float mean_zcr = (float)(context->zcr_sum / voiced);
     const float zcr_quality = clamp01(1.0f
@@ -97,11 +97,17 @@ static void finish_session(sg_speech_context_t *context)
         band_balance = clamp01((float)(1.0 - largest / band_total) / 0.55f);
     }
 
-    const float p_clear = clamp01(0.35f * continuity
+    const float snr_quality = clamp01(
+        (mean_rms / maximum(context->noise_rms, 1.0f) - 1.2f) / 3.8f);
+    const float raw_clear = clamp01(0.30f * continuity
         + 0.25f * voiced_quality
-        + 0.20f * dynamics
+        + 0.15f * dynamics
         + 0.10f * zcr_quality
-        + 0.10f * band_balance);
+        + 0.10f * band_balance
+        + 0.10f * snr_quality);
+    /* Valid speech receives a conservative calibration floor; silence and
+       invalid capture have already returned above and remain unavailable. */
+    const float p_clear = clamp01(0.20f + 0.80f * raw_clear);
     result->p_clear = p_clear;
     result->score = (uint8_t)lroundf(100.0f * p_clear);
     result->reason = SG_SPEECH_REASON_NONE;

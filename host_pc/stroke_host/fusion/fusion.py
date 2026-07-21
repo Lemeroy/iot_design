@@ -46,6 +46,7 @@ SPEECH_DANGER_MAX = 35
 SPEECH_P_DANGER_MAX = 0.4
 EYE_WARNING_MAX = 30
 CSI_WARNING_MAX = 30
+CSI_DANGER_MAX = 20
 
 MIN_AVAIL_WEIGHT_SUM = 0.50
 
@@ -171,7 +172,10 @@ def fuse(percept: dict, weights: Optional[Dict[str, float]] = None) -> FusionRes
         level = LEVEL_WARNING
         reasons.append(f"upgrade to warning: E={e_score} < {EYE_WARNING_MAX}")
     b_score = scores.get("csi")
-    if b_score is not None and b_score < CSI_WARNING_MAX and level == LEVEL_NORMAL:
+    if b_score is not None and b_score < CSI_DANGER_MAX:
+        level = LEVEL_DANGER
+        reasons.append(f"upgrade to danger: B={b_score} < {CSI_DANGER_MAX}")
+    elif b_score is not None and b_score < CSI_WARNING_MAX and level == LEVEL_NORMAL:
         level = LEVEL_WARNING
         reasons.append(f"upgrade to warning: B={b_score} < {CSI_WARNING_MAX}")
 

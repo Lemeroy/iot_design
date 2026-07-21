@@ -102,10 +102,11 @@ class PerceptionPipeline:
         from .perception.csi_score import score_csi
         from .perception.eye_gaze import score_eye_gaze
         from .perception.face_symmetry import score_face_symmetry
-        from .perception.speech_cnn import score_speech
+        from .perception.speech_cnn import SpeechScoreStabilizer, score_speech
         from .perception.tongue_deviation import score_tongue_deviation
         self._score_face = score_face_symmetry
         self._score_speech = score_speech
+        self._speech_stabilizer = SpeechScoreStabilizer(retention_seconds=300.0)
         self._score_tongue = score_tongue_deviation
         self._score_eye = score_eye_gaze
         self._score_csi = score_csi
@@ -177,7 +178,20 @@ class PerceptionPipeline:
             audio = self._source.latest_audio()
         if audio is not None:
             s = self._score_speech(audio)
+            stable_score = self._speech_stabilizer.update(
+                s.score if s.available else None)
+            if stable_score is not None:
+                s.score = stable_score
+                s.raw["stabilized"] = True
             result["speech"] = {"score": s.score, "reasons": s.reasons, "raw": s.raw}
+        else:
+            stable_score = self._speech_stabilizer.update(None)
+            if stable_score is not None:
+                result["speech"] = {
+                    "score": stable_score,
+                    "reasons": ["speech_retained_last_valid"],
+                    "raw": {"stabilized": True, "retention_seconds": 300},
+                }
 
         # ---- B 分 (CSI 透传) ----
         b = self._score_csi(js.get("csi_score"), source=self._csi_source_name())

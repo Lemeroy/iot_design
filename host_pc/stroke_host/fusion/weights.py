@@ -4,9 +4,9 @@ sum = 1.00
 """
 WEIGHTS = {
     "face":   0.35,   # F
-    "speech": 0.25,   # S
-    "tongue": 0.20,   # T (辅助)
-    "eye":    0.12,   # E
+    "speech": 0.35,   # S
+    "tongue": 0.08,   # T (辅助)
+    "eye":    0.14,   # E
     "csi":    0.08,   # B
 }
 

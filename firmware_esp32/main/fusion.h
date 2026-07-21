@@ -3,7 +3,7 @@
  * @brief 五模态融合 + 单项否决 (S3 端, C 移植自 host_pc/stroke_host/fusion/fusion.py)
  *
  * 契约 (Ark, Dr.Chen 会签):
- *   final = 0.35F + 0.25S + 0.20T + 0.12E + 0.08B
+ *   final = 0.35F + 0.35S + 0.08T + 0.14E + 0.08B
  *   缺失模态: 剩余权重按比例归一
  *   可用权重和 < 0.5 -> insufficient
  *   单项否决 (danger): F<=30 或 face_theta>=20°; S<=35 且 p_clear<0.4

@@ -37,9 +37,9 @@ def test_warning_zone():
 
 
 def test_danger_zone():
-    r = score_csi(20)
-    assert r.score == 20
-    assert any("warning" in x for x in r.reasons)
+    r = score_csi(19)
+    assert r.score == 19
+    assert any("danger" in x for x in r.reasons)
 
 
 def test_float_coerced_to_int():
@@ -54,7 +54,7 @@ def test_csi_raw_marks_measured_source_by_default():
     assert r.raw["source"] == "esp32_csi_monitor"
     assert r.raw["quality"] == "measured"
     assert r.raw["warn_threshold"] == 60
-    assert r.raw["danger_threshold"] == 30
+    assert r.raw["danger_threshold"] == 20
 
 
 def test_csi_raw_marks_simulated_source():

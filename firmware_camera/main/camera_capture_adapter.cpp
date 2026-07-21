@@ -358,7 +358,7 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
                            + selected.geometry.right_mouth.y) / 2;
         const int roi_x = selected.geometry.box.x0 + face_width / 5;
         const int roi_y = std::max(
-            (int)selected.geometry.box.y0, mouth_y - face_width / 20);
+            (int)selected.geometry.box.y0, mouth_y - face_width / 10);
         const int roi_right = selected.geometry.box.x1 - face_width / 5;
         const int roi_bottom = selected.geometry.box.y1;
         const int eye_dx = selected.geometry.right_eye.x - selected.geometry.left_eye.x;

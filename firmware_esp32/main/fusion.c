@@ -11,9 +11,9 @@
 
 /* ---- 与 Python fusion.py 一致的常量 ---- */
 #define W_FACE     0.35f
-#define W_SPEECH   0.25f
-#define W_TONGUE   0.20f
-#define W_EYE      0.12f
+#define W_SPEECH   0.35f
+#define W_TONGUE   0.08f
+#define W_EYE      0.14f
 #define W_CSI      0.08f
 
 #define FINAL_DANGER_MAX     40
@@ -21,6 +21,7 @@
 
 #define SPEECH_P_DANGER_MAX   0.4f
 #define CSI_WARNING_MAX       30
+#define CSI_DANGER_MAX        20
 
 #define MIN_AVAIL_WEIGHT_SUM  0.50f
 
@@ -166,7 +167,10 @@ void sg_fusion_compute(const sg_scores_in_t *in,
     }
 
     /* 单项提级到 warning */
-    if (lv == SG_LEVEL_NORMAL && a_csi && csi < CSI_WARNING_MAX) {
+    if (a_csi && csi < CSI_DANGER_MAX) {
+        lv = SG_LEVEL_DANGER;
+        add_reason(out, "upgrade to danger: B=%d < %d", csi, CSI_DANGER_MAX);
+    } else if (lv == SG_LEVEL_NORMAL && a_csi && csi < CSI_WARNING_MAX) {
         lv = SG_LEVEL_WARNING;
         add_reason(out, "upgrade to warning: B=%d < %d",
                    csi, CSI_WARNING_MAX);

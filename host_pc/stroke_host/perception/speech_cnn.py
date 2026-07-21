@@ -18,6 +18,7 @@ S 分映射 (v0):
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -27,6 +28,30 @@ from . import ModalScore
 from .mfcc import compute_mfcc, frame_features
 
 log = logging.getLogger(__name__)
+
+
+class SpeechScoreStabilizer:
+    """平滑有效 S 分，并在短暂无新语音时保留最近一次有效值。"""
+
+    def __init__(self, retention_seconds: float = 300.0,
+                 smoothing: float = 0.35) -> None:
+        self.retention_seconds = max(0.0, float(retention_seconds))
+        self.smoothing = float(np.clip(smoothing, 0.0, 1.0))
+        self._score: float | None = None
+        self._updated_at: float | None = None
+
+    def update(self, score: int | None, now: float | None = None) -> int | None:
+        now = time.monotonic() if now is None else float(now)
+        if score is not None and 0 <= int(score) <= 100:
+            value = float(int(score))
+            if self._score is None:
+                self._score = value
+            else:
+                self._score = self.smoothing * value + (1.0 - self.smoothing) * self._score
+            self._updated_at = now
+        elif self._updated_at is None or now - self._updated_at > self.retention_seconds:
+            self._score = None
+        return None if self._score is None else int(round(self._score))
 
 
 class _CNNStub:
@@ -77,7 +102,10 @@ def _heuristic_p_clear(samples: np.ndarray, sr: int) -> tuple[float, dict]:
                       "p_voice": round(p_voice, 2),
                       "p_hnr": round(p_hnr, 2), "p_var": round(p_var, 2)}
 
-    p = 0.5 * p_voice + 0.3 * p_hnr + 0.2 * p_var
+    raw_p = 0.5 * p_voice + 0.3 * p_hnr + 0.2 * p_var
+    # Valid speech is calibrated above the raw acoustic floor. Silence and
+    # failed capture returned earlier and remain unavailable.
+    p = 0.20 + 0.80 * raw_p
     return float(np.clip(p, 0.0, 1.0)), {
         **feats,
         "mfcc_std": round(mfcc_std, 2),

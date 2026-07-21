@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light">
-    <title>StrokeGuard 远程初筛监测</title>
+    <title>卒中卫士</title>
     <link rel="stylesheet" href="/demo/app.css">
   </head>
   <body>
@@ -12,7 +12,7 @@
       <header class="topbar">
         <div>
           <p class="eyebrow">StrokeGuard</p>
-          <h1 id="page-title">远程初筛监测</h1>
+          <h1 id="page-title">卒中卫士</h1>
         </div>
         <p id="status-message" class="status-message">正在检查会话</p>
         <p id="live-message" class="visually-hidden" aria-live="polite" aria-atomic="true"></p>
@@ -78,12 +78,12 @@
         <section class="score-section" aria-labelledby="scores-title">
           <div class="section-heading"><p class="eyebrow">监测分数</p><h3 id="scores-title">本次上传</h3></div>
           <div class="score-grid">
-            <article class="score-tile"><p>F 面部</p><strong id="score-face">未接入</strong></article>
-            <article class="score-tile"><p>S 言语</p><strong id="score-speech">未接入</strong></article>
-            <article class="score-tile"><p>T 舌部</p><strong id="score-tongue">未接入</strong></article>
-            <article class="score-tile"><p>E 眼动</p><strong id="score-eye">未接入</strong></article>
-            <article class="score-tile"><p>CSI</p><strong id="score-csi">未接入</strong></article>
-            <article class="score-tile final-tile"><p>最终评分</p><strong id="score-final">未接入</strong></article>
+            <article class="score-tile final-tile score-final"><p>融合评分</p><strong id="score-final">未接入</strong></article>
+            <article class="score-tile score-face"><p>F 面部</p><strong id="score-face">未接入</strong></article>
+            <article class="score-tile score-eye"><p>E 眼动</p><strong id="score-eye">未接入</strong></article>
+            <article class="score-tile score-speech"><p>S 言语</p><strong id="score-speech">未接入</strong></article>
+            <article class="score-tile score-csi"><p>B 平衡</p><strong id="score-csi">未接入</strong></article>
+            <article class="score-tile score-tongue"><p>T 舌偏</p><strong id="score-tongue">未接入</strong></article>
           </div>
         </section>
 

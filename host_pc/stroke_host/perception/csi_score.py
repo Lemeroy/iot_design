@@ -14,7 +14,7 @@ from typing import Optional
 from . import ModalScore
 
 CSI_WARN = 60
-CSI_DANGER = 30
+CSI_DANGER = 20
 
 
 def _quality_for_source(source: str) -> str:
@@ -61,7 +61,7 @@ def score_csi(csi_score: Optional[int],
 
     reasons = []
     if v < CSI_DANGER:
-        reasons.append(f"csi {v} < {CSI_DANGER} (warning)")
+        reasons.append(f"csi {v} < {CSI_DANGER} (danger)")
     elif v < CSI_WARN:
         reasons.append(f"csi {v} < {CSI_WARN} (info)")
     return ModalScore(

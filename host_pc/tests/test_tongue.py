@@ -79,3 +79,9 @@ def test_tongue_raw_marks_auxiliary_low_confidence():
     assert r.raw["auxiliary"] is True
     assert r.raw["confidence"] == "low"
     assert r.raw["method"] == "lower_lip_inner_proxy"
+
+
+def test_tongue_result_is_not_a_zero_score_when_unavailable():
+    r = score_tongue_deviation(None)
+    assert r.score == -1
+    assert "no_face" in r.reasons

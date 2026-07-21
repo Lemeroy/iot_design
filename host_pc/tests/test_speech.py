@@ -1,7 +1,7 @@
 """语音 S 分测试 (启发式 backend)."""
 import numpy as np
 
-from stroke_host.perception.speech_cnn import score_speech
+from stroke_host.perception.speech_cnn import SpeechScoreStabilizer, score_speech
 
 
 def _tone(freq: float, dur: float, sr: int = 16000, amp: float = 0.3) -> np.ndarray:
@@ -72,3 +72,17 @@ def test_very_quiet_still_flagged_unavailable():
     r = score_speech(0.0001 * np.random.RandomState(0).randn(16000).astype(np.float32))
     # 极小振幅 -> rms < 5e-4 -> unavailable
     assert not r.available
+
+
+def test_speech_stabilizer_retains_last_valid_score_for_five_minutes():
+    stabilizer = SpeechScoreStabilizer(retention_seconds=300)
+    assert stabilizer.update(72, now=100.0) == 72
+    assert stabilizer.update(None, now=200.0) == 72
+    assert stabilizer.update(None, now=399.0) == 72
+    assert stabilizer.update(None, now=401.0) is None
+
+
+def test_speech_stabilizer_smooths_valid_scores():
+    stabilizer = SpeechScoreStabilizer(retention_seconds=300, smoothing=0.35)
+    assert stabilizer.update(70, now=100.0) == 70
+    assert stabilizer.update(20, now=101.0) == 52

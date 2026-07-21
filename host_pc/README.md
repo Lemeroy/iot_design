@@ -116,7 +116,7 @@ python -m stroke_host.main --source real --perception --no-record
 | `perception/mfcc.py` | 纯 numpy MFCC | 与嵌入式 C 版可 bitmatch |
 | `perception/mic_source.py` | sounddevice 系统默认输入 | 16 kHz mono |
 | `perception/speech_cnn.py` | S 分, CNN 未训 → 启发式 fallback | `p_clear` 综合 voiced_ratio/HNR/MFCC 稳态 |
-| **`perception/tongue_deviation.py`** | Tongue 分 (辅助, 权重 0.20) | 下唇内侧近似, **低置信度不否决** |
+| **`perception/tongue_deviation.py`** | Tongue 分 (辅助, 权重 0.08) | 下唇内侧近似, **低置信度不否决** |
 | **`perception/eye_gaze.py`** | E 分 (权重 0.12) | mediapipe 虹膜, gaze 共轭比 + 眼裂对称性 |
 | **`perception/csi_score.py`** | B 分 (权重 0.08) | 端侧已算, PC 侧透传 |
 
@@ -165,7 +165,7 @@ python -m stroke_host.ui.main_window --source real --perception
 
 功能：
 
-- **五模态融合**：`final = 0.35·F + 0.25·S + 0.20·T + 0.12·E + 0.08·B`
+- **五模态融合**：`final = 0.35·F + 0.35·S + 0.08·T + 0.14·E + 0.08·B`
 - **单项否决**（Ark + Dr.Chen 会签，宁误报）：
   - F ≤ 30 或 mouth_angle ≥ 20° → **danger**（红灯闪烁 + 语音"检测到面部不对称,请立即就医并拨打 120"）
   - S ≤ 35 且 p_clear < 0.4 → **danger**（"检测到言语不清..."）

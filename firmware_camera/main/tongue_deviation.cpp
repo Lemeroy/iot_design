@@ -51,7 +51,7 @@ bool tongue_pixel(const sg_tongue_input_t &input, int local_x, int local_y,
     const int saturation = std::max({red, green, blue})
                          - std::min({red, green, blue});
     if (saturation_out != nullptr) *saturation_out = saturation;
-    return red >= 100 && saturation >= kMinTongueSaturation
+    return red >= 70 && saturation >= kMinTongueSaturation
         && red >= green + kMinRedGreenDelta
         && red >= blue + kMinRedBlueDelta;
 }
@@ -108,7 +108,7 @@ Component collect_component(const sg_tongue_input_t &input, int start)
 
 bool plausible(const Component &component, int roi_area)
 {
-    if (component.area * 100 < roi_area * 2 || component.area * 100 > roi_area * 60
+    if (component.area * 100 < roi_area / 2 || component.area * 100 > roi_area * 60
         || component.touches_border) {
         return false;
     }
@@ -163,7 +163,7 @@ extern "C" bool sg_tongue_measure(
                         + (centroid_y - input->axis_origin.y) * std::sin(radians);
     const int signed_percent = (int)std::lround(local_x * 100.0f / input->face_width);
     const int bounded_percent = std::clamp(signed_percent, -100, 100);
-    const int area_quality = std::clamp(best.area * 600 / roi_area, 0, 100);
+    const int area_quality = std::clamp(best.area * 500 / roi_area, 0, 100);
     const int saturation_quality = std::clamp(
         (best.saturation_sum / best.area - kMinTongueSaturation)
             * 100 / 115,
