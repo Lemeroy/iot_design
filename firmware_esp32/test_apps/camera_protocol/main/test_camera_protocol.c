@@ -4,6 +4,92 @@
 #include "unity_test_runner.h"
 
 #include "camera_scores_protocol.h"
+#include "camera_uart_protocol.h"
+
+static sg_camera_uart_payload_t sample_uart_payload(void)
+{
+    const sg_camera_uart_payload_t payload = {
+        .face = {
+            .valid = true, .score = 72, .mouth_angle_deg = -8, .quality = 91,
+        },
+        .eye = {
+            .valid = true, .score = 74, .signed_value = -23, .quality = 88,
+        },
+        .tongue = {
+            .valid = true, .score = 81, .signed_value = 12, .quality = 76,
+        },
+        .screening = {.stage = SG_STAGE_TONGUE, .progress = 63},
+    };
+    return payload;
+}
+
+TEST_CASE("camera UART packet has stable bytes and round trips", "[camera_uart]")
+{
+    const sg_camera_uart_payload_t input = sample_uart_payload();
+    const uint8_t expected[SG_CAMERA_UART_PACKET_SIZE] = {
+        0x53, 0x47, 0x01, 0x14, 0x34, 0x12, 0x07, 0x48, 0xf8, 0x5b,
+        0x4a, 0xe9, 0x58, 0x51, 0x0c, 0x4c, 0x05, 0x3f, 0x13, 0x1f,
+    };
+    uint8_t wire[SG_CAMERA_UART_PACKET_SIZE] = {0};
+    TEST_ASSERT_EQUAL(SG_CAMERA_UART_OK,
+                      sg_camera_uart_encode(&input, 0x1234, wire));
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(expected, wire, sizeof(expected));
+
+    sg_camera_uart_payload_t output = {0};
+    uint16_t sequence = 0;
+    TEST_ASSERT_EQUAL(SG_CAMERA_UART_OK,
+                      sg_camera_uart_parse(wire, sizeof(wire), &output,
+                                           &sequence));
+    TEST_ASSERT_EQUAL_HEX16(0x1234, sequence);
+    TEST_ASSERT_TRUE(output.face.valid);
+    TEST_ASSERT_EQUAL_INT8(-8, output.face.mouth_angle_deg);
+    TEST_ASSERT_EQUAL_INT8(-23, output.eye.signed_value);
+    TEST_ASSERT_EQUAL_UINT8(SG_STAGE_TONGUE, output.screening.stage);
+}
+
+TEST_CASE("camera UART rejects bad CRC and invalid score", "[camera_uart]")
+{
+    const sg_camera_uart_payload_t input = sample_uart_payload();
+    uint8_t wire[SG_CAMERA_UART_PACKET_SIZE] = {0};
+    sg_camera_uart_payload_t output = {0};
+    uint16_t sequence = 0;
+    TEST_ASSERT_EQUAL(SG_CAMERA_UART_OK,
+                      sg_camera_uart_encode(&input, 7, wire));
+    wire[9] ^= 0x01;
+    TEST_ASSERT_EQUAL(SG_CAMERA_UART_BAD_CRC,
+                      sg_camera_uart_parse(wire, sizeof(wire), &output,
+                                           &sequence));
+
+    sg_camera_uart_payload_t invalid = input;
+    invalid.face.score = 101;
+    TEST_ASSERT_EQUAL(SG_CAMERA_UART_BAD_VALUE,
+                      sg_camera_uart_encode(&invalid, 7, wire));
+}
+
+TEST_CASE("camera UART stream resynchronizes after noise and split input",
+          "[camera_uart]")
+{
+    const sg_camera_uart_payload_t input = sample_uart_payload();
+    uint8_t wire[SG_CAMERA_UART_PACKET_SIZE] = {0};
+    TEST_ASSERT_EQUAL(SG_CAMERA_UART_OK,
+                      sg_camera_uart_encode(&input, 42, wire));
+    sg_camera_uart_stream_t stream = {0};
+    sg_camera_uart_payload_t output = {0};
+    uint16_t sequence = 0;
+    const uint8_t noise[] = {0x00, 0x53, 0x00, 0xff};
+    for (size_t i = 0; i < sizeof(noise); ++i) {
+        TEST_ASSERT_FALSE(sg_camera_uart_stream_feed(
+            &stream, noise[i], &output, &sequence));
+    }
+    for (size_t i = 0; i < sizeof(wire) - 1; ++i) {
+        TEST_ASSERT_FALSE(sg_camera_uart_stream_feed(
+            &stream, wire[i], &output, &sequence));
+    }
+    TEST_ASSERT_TRUE(sg_camera_uart_stream_feed(
+        &stream, wire[sizeof(wire) - 1], &output, &sequence));
+    TEST_ASSERT_EQUAL_UINT16(42, sequence);
+    TEST_ASSERT_EQUAL_UINT8(81, output.tongue.score);
+}
 
 TEST_CASE("vendor camera protocol uses documented address and face register", "[camera_protocol]")
 {
