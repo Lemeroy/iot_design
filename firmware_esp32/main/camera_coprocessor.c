@@ -3,38 +3,35 @@
 #include <math.h>
 #include <string.h>
 
+#include "camera_uart_protocol.h"
 #include "driver/gpio.h"
-#include "driver/i2c_master.h"
+#include "driver/uart.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 
 #include "app_config.h"
-#include "board_pins.h"
-#include "camera_scores_protocol.h"
 #include "log_tag.h"
 #include "score_bus.h"
 
-#define SG_CAMERA_I2C_HZ 100000U
-#define SG_CAMERA_READ_TIMEOUT_MS 100
-#define SG_CAMERA_REGISTER_SETTLE_MS 5
+#define SG_CAMERA_UART UART_NUM_1
+#define SG_CAMERA_UART_RX GPIO_NUM_9
+#define SG_CAMERA_UART_BAUD 115200
+#define SG_CAMERA_UART_RX_BUFFER 512
+#define SG_CAMERA_UART_READ_MS 100
+#define SG_CAMERA_UART_FRESH_US 2000000LL
 #define SG_CAMERA_FACE_HOLD_US 5000000LL
-#define SG_CAMERA_CONTROL_CONFIRM_RETRIES 8U
-#define SG_CAMERA_CONTROL_CONFIRM_DELAY_MS 250U
 
-static i2c_master_bus_handle_t s_bus;
-static i2c_master_dev_handle_t s_device;
+static bool s_ready;
+static SemaphoreHandle_t s_lock;
+static sg_camera_uart_stream_t s_stream;
+static sg_camera_uart_payload_t s_latest;
+static int64_t s_last_received_us;
+static uint16_t s_last_sequence;
+static bool s_have_sequence;
 static volatile sg_screening_stage_t s_stage = SG_STAGE_IDLE;
-
-static esp_err_t read_register(uint8_t reg, uint8_t raw[4])
-{
-    esp_err_t err = i2c_master_transmit(
-        s_device, &reg, sizeof(reg), SG_CAMERA_READ_TIMEOUT_MS);
-    if (err != ESP_OK) return err;
-    vTaskDelay(pdMS_TO_TICKS(SG_CAMERA_REGISTER_SETTLE_MS));
-    return i2c_master_receive(s_device, raw, 4, SG_CAMERA_READ_TIMEOUT_MS);
-}
 
 static void publish_unavailable(int64_t now_us)
 {
@@ -48,40 +45,53 @@ static void publish_unavailable(int64_t now_us)
 
 esp_err_t sg_camera_coprocessor_poll(sg_camera_observation_t *out)
 {
-    if (out == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    }
+    if (out == NULL) return ESP_ERR_INVALID_ARG;
     memset(out, 0, sizeof(*out));
-    if (s_device == NULL) {
-        return ESP_ERR_INVALID_STATE;
-    }
+    if (!s_ready || s_lock == NULL) return ESP_ERR_INVALID_STATE;
 
-    uint8_t raw[sizeof(sg_camera_face_metrics_response_t)] = {0};
-    esp_err_t err = read_register(SG_CAMERA_FACE_METRICS_REGISTER, raw);
-    if (err != ESP_OK) {
-        return err;
-    }
-    sg_camera_face_metrics_t metrics = {0};
-    if (sg_camera_face_metrics_parse(raw, sizeof(raw), &metrics)
-        != SG_CAMERA_PROTOCOL_OK) {
-        return ESP_ERR_INVALID_RESPONSE;
-    }
+    uint8_t bytes[64];
+    int received = uart_read_bytes(
+        SG_CAMERA_UART, bytes, sizeof(bytes),
+        pdMS_TO_TICKS(SG_CAMERA_UART_READ_MS));
+    if (received < 0) return ESP_FAIL;
 
-    out->valid = metrics.valid;
-    out->score = metrics.score;
-    out->mouth_angle_deg = metrics.mouth_angle_deg;
-    out->quality = metrics.quality;
-    err = read_register(SG_CAMERA_EYE_REGISTER, raw);
-    if (err != ESP_OK || sg_camera_modal_parse(raw, sizeof(raw), &out->eye)
-        != SG_CAMERA_PROTOCOL_OK) return ESP_ERR_INVALID_RESPONSE;
-    err = read_register(SG_CAMERA_TONGUE_REGISTER, raw);
-    if (err != ESP_OK || sg_camera_modal_parse(raw, sizeof(raw), &out->tongue)
-        != SG_CAMERA_PROTOCOL_OK) return ESP_ERR_INVALID_RESPONSE;
-    err = read_register(SG_CAMERA_STAGE_REGISTER, raw);
-    if (err != ESP_OK || sg_camera_stage_parse(raw, sizeof(raw), &out->screening)
-        != SG_CAMERA_PROTOCOL_OK) return ESP_ERR_INVALID_RESPONSE;
-    s_stage = out->screening.stage;
-    out->received_us = esp_timer_get_time();
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    for (int i = 0; i < received; ++i) {
+        sg_camera_uart_payload_t payload;
+        uint16_t sequence;
+        if (!sg_camera_uart_stream_feed(
+                &s_stream, bytes[i], &payload, &sequence)) {
+            continue;
+        }
+        if (s_have_sequence
+            && sequence != (uint16_t)(s_last_sequence + 1U)) {
+            ESP_LOGW(SG_TAG_MAIN, "camera UART sequence gap previous=%u next=%u",
+                     (unsigned)s_last_sequence, (unsigned)sequence);
+        }
+        s_latest = payload;
+        s_last_sequence = sequence;
+        s_have_sequence = true;
+        s_last_received_us = esp_timer_get_time();
+        s_stage = payload.screening.stage;
+    }
+    const int64_t now_us = esp_timer_get_time();
+    if (s_last_received_us == 0
+        || now_us - s_last_received_us > SG_CAMERA_UART_FRESH_US) {
+        xSemaphoreGive(s_lock);
+        return ESP_ERR_TIMEOUT;
+    }
+    const sg_camera_uart_payload_t latest = s_latest;
+    const int64_t latest_us = s_last_received_us;
+    xSemaphoreGive(s_lock);
+
+    out->valid = latest.face.valid;
+    out->score = latest.face.score;
+    out->mouth_angle_deg = latest.face.mouth_angle_deg;
+    out->quality = latest.face.quality;
+    out->eye = latest.eye;
+    out->tongue = latest.tongue;
+    out->screening = latest.screening;
+    out->received_us = latest_us;
     return ESP_OK;
 }
 
@@ -94,40 +104,31 @@ static void camera_poll_task(void *arg)
     float last_face_angle_deg = 0.0f;
     int64_t face_seen_us = 0;
     unsigned poll_failures = 0;
-    esp_err_t last_poll_error = ESP_OK;
     TickType_t last_wake = xTaskGetTickCount();
 
-    while (1) {
+    while (true) {
         vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(SG_CAMERA_POLL_PERIOD_MS));
         sg_camera_observation_t observation;
         esp_err_t err = sg_camera_coprocessor_poll(&observation);
-        int64_t now_us = esp_timer_get_time();
+        const int64_t now_us = esp_timer_get_time();
         if (err != ESP_OK) {
             publish_unavailable(now_us);
-            poll_failures++;
-            if (poll_failures == 1 || err != last_poll_error || poll_failures % 20 == 0) {
+            ++poll_failures;
+            if (poll_failures == 1U || poll_failures % 20U == 0U) {
                 ESP_LOGW(SG_TAG_MAIN,
-                         "camera poll failed: %s count=%u SDA=%d SCL=%d",
+                         "camera UART unavailable: %s count=%u RX=%d",
                          esp_err_to_name(err), poll_failures,
-                         gpio_get_level(SG_PIN_CAMERA_I2C_SDA),
-                         gpio_get_level(SG_PIN_CAMERA_I2C_SCL));
+                         gpio_get_level(SG_CAMERA_UART_RX));
             }
-            last_poll_error = err;
-            if (online) {
-                ESP_LOGW(SG_TAG_MAIN, "camera coprocessor offline: %s",
-                         esp_err_to_name(err));
-            }
+            if (online) ESP_LOGW(SG_TAG_MAIN, "camera coprocessor offline");
             online = false;
             have_fresh_face = false;
             continue;
         }
 
         poll_failures = 0;
-        last_poll_error = ESP_OK;
-
         if (!online) {
-            ESP_LOGI(SG_TAG_MAIN, "camera coprocessor online addr=0x%02x reg=0x%02x",
-                     SG_CAMERA_I2C_ADDRESS, SG_CAMERA_FACE_METRICS_REGISTER);
+            ESP_LOGI(SG_TAG_MAIN, "camera coprocessor online via UART1 RX=9");
             online = true;
         }
         if (observation.valid) {
@@ -140,12 +141,12 @@ static void camera_poll_task(void *arg)
             have_fresh_face = false;
         }
 
-        if (observation.valid) ESP_LOGI(
-            SG_TAG_MAIN, "camera F=%u E=%d T=%d stage=%u",
-            observation.score,
-            observation.eye.valid ? observation.eye.score : -1,
-            observation.tongue.valid ? observation.tongue.score : -1,
-            (unsigned)observation.screening.stage);
+        ESP_LOGI(SG_TAG_MAIN, "camera UART F=%d E=%d T=%d stage=%u progress=%u",
+                 observation.valid ? observation.score : -1,
+                 observation.eye.valid ? observation.eye.score : -1,
+                 observation.tongue.valid ? observation.tongue.score : -1,
+                 (unsigned)observation.screening.stage,
+                 (unsigned)observation.screening.progress);
         err = sg_score_bus_apply_camera(
             have_fresh_face, last_face_score, last_face_angle_deg,
             observation.tongue.valid, observation.tongue.score,
@@ -160,42 +161,22 @@ static void camera_poll_task(void *arg)
 
 esp_err_t sg_camera_coprocessor_control(sg_screening_control_t control)
 {
-    if (s_device == NULL || control > SG_SCREENING_START) {
+    if (!s_ready || s_lock == NULL || control > SG_SCREENING_START) {
         return ESP_ERR_INVALID_ARG;
     }
-    const uint8_t command[2] = {SG_CAMERA_CONTROL_REGISTER, (uint8_t)control};
-    const sg_screening_stage_t expected = control == SG_SCREENING_START
-        ? SG_STAGE_FACE : SG_STAGE_IDLE;
-    esp_err_t last_error = ESP_ERR_TIMEOUT;
-
-    for (unsigned attempt = 0; attempt < SG_CAMERA_CONTROL_CONFIRM_RETRIES;
-         ++attempt) {
-        last_error = i2c_master_transmit(s_device, command, sizeof(command),
-                                         SG_CAMERA_READ_TIMEOUT_MS);
-        if (last_error != ESP_OK) continue;
-
-        vTaskDelay(pdMS_TO_TICKS(SG_CAMERA_CONTROL_CONFIRM_DELAY_MS));
-        uint8_t raw[sizeof(sg_camera_stage_response_t)] = {0};
-        last_error = read_register(SG_CAMERA_STAGE_REGISTER, raw);
-        sg_camera_stage_status_t status = {0};
-        if (last_error == ESP_OK
-            && sg_camera_stage_parse(raw, sizeof(raw), &status)
-                == SG_CAMERA_PROTOCOL_OK) {
-            s_stage = status.stage;
-            if (status.stage == expected) {
-                ESP_LOGI(SG_TAG_MAIN,
-                         "screening control confirmed action=%u stage=%u attempt=%u",
-                         (unsigned)control, (unsigned)status.stage, attempt + 1);
-                return ESP_OK;
-            }
-        }
-    }
-
-    ESP_LOGW(SG_TAG_MAIN,
-             "screening control unconfirmed action=%u expected_stage=%u err=%s",
-             (unsigned)control, (unsigned)expected,
-             esp_err_to_name(last_error));
-    return ESP_ERR_TIMEOUT;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    memset(&s_stream, 0, sizeof(s_stream));
+    memset(&s_latest, 0, sizeof(s_latest));
+    s_last_received_us = 0;
+    s_have_sequence = false;
+    s_stage = SG_STAGE_IDLE;
+    uart_flush_input(SG_CAMERA_UART);
+    xSemaphoreGive(s_lock);
+    const char *message = control == SG_SCREENING_START
+        ? "camera UART session armed"
+        : "camera UART session cancelled";
+    ESP_LOGI(SG_TAG_MAIN, "%s", message);
+    return ESP_OK;
 }
 
 sg_screening_stage_t sg_camera_coprocessor_stage(void)
@@ -205,43 +186,34 @@ sg_screening_stage_t sg_camera_coprocessor_stage(void)
 
 esp_err_t sg_camera_coprocessor_init(void)
 {
-    if (s_bus != NULL || s_device != NULL) {
-        return ESP_ERR_INVALID_STATE;
-    }
-    i2c_master_bus_config_t bus_config = {
-        .i2c_port = I2C_NUM_0,
-        .sda_io_num = SG_PIN_CAMERA_I2C_SDA,
-        .scl_io_num = SG_PIN_CAMERA_I2C_SCL,
-        .clk_source = I2C_CLK_SRC_DEFAULT,
-        .glitch_ignore_cnt = 7,
-        .flags.enable_internal_pullup = true,
+    if (s_ready) return ESP_ERR_INVALID_STATE;
+    s_lock = xSemaphoreCreateMutex();
+    if (s_lock == NULL) return ESP_ERR_NO_MEM;
+    const uart_config_t config = {
+        .baud_rate = SG_CAMERA_UART_BAUD,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_DEFAULT,
     };
-    esp_err_t err = i2c_new_master_bus(&bus_config, &s_bus);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    i2c_device_config_t device_config = {
-        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-        .device_address = CONFIG_STROKEGUARD_CAMERA_I2C_ADDRESS,
-        .scl_speed_hz = SG_CAMERA_I2C_HZ,
-    };
-    err = i2c_master_bus_add_device(s_bus, &device_config, &s_device);
-    if (err != ESP_OK) {
-        i2c_del_master_bus(s_bus);
-        s_bus = NULL;
-        return err;
-    }
-
+    esp_err_t err = uart_driver_install(
+        SG_CAMERA_UART, SG_CAMERA_UART_RX_BUFFER, 0, 0, NULL, 0);
+    if (err != ESP_OK) return err;
+    err = uart_param_config(SG_CAMERA_UART, &config);
+    if (err != ESP_OK) return err;
+    err = uart_set_pin(SG_CAMERA_UART, UART_PIN_NO_CHANGE,
+                       SG_CAMERA_UART_RX, UART_PIN_NO_CHANGE,
+                       UART_PIN_NO_CHANGE);
+    if (err != ESP_OK) return err;
+    s_ready = true;
     BaseType_t created = xTaskCreatePinnedToCore(
-        camera_poll_task, "camera_i2c", SG_TASK_CAMERA_STACK, NULL,
+        camera_poll_task, "camera_uart", SG_TASK_CAMERA_STACK, NULL,
         SG_TASK_CAMERA_PRIO, NULL, SG_TASK_CAMERA_CORE);
     if (created != pdPASS) {
-        i2c_master_bus_rm_device(s_device);
-        i2c_del_master_bus(s_bus);
-        s_device = NULL;
-        s_bus = NULL;
+        s_ready = false;
         return ESP_ERR_NO_MEM;
     }
+    ESP_LOGI(SG_TAG_MAIN, "camera UART ready UART1 RX=9 baud=115200");
     return ESP_OK;
 }

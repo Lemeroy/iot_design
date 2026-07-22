@@ -9,6 +9,7 @@ idf_component_register(
         "sensor_frame.c"
         "camera_coprocessor.c"
         "../../firmware_common/camera_scores_protocol.c"
+        "../../firmware_common/camera_uart_protocol.c"
         "audio_nmo432.c"
         "speech_screening.c"
         "display_st7789.c"

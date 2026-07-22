@@ -12,25 +12,45 @@ def _control_function() -> str:
     return source[start:end]
 
 
-def test_control_waits_for_expected_camera_stage_with_bounded_retries() -> None:
+def test_camera_scores_arrive_on_uart1_gpio9_with_crc_stream_parser() -> None:
     source = SOURCE.read_text(encoding="utf-8")
+
+    for token in (
+        "UART_NUM_1",
+        "GPIO_NUM_9",
+        "115200",
+        "sg_camera_uart_stream_feed",
+        "SG_CAMERA_UART_FRESH_US 2000000LL",
+        "uart_read_bytes",
+    ):
+        assert token in source
+    assert "i2c_master_transmit" not in source
+    assert "i2c_master_receive" not in source
+
+
+def test_screening_control_clears_uart_freshness_locally() -> None:
     function = _control_function()
 
-    assert "SG_CAMERA_CONTROL_CONFIRM_RETRIES" in source
-    assert "SG_CAMERA_CONTROL_CONFIRM_DELAY_MS" in source
-    assert "SG_CAMERA_STAGE_REGISTER" in function
-    assert "sg_camera_stage_parse" in function
-    assert "SG_STAGE_FACE" in function
-    assert "SG_STAGE_IDLE" in function
-    assert "ESP_ERR_TIMEOUT" in function
+    assert "uart_flush_input" in function
+    assert "camera UART session armed" in function
+    assert "s_last_received_us = 0" in function
 
 
-def test_control_logs_only_after_stage_confirmation() -> None:
+def test_control_is_explicitly_local_for_one_way_transport() -> None:
     function = _control_function()
 
-    confirmed = function.index("screening control confirmed")
-    stage_parse = function.index("sg_camera_stage_parse")
-    assert confirmed > stage_parse
+    assert "camera UART session armed" in function
+    assert "screening control confirmed" not in function
+    assert "i2c_master_transmit" not in function
+    assert "return ESP_OK" in function
+
+
+def test_control_flushes_transport_before_reporting_session_armed() -> None:
+    function = _control_function()
+
+    flushed = function.index("uart_flush_input")
+    armed = function.index("camera UART session armed")
+    assert armed > flushed
 
 
 def test_face_hold_is_five_seconds_but_transport_failure_clears_scores() -> None:
