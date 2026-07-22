@@ -47,8 +47,10 @@ def test_camera_streams_numeric_scores_over_dedicated_uart():
         "sg_camera_score_uart_init",
         "sg_camera_score_uart_send",
         "pdMS_TO_TICKS(200)",
+        "SG_CAMERA_SCORE_UART_RX_BUFFER 256",
     ):
         assert token in sender or token in app
+    assert "SG_CAMERA_SCORE_UART, SG_CAMERA_SCORE_UART_RX_BUFFER" in sender
     assert "camera_score_uart.c" in cmake
     assert "camera_uart_protocol.c" in cmake
     assert "sg_camera_score_target_init" not in app

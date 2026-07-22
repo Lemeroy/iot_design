@@ -12,6 +12,7 @@
 #define SG_CAMERA_SCORE_UART UART_NUM_1
 #define SG_CAMERA_SCORE_UART_TX GPIO_NUM_48
 #define SG_CAMERA_SCORE_UART_BAUD 115200
+#define SG_CAMERA_SCORE_UART_RX_BUFFER 256
 
 static const char *TAG = "sg_camera_uart";
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -60,7 +61,7 @@ esp_err_t sg_camera_score_uart_init(void)
         .source_clk = UART_SCLK_DEFAULT,
     };
     esp_err_t err = uart_driver_install(
-        SG_CAMERA_SCORE_UART, 0, 0, 0, NULL, 0);
+        SG_CAMERA_SCORE_UART, SG_CAMERA_SCORE_UART_RX_BUFFER, 0, 0, NULL, 0);
     if (err != ESP_OK) return err;
     err = uart_param_config(SG_CAMERA_SCORE_UART, &config);
     if (err != ESP_OK) return err;
