@@ -65,27 +65,23 @@ def test_camera_guided_session_restarts_without_downlink_control():
     assert "automatic screening cycle restarted" in adapter
 
 
-def test_camera_i2c_response_is_served_after_register_selection():
-    target = read("camera_score_target.c")
+def test_legacy_camera_i2c_target_is_not_built():
+    cmake = read("CMakeLists.txt")
+    app = read("app_main.c")
 
-    assert ".i2c_port = I2C_NUM_0" in target
-    assert ".slave_addr = SG_CAMERA_I2C_ADDRESS" in target
-    assert "SG_CAMERA_TARGET_EVENT_RECEIVE" in target
-    assert "SG_CAMERA_TARGET_EVENT_REQUEST" in target
-    assert "xQueueSendFromISR" in target
-    assert "xQueueReceive" in target
-    assert "i2c_slave_write" in target
-    assert "i2c_slave_transmit" not in target
-    assert "I2C target ready" in target
+    assert "camera_score_target.c" not in cmake
+    assert "sg_camera_score_target_init" not in app
+    assert "sg_camera_score_target_serve" not in app
 
 
-def test_main_firmware_logs_first_camera_poll_failure_for_bringup():
+def test_main_firmware_logs_uart_availability_for_bringup():
     main_camera = (ROOT / "firmware_esp32" / "main" / "camera_coprocessor.c").read_text(
         encoding="utf-8"
     )
 
-    assert "camera poll failed" in main_camera
-    assert "SDA=%d SCL=%d" in main_camera
+    assert "camera UART unavailable" in main_camera
+    assert "RX=%d" in main_camera
+    assert "camera coprocessor online via UART1 RX=9" in main_camera
     assert "gpio_get_level" in main_camera
 
 
@@ -316,8 +312,8 @@ def test_camera_project_contains_build_and_privacy_documentation():
     readme = (CAMERA / "README.md").read_text(encoding="utf-8")
     assert "human_face_detect" in readme
     assert "raw images" in readme.lower()
-    assert "GPIO47" in readme and "GPIO48" in readme
-    assert "0x52" in readme and "0x01" in readme
+    for token in ("GPIO48", "GPIO9", "GPIO47", "disconnected", "115200 8N1"):
+        assert token in readme
     for token in (
         "camera_usb_preview.py",
         "COM4",
@@ -332,11 +328,25 @@ def test_camera_project_contains_build_and_privacy_documentation():
 def test_two_board_bringup_documents_approved_wiring_and_safety():
     text = (ROOT / "docs" / "camera-nmo432-bringup.md").read_text("utf-8")
     for token in (
-        "GPIO8", "GPIO9", "GPIO17", "GPIO18", "GPIO16", "0x52", "0x01",
-        "3.3 V", "share GND", "ESP-WHO", "insufficient",
+        "GPIO48", "GPIO9", "GPIO47", "115200 8N1", "GPIO17", "GPIO18",
+        "GPIO16", "3.3 V", "share GND", "ESP-WHO", "insufficient",
     ):
         assert token in text
-    assert "5 V jumper disconnected" in text
+    assert "independent USB" in text
+    assert "GPIO47/SDA remains disconnected" in text
     assert "not a\ndiagnosis" in text
     assert "camera_usb_preview.py" in text
-    assert "I2C remains active" in text
+    assert "Web start arms only the N16R8 fusion session" in text
+
+
+def test_root_readme_documents_camera_uart_migration():
+    text = (ROOT / "README.md").read_text("utf-8")
+
+    for token in (
+        "GPIO48 TX",
+        "GPIO9 RX",
+        "GPIO47/SDA",
+        "115200 8N1",
+        "two seconds",
+    ):
+        assert token in text
