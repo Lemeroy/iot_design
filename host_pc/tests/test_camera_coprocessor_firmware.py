@@ -10,24 +10,16 @@ def read(name: str) -> str:
     return (MAIN / name).read_text(encoding="utf-8")
 
 
-def test_camera_firmware_exposes_i2c_scores_not_network_media():
-    target = read("camera_score_target.c")
+def test_camera_firmware_exposes_local_scores_not_network_media():
+    sender = read("camera_score_uart.c")
     app = read("app_main.c")
     adapter = read("camera_capture_adapter.cpp")
-    defaults = (CAMERA / "sdkconfig.defaults").read_text(encoding="utf-8")
 
-    assert '#include "driver/i2c_slave.h"' in target
-    assert '#include "driver/i2c.h"' not in target
-    assert ".i2c_port = I2C_NUM_0" in target
-    assert "i2c_new_slave_device" in target
-    assert "i2c_slave_register_event_callbacks" in target
-    assert ".on_receive" in target
-    assert ".on_request" in target
-    assert "i2c_slave_write" in target
-    assert "CONFIG_I2C_ENABLE_SLAVE_DRIVER_VERSION_2=y" in defaults
-    assert "sg_camera_face_response_encode" in app
-    assert "GPIO_NUM_47" in target
-    assert "GPIO_NUM_48" in target
+    assert '#include "driver/uart.h"' in sender
+    assert "sg_camera_uart_encode" in sender
+    assert "sg_camera_score_uart_send" in app
+    assert "GPIO_NUM_47" not in sender
+    assert "GPIO_NUM_48" in sender
     assert "esp_camera_init" in adapter
     assert "HumanFaceDetect" in adapter
     assert "PIXFORMAT_YUV422" in adapter
@@ -40,6 +32,37 @@ def test_camera_firmware_exposes_i2c_scores_not_network_media():
     assert "config.grab_mode = CAMERA_GRAB_WHEN_EMPTY" in adapter
     for forbidden in ("esp_mqtt", "jpeg_b64", "http_client"):
         assert forbidden not in app.lower()
+
+
+def test_camera_streams_numeric_scores_over_dedicated_uart():
+    sender = read("camera_score_uart.c")
+    app = read("app_main.c")
+    cmake = read("CMakeLists.txt")
+
+    for token in (
+        "UART_NUM_1",
+        "GPIO_NUM_48",
+        "115200",
+        "sg_camera_uart_encode",
+        "sg_camera_score_uart_init",
+        "sg_camera_score_uart_send",
+        "pdMS_TO_TICKS(200)",
+    ):
+        assert token in sender or token in app
+    assert "camera_score_uart.c" in cmake
+    assert "camera_uart_protocol.c" in cmake
+    assert "sg_camera_score_target_init" not in app
+    assert "sg_camera_score_target_serve" not in app
+
+
+def test_camera_guided_session_restarts_without_downlink_control():
+    adapter = read("camera_capture_adapter.cpp")
+
+    assert "SG_CAMERA_AUTO_RESTART_US 2000000LL" in adapter
+    assert "sg_screening_session_start(&s_screening" in adapter
+    assert "current_stage == SG_STAGE_DONE" in adapter
+    assert "current_stage == SG_STAGE_ERROR" in adapter
+    assert "automatic screening cycle restarted" in adapter
 
 
 def test_camera_i2c_response_is_served_after_register_selection():
@@ -205,11 +228,11 @@ def test_camera_continuously_tracks_eye_with_guided_override():
     assert "sg_eye_select_result" in adapter
 
 
-def test_camera_guided_session_is_wired_to_i2c_and_capture():
+def test_camera_guided_session_is_wired_to_uart_and_capture():
     session_h = read("screening_session.h")
     session_c = read("screening_session.c")
     adapter = read("camera_capture_adapter.cpp")
-    target = read("camera_score_target.c")
+    sender = read("camera_score_uart.c")
     app = read("app_main.c")
 
     for token in (
@@ -228,17 +251,15 @@ def test_camera_guided_session_is_wired_to_i2c_and_capture():
     assert "(uint8_t)(opposite_steps" in read("eye_tracking.cpp")
     assert "tongue sample offset=%d score=%u quality=%u" in adapter
     assert "tongue sample invalid count=%lu" in adapter
-    assert "SG_CAMERA_CONTROL_REGISTER" in target
-    assert "SG_CAMERA_EYE_REGISTER" in target
-    assert "SG_CAMERA_TONGUE_REGISTER" in target
-    assert "SG_CAMERA_STAGE_REGISTER" in target
-    assert "sg_camera_score_target_take_control" in app
+    assert "sg_camera_uart_payload_t" in sender
+    assert "sg_camera_score_uart_send" in app
+    assert "automatic screening cycle started" in adapter
 
 
-def test_camera_integrates_five_landmarks_and_dual_i2c_registers():
+def test_camera_integrates_five_landmarks_and_uart_metrics():
     adapter = read("camera_capture_adapter.cpp")
     capture_header = read("camera_capture_adapter.h")
-    target = read("camera_score_target.c")
+    sender = read("camera_score_uart.c")
     app = read("app_main.c")
     cmake = read("CMakeLists.txt")
 
@@ -254,12 +275,10 @@ def test_camera_integrates_five_landmarks_and_dual_i2c_registers():
     assert "sg_face_baseline_ready" in adapter
     assert "sg_face_stabilizer_push" not in adapter
     assert "sg_camera_face_metrics_t face_metrics" in capture_header
-    assert "SG_CAMERA_FACE_REGISTER" in target
-    assert "SG_CAMERA_FACE_METRICS_REGISTER" in target
-    assert "latest_bbox" in target
-    assert "latest_metrics" in target
-    assert "sg_camera_face_metrics_encode" in app
-    assert "&metrics_response" in app
+    assert ".face = observation->face_metrics" in sender
+    assert ".eye = observation->eye_metrics" in sender
+    assert ".tongue = observation->tongue_metrics" in sender
+    assert "sg_camera_score_uart_send" in app
     assert '"face_geometry.cpp"' in cmake
     assert '"face_baseline.c"' in cmake
     for forbidden in ("tongue_score", "eye_score"):
