@@ -28,6 +28,14 @@ def test_camera_scores_arrive_on_uart1_gpio9_with_crc_stream_parser() -> None:
     assert "i2c_master_receive" not in source
 
 
+def test_camera_uart_timeout_reports_raw_and_valid_packet_counts() -> None:
+    source = SOURCE.read_text(encoding="utf-8")
+
+    assert "raw_bytes=%u valid_packets=%u" in source
+    assert "s_raw_bytes_since_log" in source
+    assert "s_valid_packets_since_log" in source
+
+
 def test_screening_control_clears_uart_freshness_locally() -> None:
     function = _control_function()
 

@@ -31,6 +31,8 @@ static sg_camera_uart_payload_t s_latest;
 static int64_t s_last_received_us;
 static uint16_t s_last_sequence;
 static bool s_have_sequence;
+static unsigned s_raw_bytes_since_log;
+static unsigned s_valid_packets_since_log;
 static volatile sg_screening_stage_t s_stage = SG_STAGE_IDLE;
 
 static void publish_unavailable(int64_t now_us)
@@ -56,6 +58,7 @@ esp_err_t sg_camera_coprocessor_poll(sg_camera_observation_t *out)
     if (received < 0) return ESP_FAIL;
 
     xSemaphoreTake(s_lock, portMAX_DELAY);
+    s_raw_bytes_since_log += (unsigned)received;
     for (int i = 0; i < received; ++i) {
         sg_camera_uart_payload_t payload;
         uint16_t sequence;
@@ -71,6 +74,7 @@ esp_err_t sg_camera_coprocessor_poll(sg_camera_observation_t *out)
         s_latest = payload;
         s_last_sequence = sequence;
         s_have_sequence = true;
+        ++s_valid_packets_since_log;
         s_last_received_us = esp_timer_get_time();
         s_stage = payload.screening.stage;
     }
@@ -116,9 +120,13 @@ static void camera_poll_task(void *arg)
             ++poll_failures;
             if (poll_failures == 1U || poll_failures % 20U == 0U) {
                 ESP_LOGW(SG_TAG_MAIN,
-                         "camera UART unavailable: %s count=%u RX=%d",
+                         "camera UART unavailable: %s count=%u RX=%d "
+                         "raw_bytes=%u valid_packets=%u",
                          esp_err_to_name(err), poll_failures,
-                         gpio_get_level(SG_CAMERA_UART_RX));
+                         gpio_get_level(SG_CAMERA_UART_RX),
+                         s_raw_bytes_since_log, s_valid_packets_since_log);
+                s_raw_bytes_since_log = 0;
+                s_valid_packets_since_log = 0;
             }
             if (online) ESP_LOGW(SG_TAG_MAIN, "camera coprocessor offline");
             online = false;
@@ -127,6 +135,8 @@ static void camera_poll_task(void *arg)
         }
 
         poll_failures = 0;
+        s_raw_bytes_since_log = 0;
+        s_valid_packets_since_log = 0;
         if (!online) {
             ESP_LOGI(SG_TAG_MAIN, "camera coprocessor online via UART1 RX=9");
             online = true;
