@@ -176,10 +176,7 @@ static bool complete_stage(sg_screening_session_t *session, int64_t now_us)
         return true;
     case SG_STAGE_EYE_RIGHT:
         session->right_eye = median_eye(session->eye_samples);
-        if (!finish_eye_sequence(session)) {
-            enter_stage(session, SG_STAGE_ERROR, now_us);
-            return false;
-        }
+        (void)finish_eye_sequence(session);
         enter_stage(session, SG_STAGE_TONGUE, now_us);
         return true;
     case SG_STAGE_TONGUE: {

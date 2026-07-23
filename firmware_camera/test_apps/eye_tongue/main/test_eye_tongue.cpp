@@ -148,6 +148,16 @@ TEST_CASE("eye sequence rejects insufficient travel", "[eye_tracking]")
     TEST_ASSERT_FALSE(sg_eye_score_sequence(&center, &left, &right, &out));
 }
 
+TEST_CASE("eye sequence rejects same-direction guided steps", "[eye_tracking]")
+{
+    const auto center = measured(0, 0);
+    const auto left = measured(30, 32);
+    const auto right = measured(45, 47);
+    sg_eye_sequence_result_t out = {};
+
+    TEST_ASSERT_FALSE(sg_eye_score_sequence(&center, &left, &right, &out));
+}
+
 TEST_CASE("eye sequence reports measured one-eye dropout as discordant", "[eye_tracking]")
 {
     const auto center = measured(0, 31, 90);

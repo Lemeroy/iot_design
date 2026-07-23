@@ -88,3 +88,14 @@ def test_tongue_timeout_keeps_tongue_unavailable_for_fusion() -> None:
     assert "session->sample_count" in tongue_completion
     assert "session->tongue_result.valid = true" in tongue_completion
     assert "enter_stage(session, SG_STAGE_ERROR" in source
+
+
+def test_invalid_guided_eye_is_unavailable_but_does_not_abort_tongue_stage() -> None:
+    source = SESSION.read_text(encoding="utf-8")
+    eye_right = source.index("case SG_STAGE_EYE_RIGHT:")
+    tongue_case = source.index("case SG_STAGE_TONGUE:", eye_right)
+    block = source[eye_right:tongue_case]
+
+    assert "finish_eye_sequence(session)" in block
+    assert "enter_stage(session, SG_STAGE_TONGUE" in block
+    assert "enter_stage(session, SG_STAGE_ERROR" not in block

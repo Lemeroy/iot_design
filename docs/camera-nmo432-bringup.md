@@ -86,6 +86,8 @@ result computed locally from ESP-WHO five-point landmarks.
   valid results replace them; an incomplete tongue action clears T and excludes
   it from fusion. Speech remains available for up to five minutes and uses a
   preliminary, unvalidated calibration that must be measured in M6.
+- A same-direction or otherwise invalid guided eye sequence is unavailable,
+  not a zero risk score. The session continues to T and may use continuous E.
 - NMO432 logs aggregate RMS, peak, and valid-block counts every five seconds.
   These are electrical diagnostics, not a speech-risk score.
 - S remains unavailable without an evaluated versioned model.
