@@ -74,6 +74,8 @@ auxiliary observation only and never acts as a single-item danger veto.
 If the tongue stage times out without three valid samples, the session enters
 `error` and T remains unavailable; no zero or synthetic tongue score is sent
 to fusion.
+The tongue color candidate must also extend below the detected mouth line;
+lip-colored regions without protrusion remain unavailable.
 
 The F feature requires a face at least 64 pixels wide, sufficient eye spacing,
 a near-frontal nose position, and eye-line roll within 25 degrees. It removes

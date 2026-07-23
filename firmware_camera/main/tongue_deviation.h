@@ -28,6 +28,7 @@ typedef struct {
     uint16_t stride_bytes;
     sg_tongue_roi_t roi;
     sg_tongue_point_t axis_origin;
+    uint16_t mouth_y;
     uint16_t face_width;
     float face_roll_deg;
 } sg_tongue_input_t;

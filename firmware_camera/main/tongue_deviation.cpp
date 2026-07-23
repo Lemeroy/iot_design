@@ -106,7 +106,8 @@ Component collect_component(const sg_tongue_input_t &input, int start)
     return component;
 }
 
-bool plausible(const Component &component, int roi_area)
+bool plausible(const Component &component, int roi_area,
+               const sg_tongue_input_t &input)
 {
     if (component.area * 100 < roi_area / 2 || component.area * 100 > roi_area * 60
         || component.touches_border) {
@@ -114,7 +115,12 @@ bool plausible(const Component &component, int roi_area)
     }
     const int width = component.max_x - component.min_x + 1;
     const int height = component.max_y - component.min_y + 1;
-    return width * 100 >= height * 35 && width * 100 <= height * 250;
+    if (width * 100 < height * 35 || width * 100 > height * 250) {
+        return false;
+    }
+    const int mouth_local_y = (int)input.mouth_y - input.roi.y;
+    const int protrusion = component.max_y - mouth_local_y;
+    return protrusion >= std::max(3, (int)input.face_width / 10);
 }
 
 uint8_t score_offset(int absolute_percent)
@@ -132,6 +138,8 @@ extern "C" bool sg_tongue_measure(
     if (input == nullptr || out == nullptr || input->rgb888 == nullptr
         || input->width == 0 || input->height == 0
         || input->stride_bytes < input->width * 3U || input->face_width == 0
+        || input->mouth_y < input->roi.y
+        || input->mouth_y >= input->roi.y + input->roi.height
         || input->roi.width == 0 || input->roi.height == 0
         || input->roi.width > kMaxRoiWidth || input->roi.height > kMaxRoiHeight
         || input->roi.x + input->roi.width > input->width
@@ -152,7 +160,7 @@ extern "C" bool sg_tongue_measure(
             continue;
         }
         const Component candidate = collect_component(*input, index);
-        if (plausible(candidate, roi_area) && candidate.area > best.area) best = candidate;
+        if (plausible(candidate, roi_area, *input) && candidate.area > best.area) best = candidate;
     }
     if (best.area == 0) return false;
 

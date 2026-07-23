@@ -267,6 +267,7 @@ static sg_tongue_input_t tongue_input()
         .stride_bytes = WIDTH * 3,
         .roi = {15, 5, 50, 34},
         .axis_origin = {40, 12},
+        .mouth_y = 16,
         .face_width = 60,
         .face_roll_deg = 0.0f,
     };
@@ -309,6 +310,15 @@ TEST_CASE("tongue kernel rejects absent and tiny components", "[tongue_deviation
     sg_tongue_measurement_t out = {};
     TEST_ASSERT_FALSE(sg_tongue_measure(&input, &out));
     tongue_blob(40, 25, 1, 1);
+    TEST_ASSERT_FALSE(sg_tongue_measure(&input, &out));
+}
+
+TEST_CASE("tongue kernel rejects lip-colored component without protrusion", "[tongue_deviation]")
+{
+    fill_rgb(145);
+    tongue_blob(40, 14, 6, 5);
+    const auto input = tongue_input();
+    sg_tongue_measurement_t out = {};
     TEST_ASSERT_FALSE(sg_tongue_measure(&input, &out));
 }
 

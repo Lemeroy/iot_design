@@ -377,6 +377,7 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
                 (uint16_t)std::max(0, roi_bottom - roi_y + 1),
             },
             .axis_origin = {selected.geometry.nose.x, selected.geometry.nose.y},
+            .mouth_y = (uint16_t)std::max(0, mouth_y),
             .face_width = (uint16_t)std::max(0, face_width),
             .face_roll_deg = std::atan2((float)eye_dy, (float)eye_dx)
                            * 180.0f / 3.14159265358979323846f,

@@ -194,6 +194,8 @@ def test_camera_tongue_kernel_is_auxiliary_local_and_fixed_storage():
         assert forbidden not in source.lower()
     assert "kMinTongueSaturation = 25" in source
     assert "kMinRedGreenDelta = 20" in source
+    assert "mouth_y" in header
+    assert "protrusion" in source
 
 
 def test_camera_continuously_tracks_eye_with_guided_override():

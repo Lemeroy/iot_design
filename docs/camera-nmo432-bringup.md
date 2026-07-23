@@ -80,6 +80,8 @@ result computed locally from ESP-WHO five-point landmarks.
 - E is an ocular-movement risk prompt and does not test visual fields. T is
   auxiliary only and never causes a single-item danger result. If the tongue
   action is not completed, T remains unavailable and is excluded from fusion.
+  A lip-colored region that does not extend below the mouth line is rejected;
+  it cannot produce a centered T=100 result.
 - NMO432 logs aggregate RMS, peak, and valid-block counts every five seconds.
   These are electrical diagnostics, not a speech-risk score.
 - S remains unavailable without an evaluated versioned model.
