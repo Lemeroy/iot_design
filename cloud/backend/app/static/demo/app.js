@@ -4,6 +4,7 @@
   const TONGUE_INCOMPLETE_COPY = "动作未完成，T 未计入融合";
 
   const POLLING_MS = 5000;
+  const RESULT_HOLD_MS = 30000;
   const views = {
     login: document.querySelector("#login-view"),
     connect: document.querySelector("#connect-view"),
@@ -35,6 +36,14 @@
   let realtimeSocket = null;
   let reconnectTimer = null;
   let activeView = "login";
+  let sessionDisplay = {
+    active: false,
+    lastStage: 0,
+    working: {},
+    high: { face: null, eye: null },
+    frozen: null,
+    freezeUntil: 0,
+  };
 
   function setStatus(message) { statusMessage.textContent = message; }
 
@@ -76,6 +85,84 @@
     return stage === 7 ? "本轮未完成" : "待采集";
   }
 
+  function beginDisplaySession() {
+    sessionDisplay = {
+      active: true,
+      lastStage: 0,
+      working: {},
+      high: { face: null, eye: null },
+      frozen: null,
+      freezeUntil: 0,
+    };
+  }
+
+  function copyFiniteScores(target, source) {
+    Object.keys(scoreFields).forEach((name) => {
+      if (Number.isFinite(source[name])) target[name] = source[name];
+    });
+  }
+
+  function selectSessionScores(scores, stage) {
+    const now = Date.now();
+    if (stage === 1 && sessionDisplay.lastStage !== 1) beginDisplaySession();
+
+    if (sessionDisplay.frozen && stage !== 1 && now < sessionDisplay.freezeUntil) {
+      sessionDisplay.lastStage = stage;
+      return sessionDisplay.frozen;
+    }
+    if (sessionDisplay.frozen && now >= sessionDisplay.freezeUntil) {
+      sessionDisplay.frozen = null;
+      sessionDisplay.freezeUntil = 0;
+    }
+
+    if (!sessionDisplay.active) {
+      sessionDisplay.lastStage = stage;
+      return scores;
+    }
+
+    if (stage >= 1 && stage <= 7) copyFiniteScores(sessionDisplay.working, scores);
+    if (stage >= 1 && stage <= 4) {
+      if (Number.isFinite(scores.face)) {
+        sessionDisplay.high.face = Number.isFinite(sessionDisplay.high.face)
+          ? Math.max(sessionDisplay.high.face, scores.face) : scores.face;
+      }
+      if (Number.isFinite(scores.eye)) {
+        sessionDisplay.high.eye = Number.isFinite(sessionDisplay.high.eye)
+          ? Math.max(sessionDisplay.high.eye, scores.eye) : scores.eye;
+      }
+    }
+
+    if (stage >= 5) {
+      if (Number.isFinite(sessionDisplay.high.face)) {
+        sessionDisplay.working.face = sessionDisplay.high.face;
+      }
+      if (Number.isFinite(sessionDisplay.high.eye)) {
+        sessionDisplay.working.eye = sessionDisplay.high.eye;
+      }
+    }
+
+    let selected = {};
+    if (stage === 5) {
+      selected = {
+        face: sessionDisplay.working.face,
+        eye: sessionDisplay.working.eye,
+      };
+    } else if (stage === 6 || stage === 7) {
+      selected = { ...sessionDisplay.working };
+      sessionDisplay.frozen = selected;
+      sessionDisplay.freezeUntil = now + RESULT_HOLD_MS;
+      sessionDisplay.active = false;
+    }
+    sessionDisplay.lastStage = stage;
+    return selected;
+  }
+
+  function renderScorePanel(scores, online, stage) {
+    Object.entries(scoreFields).forEach(([name, id]) => {
+      document.querySelector(`#score-${id}`).textContent = scoreValue(scores[name], online, stage);
+    });
+  }
+
   const stageContent = {
     0: ["设备待机", 0],
     1: ["请正视镜面", 15],
@@ -115,9 +202,8 @@
     const scores = data && data.scores ? data.scores : {};
     const online = data.online === true;
     const stage = Number.isInteger(data.screening_stage) ? data.screening_stage : 0;
-    Object.entries(scoreFields).forEach(([name, id]) => {
-      document.querySelector(`#score-${id}`).textContent = scoreValue(scores[name], online, stage);
-    });
+    const displayScores = selectSessionScores(scores, stage);
+    renderScorePanel(displayScores, online, stage);
     fields.device.textContent = data.device_id || "--";
     renderScreening(stage, online, scores.speech);
     fields.online.textContent = online ? "在线" : "离线";
@@ -195,6 +281,10 @@
         method: "POST",
         body: JSON.stringify({ action }),
       });
+      if (action === "start") {
+        beginDisplaySession();
+        renderScorePanel({}, true, 1);
+      }
       report(action === "start" ? "筛查指令已发送" : "筛查已取消");
       await pollDevice();
     } catch (error) {

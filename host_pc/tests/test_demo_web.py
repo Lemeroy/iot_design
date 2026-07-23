@@ -95,6 +95,19 @@ def test_demo_explains_tongue_incomplete_is_excluded_from_fusion():
     assert "T 未计入融合" in script
 
 
+def test_demo_score_panel_uses_session_snapshot_and_30_second_hold():
+    script = _read(STATIC / "app.js")
+
+    assert "RESULT_HOLD_MS = 30000" in script
+    assert "beginDisplaySession" in script
+    assert "selectSessionScores" in script
+    assert "Math.max(sessionDisplay.high.face" in script
+    assert "Math.max(sessionDisplay.high.eye" in script
+    assert 'renderScorePanel({}, true, 1)' in script
+    assert "freezeUntil" in script
+    assert "Date.now()" in script
+
+
 def test_demo_web_waits_for_a_new_fusion_before_showing_advice():
     script = _read(STATIC / "app.js")
 
