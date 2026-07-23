@@ -66,11 +66,6 @@ static void task_downlink(void *arg)
             continue;
         }
         if (downlink.type == SG_MQTT_DOWNLINK_CONTROL) {
-            if (downlink.payload.control.action == SG_SCREENING_START) {
-                (void)sg_score_bus_clear_speech();
-                ESP_LOGI(SG_TAG_MAIN,
-                         "new screening clears retained speech");
-            }
             esp_err_t err = sg_camera_coprocessor_control(
                 downlink.payload.control.action);
             if (err != ESP_OK) {

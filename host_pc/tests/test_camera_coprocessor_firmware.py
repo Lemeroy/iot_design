@@ -196,6 +196,18 @@ def test_camera_tongue_kernel_is_auxiliary_local_and_fixed_storage():
     assert "kMinRedGreenDelta = 20" in source
     assert "mouth_y" in header
     assert "protrusion" in source
+    assert "centroid_protrusion" in source
+
+
+def test_guided_screening_keeps_scores_until_replacement_or_failure():
+    adapter = read("camera_capture_adapter.cpp")
+
+    assert "s_guided_eye_result_applied" in adapter
+    assert "s_guided_tongue_result" in adapter
+    assert "previous_stage == SG_STAGE_TONGUE" in adapter
+    start = adapter[adapter.index("sg_camera_capture_control"):
+                    adapter.index("sg_camera_capture_observe")]
+    assert "memset(&s_guided_eye_result" not in start
 
 
 def test_camera_continuously_tracks_eye_with_guided_override():

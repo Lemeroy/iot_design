@@ -172,7 +172,11 @@ def test_continuous_speech_retains_only_non_io_failures_for_five_minutes():
     assert "SG_SPEECH_RETAIN_MS" in bus_c
     assert "SG_SPEECH_REASON_IO_ERROR" in app
     assert "speech window unavailable; retaining previous score" in app
-    assert "new screening clears retained speech" in app
+    assert "new screening clears retained speech" not in app
+
+    control_start = app.index("if (downlink.type == SG_MQTT_DOWNLINK_CONTROL)")
+    control_end = app.index("continue;", control_start)
+    assert "sg_score_bus_clear_speech" not in app[control_start:control_end]
 
     result_block = app[app.index("if (have_speech_result"):app.index("#endif", app.index("if (have_speech_result"))]
     assert "sg_score_bus_clear_speech" in result_block
@@ -196,6 +200,12 @@ def test_guided_camera_control_does_not_control_continuous_speech():
     control_end = app.index("continue;", control_start)
     control = app[control_start:control_end]
     assert "sg_audio_nmo432" not in control
+
+
+def test_preliminary_speech_calibration_avoids_systematic_low_bias():
+    source = read("speech_screening.c")
+
+    assert "powf(raw_clear, 1.15f)" in source
 
 
 def test_unity_hardware_run_restores_production_device_config():

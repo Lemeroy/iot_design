@@ -119,8 +119,11 @@ bool plausible(const Component &component, int roi_area,
         return false;
     }
     const int mouth_local_y = (int)input.mouth_y - input.roi.y;
-    const int protrusion = component.max_y - mouth_local_y;
-    return protrusion >= std::max(3, (int)input.face_width / 10);
+    const int bottom_protrusion = component.max_y - mouth_local_y;
+    const int centroid_y = (int)(component.sum_y / component.area);
+    const int centroid_protrusion = centroid_y - input.mouth_y;
+    return bottom_protrusion >= std::max(6, (int)input.face_width / 5)
+        && centroid_protrusion >= std::max(3, (int)input.face_width / 10);
 }
 
 uint8_t score_offset(int absolute_percent)

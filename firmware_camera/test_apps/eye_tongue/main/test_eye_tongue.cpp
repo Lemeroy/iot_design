@@ -316,7 +316,7 @@ TEST_CASE("tongue kernel rejects absent and tiny components", "[tongue_deviation
 TEST_CASE("tongue kernel rejects lip-colored component without protrusion", "[tongue_deviation]")
 {
     fill_rgb(145);
-    tongue_blob(40, 14, 6, 5);
+    tongue_blob(40, 20, 6, 8);
     const auto input = tongue_input();
     sg_tongue_measurement_t out = {};
     TEST_ASSERT_FALSE(sg_tongue_measure(&input, &out));

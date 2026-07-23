@@ -113,7 +113,7 @@ static void finish_session(sg_speech_context_t *context)
         + 0.10f * zcr_quality
         + 0.10f * band_balance
         + 0.10f * snr_quality);
-    const float p_clear = clamp01(powf(raw_clear, 1.45f));
+    const float p_clear = clamp01(powf(raw_clear, 1.15f));
     result->p_clear = p_clear;
     result->score = (uint8_t)lroundf(100.0f * p_clear);
     result->reason = SG_SPEECH_REASON_NONE;

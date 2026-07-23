@@ -44,6 +44,8 @@ static sg_eye_continuous_context_t s_eye_continuous;
 static sg_eye_continuous_result_t s_eye_continuous_result;
 static sg_camera_modal_metrics_t s_guided_eye_result;
 static int64_t s_guided_eye_result_us = -1;
+static bool s_guided_eye_result_applied;
+static sg_camera_modal_metrics_t s_guided_tongue_result;
 
 static void note_face_rejection(const char *reason)
 {
@@ -201,8 +203,7 @@ extern "C" esp_err_t sg_camera_capture_control(sg_screening_control_t control)
 {
     if (control == SG_SCREENING_START) {
         sg_screening_session_start(&s_screening, esp_timer_get_time());
-        std::memset(&s_guided_eye_result, 0, sizeof(s_guided_eye_result));
-        s_guided_eye_result_us = -1;
+        s_guided_eye_result_applied = false;
         ESP_LOGI(TAG, "screening started");
         return ESP_OK;
     }
@@ -408,15 +409,24 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
     }
     sg_camera_modal_metrics_t guided_eye = {};
     if (sg_screening_session_eye_result(&s_screening, &guided_eye)
-        && guided_eye.valid && !s_guided_eye_result.valid) {
+        && guided_eye.valid && !s_guided_eye_result_applied) {
         s_guided_eye_result = guided_eye;
         s_guided_eye_result_us = now_us;
+        s_guided_eye_result_applied = true;
     }
     (void)sg_eye_select_result(
         &s_eye_continuous_result, &s_guided_eye_result,
         s_guided_eye_result_us, now_us, &out->eye_metrics);
-    (void)sg_screening_session_tongue_result(
-        &s_screening, &out->tongue_metrics);
+    sg_camera_modal_metrics_t guided_tongue = {};
+    if (sg_screening_session_tongue_result(&s_screening, &guided_tongue)
+        && guided_tongue.valid) {
+        s_guided_tongue_result = guided_tongue;
+    } else if (current_stage == SG_STAGE_ERROR
+               && previous_stage == SG_STAGE_TONGUE) {
+        std::memset(&s_guided_tongue_result, 0,
+                    sizeof(s_guided_tongue_result));
+    }
+    out->tongue_metrics = s_guided_tongue_result;
     out->screening.stage = current_stage;
     out->screening.progress = sg_screening_session_progress(
         &s_screening, now_us);

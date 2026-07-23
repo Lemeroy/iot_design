@@ -82,6 +82,10 @@ result computed locally from ESP-WHO five-point landmarks.
   action is not completed, T remains unavailable and is excluded from fusion.
   A lip-colored region that does not extend below the mouth line is rejected;
   it cannot produce a centered T=100 result.
+- Starting a new guided run does not blank the last valid E/T/S values. New
+  valid results replace them; an incomplete tongue action clears T and excludes
+  it from fusion. Speech remains available for up to five minutes and uses a
+  preliminary, unvalidated calibration that must be measured in M6.
 - NMO432 logs aggregate RMS, peak, and valid-block counts every five seconds.
   These are electrical diagnostics, not a speech-risk score.
 - S remains unavailable without an evaluated versioned model.

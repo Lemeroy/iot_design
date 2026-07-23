@@ -76,6 +76,8 @@ If the tongue stage times out without three valid samples, the session enters
 to fusion.
 The tongue color candidate must also extend below the detected mouth line;
 lip-colored regions without protrusion remain unavailable.
+During a new guided run, the previous valid E/T values remain visible until
+replacement results are ready. A tongue-stage failure clears T immediately.
 
 The F feature requires a face at least 64 pixels wide, sufficient eye spacing,
 a near-frontal nose position, and eye-line roll within 25 degrees. It removes
