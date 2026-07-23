@@ -27,13 +27,14 @@ def test_camera_coprocessor_is_polled_locally_with_validity():
 
     assert '#include "camera_coprocessor.h"' in app
     assert "sg_camera_coprocessor_init" in app
-    assert "UART_NUM_1" in source
-    assert "GPIO_NUM_9" in source
-    assert "115200" in source
-    assert "sg_camera_uart_stream_feed" in source
-    assert "SG_CAMERA_UART_FRESH_US 2000000LL" in source
-    assert "i2c_master_transmit" not in source
-    assert "i2c_master_receive" not in source
+    assert "i2c_new_master_bus" in source
+    assert "i2c_master_transmit(" in source
+    assert "i2c_master_receive(" in source
+    assert "i2c_master_transmit_receive" not in source
+    assert "SG_CAMERA_REGISTER_SETTLE_MS" in source
+    assert "SG_CAMERA_FACE_METRICS_REGISTER" in source
+    assert "sg_camera_face_metrics_parse" in source
+    assert "sg_camera_face_bbox_parse" not in source
     assert "fabsf" in source
     assert "observation.score" in source
     assert "observation.mouth_angle_deg" in source
@@ -58,12 +59,15 @@ def test_guided_camera_scores_and_control_are_bridged_locally():
     for token in (
         "sg_camera_coprocessor_control",
         "sg_camera_coprocessor_stage",
-        "uart_flush_input",
-        "s_last_received_us = 0",
-        "camera UART session armed",
+        "SG_CAMERA_CONTROL_REGISTER",
+        "SG_CAMERA_EYE_REGISTER",
+        "SG_CAMERA_TONGUE_REGISTER",
+        "SG_CAMERA_STAGE_REGISTER",
+        "sg_camera_modal_parse",
+        "sg_camera_stage_parse",
     ):
         assert token in camera_h or token in camera_c
-    assert "i2c_master_transmit" not in camera_c
+    assert "i2c_master_transmit(s_device, command" in camera_c
     assert "observation.eye.valid" in camera_c
     assert "observation.tongue.valid" in camera_c
     assert "sg_mqtt_downlink_t" in mqtt_h

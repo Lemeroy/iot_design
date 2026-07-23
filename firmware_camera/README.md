@@ -5,9 +5,9 @@ This ESP-IDF v5.5.3 project targets the Hiwonder ESP32-S3-Cam board
 `esp32-camera` YUV422 capture, local PSRAM RGB888 conversion, and ESP-WHO
 `human_face_detect`. It computes a quality-gated FAST Face (F) engineering
 score from ESP-WHO's five landmarks and a volatile personal neutral baseline.
-During a locally guided session it also computes pupil-motion E and auxiliary
-tongue-deviation T scores, then exposes only numeric results to the N16R8 main
-controller over a one-way UART score stream.
+During an explicitly started guided session it also computes local pupil-motion
+E and auxiliary tongue-deviation T scores, then exposes only numeric results to
+the N16R8 main controller over I2C.
 
 Raw images are not uploaded. The normal device output is face presence and
 normalized geometry only. An explicit USB debug session may send requested
@@ -23,15 +23,9 @@ boards disconnected. Share ground.
 
 | Camera board signal | Camera GPIO | N16R8 GPIO |
 | --- | ---: | ---: |
-| UART1 TX | 48 | 9 (UART1 RX) |
-| SDA / I2C | 47 | disconnected |
+| SDA | 47 | 8 |
+| SCL | 48 | 9 |
 | GND | GND | GND |
-
-Both boards use independent USB power. Do not connect 5 V between boards.
-The signal cable is only camera GPIO48 TX to N16R8 GPIO9 RX plus common GND.
-Camera GPIO47/SDA stays disconnected.
-The score stream is `115200 8N1`, numeric-only, with a CRC-protected 20-byte
-frame. No external pull-up resistor is required for this link.
 
 The camera's internal GC2145 DVP/SCCB pins are configured in
 `main/camera_capture_adapter.cpp` from the vendor example:
@@ -54,20 +48,24 @@ testing showed that the two-buffer latest-frame mode spliced DMA regions from
 different frames. The resulting frame rate and inference latency are pending
 final measurement.
 
-## UART Score Protocol
+## I2C Protocol
 
-The camera sends one CRC-protected binary frame every 200 ms on UART1:
+The camera board is the I2C target on GPIO47/GPIO48:
 
 ```text
-magic: 0x53 0x47
-version: 1
-length: 20 bytes
-payload: sequence, valid F/E/T scores, signed details, quality, stage, progress
-trailer: CRC16-CCITT little-endian
+address:  0x52
+register 0x01: 4 bytes: center_x, center_y, width, height
+register 0x02: 4 bytes: status, F_score, signed_mouth_angle, quality
+register 0x03: 4 bytes: status, E_score, binocular_difference, quality
+register 0x04: 4 bytes: status, T_score, signed_offset_percent, quality
+register 0x10: write 2 bytes: register, start(1)/cancel(0)
+register 0x11: 4 bytes: stage, progress, 0, 0
 ```
 
-Scores and quality are `0..100`; signed details are engineering diagnostics.
-Invalid modalities are marked unavailable rather than converted to zero.
+Register `0x01` values are normalized to `0..255`; all zeros mean no face.
+For register `0x02`, status `1` means the remaining values are valid and
+status `0` means F is unavailable. Score and quality are `0..100`; angle is a
+signed degree value in `-90..90`. N16R8 uses register `0x02` for fusion.
 
 Stages are `idle`, `face`, `eye-center`, `eye-left`, `eye-right`, `tongue`,
 `done`, and `error`. E and T remain unavailable outside a guided session or
@@ -108,4 +106,4 @@ host_pc\.venv\Scripts\python.exe host_pc\tools\camera_usb_preview.py --port COM4
 The debug protocol uses `921600 8N1`. The PC requests one JPEG at a time, so
 preview work stops when the window disconnects. Images remain on the directly
 connected PC, are not saved, and are not uploaded to MQTT, VPS, or the large
-model. USB preview is independent of the UART score stream.
+model. I2C numeric F polling at `0x52`/`0x02` continues during preview.

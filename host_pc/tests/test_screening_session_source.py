@@ -56,3 +56,24 @@ def test_detector_uses_balanced_thresholds_and_preview_bbox_hysteresis() -> None
     assert "set_score_thr(SG_FACE_LANDMARK_SCORE_THRESHOLD, 1)" in source
     assert "SG_FACE_BBOX_HOLD_FRAMES = 2" in source
     assert "s_bbox_miss_count" in source
+
+
+def test_guided_screening_stays_idle_until_explicit_start_control() -> None:
+    source = ADAPTER.read_text(encoding="utf-8")
+    init_start = source.index('extern "C" esp_err_t sg_camera_capture_init')
+    control_start = source.index(
+        'extern "C" esp_err_t sg_camera_capture_control', init_start
+    )
+    observe_start = source.index(
+        'extern "C" esp_err_t sg_camera_capture_observe', control_start
+    )
+    init_function = source[init_start:control_start]
+    control_function = source[control_start:observe_start]
+    observe_function = source[observe_start:]
+
+    assert "sg_screening_session_cancel(&s_screening)" in init_function
+    assert "sg_screening_session_start(&s_screening" not in init_function
+    assert "sg_screening_session_start(&s_screening" in control_function
+    assert "automatic screening cycle" not in source
+    assert "SG_CAMERA_AUTO_RESTART_US" not in source
+    assert "s_auto_restart_deadline_us" not in observe_function

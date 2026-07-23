@@ -8,7 +8,7 @@ namespace {
 
 constexpr int kMinFaceWidth = 64;
 constexpr float kMinEyeDistance = 20.0f;
-constexpr float kMaxEyeRollDeg = 25.0f;
+constexpr float kMaxEyeRollDeg = 12.0f;
 constexpr float kAngleHealthyDeg = 2.0f;
 constexpr float kAngleZeroDeg = 20.0f;
 constexpr float kAsymmetryHealthy = 0.05f;

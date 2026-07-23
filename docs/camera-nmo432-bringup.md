@@ -8,12 +8,12 @@
 - ST7789, MAX98357A, RGB, buzzer, and buttons are not used.
 
 Power off before changing wiring. All modules must share GND. Verify the
-camera expansion-board UART connector order and 3.3 V logic level before power.
+camera expansion-board I2C connector order and 3.3 V logic level before power.
 
 | Signal | Peripheral | N16R8 |
 | --- | --- | --- |
-| Camera UART1 TX | camera GPIO48 | GPIO9 (UART1 RX) |
-| Camera SDA / I2C | camera GPIO47 | disconnected |
+| Camera SDA | camera GPIO47 | GPIO8 |
+| Camera SCL | camera GPIO48 | GPIO9 |
 | Camera ground | GND | GND |
 | NMO432 SCK | SCK | GPIO17 |
 | NMO432 WS | WS | GPIO18 |
@@ -42,9 +42,8 @@ idf.py -p COM4 flash monitor
 
 The camera expansion board must use its own USB serial port, not COM3. Do not
 run `erase-flash` unless intentionally clearing all local configuration. Keep
-the inter-board 5 V jumper disconnected; both boards use independent USB power
-and share only GND plus the one-way UART wire. The UART link is `115200 8N1`;
-GPIO47/SDA remains disconnected and needs no external pull-up resistor.
+the inter-board 5 V jumper disconnected; both boards are powered by USB and
+share only GND plus I2C.
 
 ## Local camera preview
 
@@ -56,16 +55,16 @@ host_pc\.venv\Scripts\python.exe host_pc\tools\camera_usb_preview.py --port COM4
 ```
 
 The camera preview uses `921600 8N1`. It requests one JPEG at a time and does
-not record or upload frames. The N16R8 connection is separate: UART1 score
-reception on GPIO9 continues while the PC preview window is connected. The displayed box is
+not record or upload frames. The N16R8 connection is separate: I2C remains active
+on GPIO8/GPIO9 while the PC preview window is connected. The displayed box is
 face-presence geometry only. The production F score is a separate numeric
 result computed locally from ESP-WHO five-point landmarks.
 
 ## Expected behavior
 
-- Camera GPIO48 sends the numeric F/E/T/stage frame to N16R8 GPIO9 at
-  `115200 8N1`. N16R8 validates the CRC and marks the modalities unavailable
-  after two seconds without a valid frame.
+- Camera I2C address is `0x52`; bbox register `0x01` remains for debugging.
+  N16R8 polls F `0x02`, E `0x03`, T `0x04`, and stage `0x11`. It controls a
+  session by writing `0x10,1` (start) or `0x10,0` (cancel).
 - Camera firmware runs local GC2145 capture plus ESP-WHO human face detection
   and retains the normalized bbox for USB preview.
 - ESP-WHO's two eyes, nose, and two mouth corners feed quality gating,
@@ -75,8 +74,7 @@ result computed locally from ESP-WHO five-point landmarks.
 - The five-point F result is an initial risk feature, not a diagnosis or a
   replacement for evaluated 68-point analysis. Its thresholds and accuracy
   remain pending measured calibration.
-- Web start arms only the N16R8 fusion session; the camera continuously cycles
-  its local guided stages. A guided session asks for frontal face, center gaze, left gaze, right gaze,
+- A guided session asks for frontal face, center gaze, left gaze, right gaze,
   and tongue extension. E uses local pupil ROIs; T uses a local lower-face
   color component. Invalid regions remain unavailable rather than healthy.
 - E is an ocular-movement risk prompt and does not test visual fields. T is
@@ -90,8 +88,8 @@ result computed locally from ESP-WHO five-point landmarks.
 ## Acceptance
 
 1. Run both boards for 30 minutes without resets.
-2. Disconnect the UART signal wire; CSI, Wi-Fi, MQTT, and NMO432 must continue.
-3. Reconnect GPIO48 TX to GPIO9 RX; fresh F/E/T frames must recover without reboot.
+2. Disconnect camera I2C; CSI, Wi-Fi, MQTT, and NMO432 must continue.
+3. Reconnect I2C; camera communication must recover without reboot.
 4. Speak near NMO432 and verify RMS/peak change; silence must not create S.
 5. Confirm MQTT and InfluxDB contain no JPEG, PCM, MFCC, or raw media.
 6. Hold a well-lit frontal face steady for five valid frames and verify COM3

@@ -89,6 +89,15 @@ static void fill_speech_like(int16_t *samples, unsigned frame)
     }
 }
 
+static void fill_broadband_noise(int16_t *samples, unsigned frame)
+{
+    uint32_t state = 0x9e3779b9U ^ (frame + 1U);
+    for (size_t i = 0; i < SG_SPEECH_FRAME_SAMPLES; ++i) {
+        state = state * 1664525U + 1013904223U;
+        samples[i] = (int16_t)((int32_t)(state >> 20) - 2048);
+    }
+}
+
 static sg_speech_result_t run_speech_frames(unsigned frames, bool clipped)
 {
     sg_speech_context_t context;
@@ -148,6 +157,24 @@ TEST_CASE("speech-like utterance produces bounded score", "[speech]")
     TEST_ASSERT_TRUE(result.available);
     TEST_ASSERT_UINT8_WITHIN(50, 50, result.score);
     TEST_ASSERT_FLOAT_WITHIN(0.01f, result.score / 100.0f, result.p_clear);
+}
+
+TEST_CASE("continuous broadband noise cannot receive a high speech score",
+          "[speech]")
+{
+    sg_speech_context_t context;
+    sg_speech_result_t result;
+    int16_t samples[SG_SPEECH_FRAME_SAMPLES];
+    sg_speech_screening_init(&context);
+    sg_speech_screening_start(&context);
+    for (unsigned frame = 0; frame < SG_SPEECH_MAX_FRAMES; ++frame) {
+        if (frame < SG_SPEECH_NOISE_FRAMES) fill_silence(samples);
+        else fill_broadband_noise(samples, frame);
+        sg_speech_screening_process(&context, samples,
+                                    SG_SPEECH_FRAME_SAMPLES);
+    }
+    sg_speech_screening_snapshot(&context, &result);
+    TEST_ASSERT_TRUE(!result.available || result.score <= 35U);
 }
 
 TEST_CASE("cancel clears partial speech result", "[speech]")

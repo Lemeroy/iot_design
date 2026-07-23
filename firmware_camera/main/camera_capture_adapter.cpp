@@ -28,7 +28,6 @@ static constexpr uint32_t SG_FACE_REJECT_LOG_INTERVAL = 10;
 static constexpr float SG_FACE_PROPOSAL_SCORE_THRESHOLD = 0.40f;
 static constexpr float SG_FACE_LANDMARK_SCORE_THRESHOLD = 0.45f;
 static constexpr uint8_t SG_FACE_BBOX_HOLD_FRAMES = 2;
-#define SG_CAMERA_AUTO_RESTART_US 2000000LL
 
 static HumanFaceDetect *s_model;
 static uint8_t *s_rgb888;
@@ -45,7 +44,6 @@ static sg_eye_continuous_context_t s_eye_continuous;
 static sg_eye_continuous_result_t s_eye_continuous_result;
 static sg_camera_modal_metrics_t s_guided_eye_result;
 static int64_t s_guided_eye_result_us = -1;
-static int64_t s_auto_restart_deadline_us = -1;
 
 static void note_face_rejection(const char *reason)
 {
@@ -194,8 +192,8 @@ extern "C" esp_err_t sg_camera_capture_init(void)
     }
     ESP_LOGI(TAG, "GC2145 YUV422 + RGB888 human_face_detect ready");
     sg_eye_continuous_init(&s_eye_continuous);
-    sg_screening_session_start(&s_screening, esp_timer_get_time());
-    ESP_LOGI(TAG, "automatic screening cycle started");
+    sg_screening_session_cancel(&s_screening);
+    ESP_LOGI(TAG, "guided screening idle; waiting for start control");
     return ESP_OK;
 }
 
@@ -406,20 +404,6 @@ extern "C" esp_err_t sg_camera_capture_observe(sg_camera_source_observation_t *o
     if (current_stage != previous_stage) {
         ESP_LOGI(TAG, "screening stage %u -> %u",
                  (unsigned)previous_stage, (unsigned)current_stage);
-    }
-    if (current_stage == SG_STAGE_DONE || current_stage == SG_STAGE_ERROR) {
-        if (s_auto_restart_deadline_us < 0) {
-            s_auto_restart_deadline_us = now_us + SG_CAMERA_AUTO_RESTART_US;
-        } else if (now_us >= s_auto_restart_deadline_us) {
-            sg_screening_session_start(&s_screening, now_us);
-            std::memset(&s_guided_eye_result, 0, sizeof(s_guided_eye_result));
-            s_guided_eye_result_us = -1;
-            s_auto_restart_deadline_us = -1;
-            current_stage = SG_STAGE_FACE;
-            ESP_LOGI(TAG, "automatic screening cycle restarted");
-        }
-    } else {
-        s_auto_restart_deadline_us = -1;
     }
     sg_camera_modal_metrics_t guided_eye = {};
     if (sg_screening_session_eye_result(&s_screening, &guided_eye)

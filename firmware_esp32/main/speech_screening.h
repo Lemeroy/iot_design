@@ -22,6 +22,7 @@ typedef enum {
     SG_SPEECH_REASON_TOO_QUIET,
     SG_SPEECH_REASON_CLIPPED,
     SG_SPEECH_REASON_IO_ERROR,
+    SG_SPEECH_REASON_NON_SPEECH,
 } sg_speech_reason_t;
 
 typedef struct {

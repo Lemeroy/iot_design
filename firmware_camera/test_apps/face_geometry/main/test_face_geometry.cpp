@@ -54,6 +54,17 @@ TEST_CASE("equal eye and mouth roll is corrected", "[face_geometry]")
     TEST_ASSERT_GREATER_OR_EQUAL_UINT8(85, out.score);
 }
 
+TEST_CASE("excessive head roll is rejected for repositioning", "[face_geometry]")
+{
+    auto input = frontal_face();
+    input.left_eye = {100, 75};
+    input.right_eye = {220, 105};
+    input.left_mouth = {125, 155};
+    input.right_mouth = {195, 173};
+    sg_face_frame_metrics_t out = {};
+    TEST_ASSERT_FALSE(sg_face_geometry_evaluate(&input, &out));
+}
+
 TEST_CASE("quality gate rejects small face", "[face_geometry]")
 {
     auto input = frontal_face();
@@ -259,6 +270,29 @@ TEST_CASE("relative score responds after three frames", "[face_baseline]")
     TEST_ASSERT_TRUE(sg_face_baseline_update(&state, &changed, 6000000LL, &out));
     TEST_ASSERT_TRUE(sg_face_baseline_update(&state, &changed, 6500000LL, &out));
     TEST_ASSERT_LESS_OR_EQUAL_UINT8(5, out.score);
+}
+
+TEST_CASE("stable mouth droop cannot be normalized into a healthy baseline",
+          "[face_baseline]")
+{
+    sg_face_baseline_t state = {};
+    sg_face_frame_metrics_t out = {};
+    const sg_face_frame_metrics_t drooped = {
+        .score = 20,
+        .mouth_angle_deg = 15.0f,
+        .corner_asymmetry = 0.20f,
+        .quality = 85,
+    };
+
+    for (size_t i = 0; i < SG_FACE_BASELINE_CALIBRATION_SAMPLES; ++i) {
+        TEST_ASSERT_FALSE(sg_face_baseline_update(
+            &state, &drooped, 1000000LL + (int64_t)i * 500000LL, &out));
+    }
+    TEST_ASSERT_TRUE(sg_face_baseline_ready(&state));
+    TEST_ASSERT_FALSE(sg_face_baseline_update(&state, &drooped, 4000000LL, &out));
+    TEST_ASSERT_FALSE(sg_face_baseline_update(&state, &drooped, 4500000LL, &out));
+    TEST_ASSERT_TRUE(sg_face_baseline_update(&state, &drooped, 5000000LL, &out));
+    TEST_ASSERT_LESS_OR_EQUAL_UINT8(20, out.score);
 }
 
 TEST_CASE("personal baseline survives brief gap and resets at ten seconds", "[face_baseline]")

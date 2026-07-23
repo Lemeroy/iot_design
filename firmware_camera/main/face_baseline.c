@@ -188,7 +188,8 @@ bool sg_face_baseline_update(
     const float asymmetry_score = descending_score(
         asymmetry_delta, SG_FACE_RELATIVE_ASYMMETRY_HEALTHY,
         SG_FACE_RELATIVE_ASYMMETRY_ZERO);
-    const uint8_t relative_score = bounded_round(
+    uint8_t relative_score = bounded_round(
         0.75f * angle_score + 0.25f * asymmetry_score);
+    if (sample->score < relative_score) relative_score = sample->score;
     return output_add(state, sample, relative_score, out);
 }

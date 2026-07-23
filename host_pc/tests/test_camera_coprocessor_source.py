@@ -12,53 +12,32 @@ def _control_function() -> str:
     return source[start:end]
 
 
-def test_camera_scores_arrive_on_uart1_gpio9_with_crc_stream_parser() -> None:
+def _read_register_function() -> str:
     source = SOURCE.read_text(encoding="utf-8")
-
-    for token in (
-        "UART_NUM_1",
-        "GPIO_NUM_9",
-        "115200",
-        "sg_camera_uart_stream_feed",
-        "SG_CAMERA_UART_FRESH_US 2000000LL",
-        "uart_read_bytes",
-    ):
-        assert token in source
-    assert "i2c_master_transmit" not in source
-    assert "i2c_master_receive" not in source
+    start = source.index("static esp_err_t read_register")
+    end = source.index("static void publish_unavailable", start)
+    return source[start:end]
 
 
-def test_camera_uart_timeout_reports_raw_and_valid_packet_counts() -> None:
+def test_control_waits_for_expected_camera_stage_with_bounded_retries() -> None:
     source = SOURCE.read_text(encoding="utf-8")
-
-    assert "raw_bytes=%u valid_packets=%u" in source
-    assert "s_raw_bytes_since_log" in source
-    assert "s_valid_packets_since_log" in source
-
-
-def test_screening_control_clears_uart_freshness_locally() -> None:
     function = _control_function()
 
-    assert "uart_flush_input" in function
-    assert "camera UART session armed" in function
-    assert "s_last_received_us = 0" in function
+    assert "SG_CAMERA_CONTROL_CONFIRM_RETRIES" in source
+    assert "SG_CAMERA_CONTROL_CONFIRM_DELAY_MS" in source
+    assert "SG_CAMERA_STAGE_REGISTER" in function
+    assert "sg_camera_stage_parse" in function
+    assert "SG_STAGE_FACE" in function
+    assert "SG_STAGE_IDLE" in function
+    assert "ESP_ERR_TIMEOUT" in function
 
 
-def test_control_is_explicitly_local_for_one_way_transport() -> None:
+def test_control_logs_only_after_stage_confirmation() -> None:
     function = _control_function()
 
-    assert "camera UART session armed" in function
-    assert "screening control confirmed" not in function
-    assert "i2c_master_transmit" not in function
-    assert "return ESP_OK" in function
-
-
-def test_control_flushes_transport_before_reporting_session_armed() -> None:
-    function = _control_function()
-
-    flushed = function.index("uart_flush_input")
-    armed = function.index("camera UART session armed")
-    assert armed > flushed
+    confirmed = function.index("screening control confirmed")
+    stage_parse = function.index("sg_camera_stage_parse")
+    assert confirmed > stage_parse
 
 
 def test_face_hold_is_five_seconds_but_transport_failure_clears_scores() -> None:
@@ -71,3 +50,11 @@ def test_face_hold_is_five_seconds_but_transport_failure_clears_scores() -> None
     assert "SG_CAMERA_FACE_HOLD_US 5000000LL" in source
     assert "now_us - face_seen_us > SG_CAMERA_FACE_HOLD_US" in source
     assert "publish_unavailable(now_us)" in error_branch
+
+
+def test_register_read_resets_stuck_i2c_bus_and_retries_once() -> None:
+    function = _read_register_function()
+
+    assert "i2c_master_bus_reset(s_bus)" in function
+    assert function.count("i2c_master_transmit(") == 2
+    assert "if (err != ESP_OK) return err" in function

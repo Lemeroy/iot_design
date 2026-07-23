@@ -188,11 +188,10 @@ cd host_pc
 
 ### Camera score link
 
-The camera board and N16R8 use independent USB power. Connect common GND and
-one signal wire: camera `GPIO48 TX` to N16R8 `GPIO9 RX` on UART1 at `115200 8N1`.
-Leave camera `GPIO47/SDA` disconnected; this score link does not need external
-pull-up resistors. The camera sends CRC-protected numeric F/E/T/stage frames;
-the N16R8 marks them unavailable after two seconds without a valid frame.
+The camera board and N16R8 use independent USB power and share GND. Connect
+camera `GPIO47/SDA` to N16R8 `GPIO8/SDA` and camera `GPIO48/SCL` to N16R8
+`GPIO9/SCL`. The camera is the I2C target at address `0x52`; only numeric
+F/E/T/stage values cross this link. Raw images remain local.
 
 The authenticated preliminary monitor connects by device ID only after a valid
 MQTT uplink in the last 30 seconds. It synchronizes numeric scores, screening
