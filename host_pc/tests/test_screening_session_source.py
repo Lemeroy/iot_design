@@ -77,3 +77,14 @@ def test_guided_screening_stays_idle_until_explicit_start_control() -> None:
     assert "automatic screening cycle" not in source
     assert "SG_CAMERA_AUTO_RESTART_US" not in source
     assert "s_auto_restart_deadline_us" not in observe_function
+
+
+def test_tongue_timeout_keeps_tongue_unavailable_for_fusion() -> None:
+    source = SESSION.read_text(encoding="utf-8")
+    tongue_stage = source.index("case SG_STAGE_TONGUE:")
+    done_stage = source.index("enter_stage(session, SG_STAGE_DONE", tongue_stage)
+    tongue_completion = source[tongue_stage:done_stage]
+
+    assert "session->sample_count" in tongue_completion
+    assert "session->tongue_result.valid = true" in tongue_completion
+    assert "enter_stage(session, SG_STAGE_ERROR" in source

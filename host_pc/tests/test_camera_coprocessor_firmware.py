@@ -129,6 +129,15 @@ def test_camera_has_quality_gated_five_point_geometry_module():
         assert token in source
 
 
+def test_face_geometry_scores_compensated_corner_height_asymmetry():
+    source = read("face_geometry.cpp")
+
+    assert "corner_height" in source
+    assert "kCornerHeightHealthy" in source
+    assert "kCornerHeightZero" in source
+    assert "std::min" in source
+
+
 def test_camera_has_volatile_personal_face_baseline():
     header = read("face_baseline.h")
     source = read("face_baseline.c")

@@ -41,6 +41,15 @@ TEST_CASE("displaced mouth corner lowers F", "[face_geometry]")
     TEST_ASSERT_LESS_OR_EQUAL_UINT8(25, out.score);
 }
 
+TEST_CASE("moderate one-sided mouth drop lowers F", "[face_geometry]")
+{
+    auto input = frontal_face();
+    input.right_mouth.y = 186;
+    sg_face_frame_metrics_t out = {};
+    TEST_ASSERT_TRUE(sg_face_geometry_evaluate(&input, &out));
+    TEST_ASSERT_LESS_OR_EQUAL_UINT8(35, out.score);
+}
+
 TEST_CASE("equal eye and mouth roll is corrected", "[face_geometry]")
 {
     auto input = frontal_face();

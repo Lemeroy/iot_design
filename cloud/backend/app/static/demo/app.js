@@ -1,6 +1,8 @@
 (() => {
   "use strict";
 
+  const TONGUE_INCOMPLETE_COPY = "动作未完成，T 未计入融合";
+
   const POLLING_MS = 5000;
   const views = {
     login: document.querySelector("#login-view"),
@@ -91,7 +93,8 @@
     const [instruction, progress] = speechPending
       ? ["初赛声学筛查 · 请朗读：今天的天气很好", 90]
       : stageContent[normalized];
-    document.querySelector("#screening-instruction").textContent = instruction;
+    document.querySelector("#screening-instruction").textContent =
+      normalized === 7 ? TONGUE_INCOMPLETE_COPY : instruction;
     document.querySelector("#screening-progress").value = progress;
     const active = (normalized >= 1 && normalized <= 5) || speechPending;
     document.querySelector("#screening-start").disabled = !online || active;

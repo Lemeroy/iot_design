@@ -78,7 +78,8 @@ result computed locally from ESP-WHO five-point landmarks.
   and tongue extension. E uses local pupil ROIs; T uses a local lower-face
   color component. Invalid regions remain unavailable rather than healthy.
 - E is an ocular-movement risk prompt and does not test visual fields. T is
-  auxiliary only and never causes a single-item danger result.
+  auxiliary only and never causes a single-item danger result. If the tongue
+  action is not completed, T remains unavailable and is excluded from fusion.
 - NMO432 logs aggregate RMS, peak, and valid-block counts every five seconds.
   These are electrical diagnostics, not a speech-risk score.
 - S remains unavailable without an evaluated versioned model.

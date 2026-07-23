@@ -13,6 +13,8 @@ constexpr float kAngleHealthyDeg = 2.0f;
 constexpr float kAngleZeroDeg = 20.0f;
 constexpr float kAsymmetryHealthy = 0.05f;
 constexpr float kAsymmetryZero = 0.35f;
+constexpr float kCornerHeightHealthy = 0.02f;
+constexpr float kCornerHeightZero = 0.18f;
 constexpr float kRadToDeg = 57.29577951308232f;
 
 float point_distance(const sg_face_point_t &a, const sg_face_point_t &b)
@@ -93,6 +95,17 @@ extern "C" bool sg_face_geometry_evaluate(
 
     const float mouth_angle = normalize_half_turn(
         line_angle_deg(input->left_mouth, input->right_mouth) - eye_angle);
+    const float eye_line_slope = std::tan(eye_angle / kRadToDeg);
+    const float left_eye_line_y = (float)input->left_eye.y
+        + (input->left_mouth.x - input->left_eye.x) * eye_line_slope;
+    const float right_eye_line_y = (float)input->left_eye.y
+        + (input->right_mouth.x - input->left_eye.x) * eye_line_slope;
+    const float left_corner_height =
+        ((float)input->left_mouth.y - left_eye_line_y) / eye_distance;
+    const float right_corner_height =
+        ((float)input->right_mouth.y - right_eye_line_y) / eye_distance;
+    const float corner_height_asymmetry = std::fabs(
+        left_corner_height - right_corner_height);
     const float left_distance = point_distance(input->nose, input->left_mouth);
     const float right_distance = point_distance(input->nose, input->right_mouth);
     const float distance_sum = left_distance + right_distance;
@@ -104,6 +117,8 @@ extern "C" bool sg_face_geometry_evaluate(
         std::fabs(mouth_angle), kAngleHealthyDeg, kAngleZeroDeg);
     const float asymmetry_score = descending_score(
         corner_asymmetry, kAsymmetryHealthy, kAsymmetryZero);
+    const float corner_height_score = descending_score(
+        corner_height_asymmetry, kCornerHeightHealthy, kCornerHeightZero);
 
     const float size_quality = std::clamp(
         100.0f * (face_width - kMinFaceWidth) / 96.0f, 0.0f, 100.0f);
@@ -117,7 +132,8 @@ extern "C" bool sg_face_geometry_evaluate(
         100.0f * (1.0f - std::fabs(eye_angle) / kMaxEyeRollDeg),
         0.0f, 100.0f);
 
-    out->score = rounded_u8(0.75f * angle_score + 0.25f * asymmetry_score);
+    out->score = rounded_u8(std::min({
+        angle_score, asymmetry_score, corner_height_score}));
     out->mouth_angle_deg = mouth_angle;
     out->corner_asymmetry = corner_asymmetry;
     out->quality = rounded_u8(

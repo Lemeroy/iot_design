@@ -183,6 +183,10 @@ static bool complete_stage(sg_screening_session_t *session, int64_t now_us)
         enter_stage(session, SG_STAGE_TONGUE, now_us);
         return true;
     case SG_STAGE_TONGUE: {
+        if (session->sample_count < SG_SCREENING_STABLE_SAMPLES) {
+            enter_stage(session, SG_STAGE_ERROR, now_us);
+            return false;
+        }
         const sg_tongue_measurement_t result = median_tongue(session->tongue_samples);
         session->tongue_result.valid = true;
         session->tongue_result.score = result.score;

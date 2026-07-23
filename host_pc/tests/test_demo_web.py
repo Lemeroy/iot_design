@@ -89,6 +89,12 @@ def test_demo_web_supports_guided_screening_with_websocket_fallback():
         assert forbidden not in script
 
 
+def test_demo_explains_tongue_incomplete_is_excluded_from_fusion():
+    script = _read(STATIC / "app.js")
+
+    assert "T 未计入融合" in script
+
+
 def test_demo_web_waits_for_a_new_fusion_before_showing_advice():
     script = _read(STATIC / "app.js")
 
