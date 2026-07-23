@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -7,6 +8,45 @@ MAIN = ROOT / "firmware_esp32" / "main"
 
 def read(name: str) -> str:
     return (MAIN / name).read_text(encoding="utf-8")
+
+
+def csi_define(name: str) -> float:
+    config = read("app_config.h")
+    match = re.search(rf"#define\s+{name}\s+([0-9.]+)f?", config)
+    assert match is not None, f"missing {name}"
+    return float(match.group(1))
+
+
+def csi_score(cv: float, cvar: float, motion: float) -> float:
+    amp = max(0.0, 100.0 - csi_define("SG_CSI_K_AMP_CV") * cv)
+    phase = max(0.0, 100.0 - csi_define("SG_CSI_K_PHASE_VAR") * cvar)
+    motion_score = max(0.0, 100.0 - csi_define("SG_CSI_K_MOTION") * motion)
+    return (
+        csi_define("SG_CSI_W_AMP_CV") * amp
+        + csi_define("SG_CSI_W_PHASE_VAR") * phase
+        + csi_define("SG_CSI_W_MOTION_BAND") * motion_score
+    )
+
+
+def test_csi_uses_a_real_five_second_window_at_measured_packet_rate():
+    assert csi_define("SG_CSI_WINDOW_MAX") == 55
+
+
+def test_csi_calibration_separates_measured_static_and_vigorous_motion():
+    # COM3 measurements on 2026-07-23. Absolute single-carrier phase was noisy
+    # even while static, so it must not dominate the preliminary B score.
+    static = csi_score(cv=0.026, cvar=0.928, motion=0.032)
+    vigorous = csi_score(cv=0.198, cvar=0.903, motion=0.278)
+
+    assert static >= 75
+    assert vigorous < 30
+    assert static - vigorous >= 40
+    assert csi_define("SG_CSI_W_PHASE_VAR") <= 0.10
+
+
+def test_csi_latest_vigorous_motion_reaches_warning_threshold():
+    # Second COM3 run after shortening the window produced this milder peak.
+    assert csi_score(cv=0.169, cvar=0.946, motion=0.251) < 30
 
 
 def test_local_score_bus_is_wired_into_fusion():

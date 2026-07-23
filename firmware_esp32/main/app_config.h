@@ -5,7 +5,7 @@
 #pragma once
 
 /* ==== 固件版本 ==== */
-#define SG_FW_VERSION           "e1-0.5.0"
+#define SG_FW_VERSION           "e1-0.5.2"
 
 /* ==== USB-CDC 帧协议 v1 ==== */
 #define SG_FRAME_MAGIC0         0xA5
@@ -24,20 +24,20 @@
 
 /* ==== CSI 参数 (v0.3: RuView 借鉴, 三特征融合) ==== */
 #define SG_CSI_WINDOW_SEC       5
-#define SG_CSI_WINDOW_MAX       512   /* 滑窗最大样本数 */
+#define SG_CSI_WINDOW_MAX       55    /* 实测约 11 Hz，对应约 5 秒滑窗 */
 #define SG_CSI_MIN_SAMPLES      16    /* 至少这么多样本才出分 (~1.5s @ 10Hz) */
 #define SG_CSI_UPDATE_EVERY     5     /* 每 N 个新包更新一次分 */
 
 /* 三特征融合权重 (总和 = 1.0), 来源: RuView README 信号处理章节 */
-#define SG_CSI_W_AMP_CV         0.40f /* 幅度变异系数 (静止时 CV 小) */
-#define SG_CSI_W_PHASE_VAR      0.40f /* 相位方差 (unwrap 后, 抗 AGC) */
-#define SG_CSI_W_MOTION_BAND    0.20f /* 运动带能量 (差分平方和, 反映动作剧烈度) */
+#define SG_CSI_W_AMP_CV         0.50f /* 幅度变异系数 (静止时 CV 小) */
+#define SG_CSI_W_PHASE_VAR      0.00f /* 单子载波绝对相位实测不稳定，仅保留诊断 */
+#define SG_CSI_W_MOTION_BAND    0.50f /* 运动带能量 (差分平方和, 反映动作剧烈度) */
 
 /* 打分参数, 待实测标定 (M6);
  * v0.3.3: 相位改用圆方差 cvar in [0,1]. 静止 cvar~0.1, 动作 cvar~0.6 */
-#define SG_CSI_K_AMP_CV         180.0f  /* 静止 CV=0.25 -> 100-45=55 */
+#define SG_CSI_K_AMP_CV         400.0f  /* 2026-07-23 COM3 初赛实测标定，待 M6 扩样本 */
 #define SG_CSI_K_PHASE_VAR      100.0f  /* 静止 cvar=0.10 -> 90; 动作 0.5 -> 50 */
-#define SG_CSI_K_MOTION         120.0f  /* 静止 mot=0.30 -> 100-36=64 */
+#define SG_CSI_K_MOTION         320.0f  /* 2026-07-23 COM3 初赛实测标定，待 M6 扩样本 */
 
 /* ==== CSI Ping keep-alive (RuView 建议: 保证 CSI 包流量) ==== */
 #define SG_CSI_PING_INTERVAL_MS 100   /* 10 Hz ICMP ping 网关, CSI 采样率主要靠这个 */

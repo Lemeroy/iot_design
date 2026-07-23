@@ -218,7 +218,8 @@ esp_err_t sg_csi_start(void)
                             SG_TASK_CSI_PRIO, NULL,
                             SG_TASK_CSI_CORE);
 
-    ESP_LOGI(SG_TAG_CSI, "csi started (v0.3 3-feat fusion: amp_cv+phase_var+motion)");
+    ESP_LOGI(SG_TAG_CSI,
+             "csi started (v0.4 5s window: amp_cv+motion; phase diagnostic only)");
     return ESP_OK;
 }
 
